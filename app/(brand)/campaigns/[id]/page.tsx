@@ -1,0 +1,683 @@
+"use client"
+import { use, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { TopBar } from "@/components/layout/top-bar"
+import { useCampaignStore } from "@/lib/stores/campaigns"
+import { CAMPAIGN_METRICS, MONITOR_POSTS } from "@/lib/mock-data/metrics"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ActionsMenu } from "@/components/ui/actions-menu"
+import { toast } from "@/components/ui/toast"
+import { Card } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { AreaChart } from "@tremor/react"
+import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
+import {
+  ArrowLeft, Users, DollarSign, TrendingUp, Eye, Heart, Download,
+  CheckCircle, AlertTriangle, XCircle, Trophy, Star, Send, FileBarChart2, UserPlus,
+  LayoutGrid, List,
+} from "lucide-react"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { CouponTicket } from "@/components/ui/coupon-ticket"
+import { campaignStatusKey, participantStatusKey, useI18n } from "@/lib/i18n"
+import { SOCIAL_NETWORK_LABEL, type Campaign } from "@/lib/mock-data/campaigns"
+import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
+import { CampaignVisibilityPicker } from "@/components/campaigns/campaign-visibility-picker"
+import { InviteCreatorsSheet } from "@/components/campaigns/invite-creators-sheet"
+import { contentFormatByValue } from "@/lib/campaign-types"
+import { CREATORS } from "@/lib/mock-data/creators"
+import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
+import { CampaignAnalytics } from "@/components/campaigns/campaign-analytics"
+import { ContentCalendar } from "@/components/calendar/content-calendar"
+import { buildSchedule } from "@/lib/schedule"
+import { PostCard } from "@/components/posts/post-card"
+import { CreatorContact } from "@/components/creators/creator-contact"
+
+const CREATOR_PHOTOS: Record<string, string> = Object.fromEntries(
+  CREATORS.map((c: { id: string; photo: string }) => [c.id, c.photo])
+)
+
+const STATUS_COLORS: Record<string, string> = {
+  em_execucao: "bg-blue-50 text-blue-700", aberta: "bg-emerald-50 text-emerald-700",
+  rascunho: "bg-zinc-100 text-zinc-600", concluida: "bg-zinc-900 text-white",
+  cancelada: "bg-red-50 text-red-700", arquivada: "bg-zinc-100 text-zinc-500",
+}
+const P_STATUS_COLORS: Record<string, string> = {
+  convidado: "bg-zinc-100 text-zinc-600", candidato: "bg-yellow-50 text-yellow-700",
+  selecionado: "bg-zinc-900 text-white", recusado: "bg-red-50 text-red-700",
+  entregue: "bg-emerald-50 text-emerald-700",
+}
+const TIER_LABELS: Record<string, string> = { nano: "Nano", micro: "Micro", mid: "Mid", macro: "Macro", mega: "Mega" }
+const LEVEL_LABELS: Record<string, string> = { bronze: "Bronze", silver: "Prata", gold: "Ouro", platinum: "Platina" }
+
+const NetworkIcon = ({ network }: { network: string }) => {
+  if (network === "instagram") return <SiInstagram size={12} className="text-zinc-500" />
+  if (network === "tiktok") return <SiTiktok size={12} className="text-zinc-500" />
+  if (network === "youtube") return <SiYoutube size={12} className="text-zinc-500" />
+  return null
+}
+
+const AI_CONFIG = {
+  aprovado: { label: "Aprovado", icon: CheckCircle, classes: "text-emerald-600 bg-emerald-50" },
+  alerta: { label: "Alerta", icon: AlertTriangle, classes: "text-amber-600 bg-amber-50" },
+  reprovado: { label: "Reprovado", icon: XCircle, classes: "text-red-600 bg-red-50" },
+} as const
+
+function fmt(n: number) {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}k`
+  return n.toString()
+}
+
+function RoiCell({ roi }: { roi?: number }) {
+  if (roi === undefined) return <span className="text-zinc-300 text-xs">—</span>
+  const color = roi > 50 ? "text-emerald-700" : roi > 0 ? "text-zinc-700" : "text-red-600"
+  return (
+    <span className={cn("text-sm font-semibold", color)} title="ROI = (Receita – Fee) / Fee × 100">
+      {roi > 0 ? "+" : ""}{roi}%
+    </span>
+  )
+}
+
+function RankBadge({ rank }: { rank: number }) {
+  const colors = ["bg-yellow-400 text-yellow-900", "bg-zinc-300 text-zinc-700", "bg-orange-300 text-orange-900"]
+  if (rank <= 3) {
+    return (
+      <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold", colors[rank - 1])}>
+        {rank}
+      </span>
+    )
+  }
+  return <span className="text-xs text-zinc-400 w-6 text-center">{rank}</span>
+}
+
+function ParticipantsTable({ campaign }: { campaign: Campaign }) {
+  const { t } = useI18n()
+  const participants = campaign.participants
+  const addParticipant = useCampaignStore((s) => s.addParticipant)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<"reach" | "roi" | "revenue" | null>("reach")
+
+  const sorted = [...participants].sort((a, b) => {
+    if (!sortBy) return 0
+    if (sortBy === "reach") return (b.totalReach ?? 0) - (a.totalReach ?? 0)
+    if (sortBy === "roi") return (b.roi ?? -999) - (a.roi ?? -999)
+    if (sortBy === "revenue") return (b.revenue ?? 0) - (a.revenue ?? 0)
+    return 0
+  })
+
+  const total = sorted.filter((p) => p.totalReach)
+  const active = sorted.filter((p) => p.status !== "recusado" && p.status !== "convidado")
+
+  return (
+    <>
+      {/* KPIs above table */}
+      <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-1.5 text-sm text-zinc-600">
+          <Users size={14} className="text-zinc-400" />
+          <span className="font-semibold text-zinc-900">{participants.length}</span> creators na campanha
+        </div>
+        <div className="h-4 w-px bg-zinc-200" />
+        <div className="flex items-center gap-1.5 text-sm text-zinc-600">
+          <span className="font-semibold text-zinc-900">{active.length}</span> ativos
+        </div>
+        <div className="h-4 w-px bg-zinc-200" />
+        <div className="flex items-center gap-1.5 text-sm text-zinc-600">
+          <span className="font-semibold text-zinc-900">{total.length}</span> com posts entregues
+        </div>
+        <div className="flex-1" />
+        <ActionsMenu
+          items={[
+            { label: "Convidar creator", icon: UserPlus, onSelect: () => setInviteOpen(true) },
+            { label: "Exportar CSV", icon: Download },
+          ]}
+        />
+      </div>
+
+      <div className="rounded-xl border border-zinc-200 overflow-x-auto bg-white">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-zinc-50">
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">#</th>
+              <th className="py-2.5 px-4 text-xs font-medium text-zinc-500">Creator</th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Contato</th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Status</th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Tier · Nível</th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Fee</th>
+              <th
+                className="py-2.5 px-3 text-xs font-medium text-zinc-500 cursor-pointer hover:text-zinc-700 select-none"
+                onClick={() => setSortBy("reach")}
+              >
+                Alcance {sortBy === "reach" && "↓"}
+              </th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Posts</th>
+              <th
+                className="py-2.5 px-3 text-xs font-medium text-zinc-500 cursor-pointer hover:text-zinc-700 select-none"
+                onClick={() => setSortBy("revenue")}
+              >
+                Receita {sortBy === "revenue" && "↓"}
+              </th>
+              <th
+                className="py-2.5 px-3 text-xs font-medium text-zinc-500 cursor-pointer hover:text-zinc-700 select-none"
+                onClick={() => setSortBy("roi")}
+              >
+                ROI {sortBy === "roi" && "↓"}
+              </th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Cupom</th>
+              <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Último post</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((p, i) => {
+              const creator = CREATORS.find((item) => item.id === p.creatorId)
+              return (
+              <tr key={p.creatorId} className="border-t border-zinc-100 hover:bg-zinc-50">
+                <td className="py-2.5 px-3">
+                  {total.length > 0 && p.totalReach ? <RankBadge rank={i + 1} /> : <span className="text-xs text-zinc-300">—</span>}
+                </td>
+                <td className="py-2.5 px-4">
+                  <div className="flex items-center gap-2">
+                    {CREATOR_PHOTOS[p.creatorId] ? (
+                      <img
+                        src={CREATOR_PHOTOS[p.creatorId]}
+                        alt={p.creatorName}
+                        className="h-7 w-7 rounded-full object-cover shrink-0"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+                      />
+                    ) : (
+                      <div className="h-7 w-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-700 shrink-0">
+                        {p.avatar}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900 whitespace-nowrap">{p.creatorName}</p>
+                      <p className="text-xs text-zinc-400">{p.creatorHandle}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3">
+                  {creator ? <CreatorContact email={creator.email} phone={creator.phone} /> : <span className="text-xs text-zinc-300">—</span>}
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", P_STATUS_COLORS[p.status])}>
+                    {t(participantStatusKey(p.status))}
+                  </span>
+                </td>
+                <td className="py-2.5 px-3 text-xs text-zinc-600">
+                  {p.tier ? TIER_LABELS[p.tier] : "—"}{p.level ? ` · ${LEVEL_LABELS[p.level]}` : ""}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-zinc-700">R$ {(p.fee || 0).toLocaleString("pt-BR")}</td>
+                <td className="py-2.5 px-3 text-sm text-zinc-700">{p.totalReach ? fmt(p.totalReach) : "—"}</td>
+                <td className="py-2.5 px-3 text-sm text-zinc-700">
+                  {p.postsDelivered !== undefined ? (
+                    <span>{p.postsApproved ?? p.postsDelivered}/{p.postsDelivered}</span>
+                  ) : "—"}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-zinc-700">{p.revenue ? `R$ ${fmt(p.revenue)}` : "—"}</td>
+                <td className="py-2.5 px-3"><RoiCell roi={p.roi} /></td>
+                <td className="py-2.5 px-3">
+                  {p.couponCode ? (
+                    <CouponTicket code={p.couponCode} />
+                  ) : <span className="text-zinc-300 text-xs">—</span>}
+                </td>
+                <td className="py-2.5 px-3 text-xs text-zinc-500">{p.lastPost ? formatDateBR(p.lastPost) : "—"}</td>
+              </tr>
+              )
+            })}
+            {participants.length === 0 && (
+              <tr>
+                <td colSpan={12} className="py-10 text-center text-sm text-zinc-400">
+                  Nenhum creator adicionado a esta campanha.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <InviteCreatorsSheet
+        open={inviteOpen}
+        organizationId={campaign.organizationId}
+        participantIds={participants.map((item) => item.creatorId)}
+        onOpenChange={setInviteOpen}
+        onInvite={(creators) => {
+          for (const creator of creators) {
+            addParticipant(campaign.id, {
+              creatorId: creator.id,
+              creatorName: creator.name,
+              creatorHandle: creator.handle,
+              avatar: creator.avatar,
+              tier: creator.tier,
+              status: "convidado",
+              fee: 0,
+              deliverables: [],
+              level: creator.level,
+              memberType: creator.memberType,
+            })
+          }
+          toast.add({
+            type: "success",
+            title: creators.length === 1 ? "Creator convidado" : "Creators convidados",
+            description:
+              creators.length === 1
+                ? `${creators[0].name} entrou como convidado.`
+                : `${creators.length} creators entraram como convidados.`,
+          })
+          setInviteOpen(false)
+        }}
+      />
+    </>
+  )
+}
+
+export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useI18n()
+  const { id } = use(params)
+  const router = useRouter()
+  const campaigns = useCampaignStore((s) => s.campaigns)
+  const setVisibility = useCampaignStore((s) => s.setVisibility)
+  const setStatus = useCampaignStore((s) => s.setStatus)
+  const campaign = campaigns.find((c) => c.id === id)
+  const metrics = CAMPAIGN_METRICS.find((m) => m.campaignId === id)
+  const posts = MONITOR_POSTS.filter((p) => p.campaignId === id)
+  const schedule = useMemo(
+    () => buildSchedule(campaigns).filter((slot) => slot.campaignId === id),
+    [campaigns, id],
+  )
+  const [contentView, setContentView] = useState<"grid" | "list">("grid")
+
+  if (!campaign) {
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center">
+        <p className="text-zinc-500">{t("pages.notFound")}</p>
+        <Button variant="outline" className="mt-4" onClick={() => router.push("/campaigns")}>{t("pages.back")}</Button>
+      </div>
+    )
+  }
+
+  const isCompleted = campaign.status === "concluida"
+  const approvedPosts = posts.filter((p) => p.aiStatus === "aprovado").length
+  const alertPosts = posts.filter((p) => p.aiStatus === "alerta").length
+  const rejectedPosts = posts.filter((p) => p.aiStatus === "reprovado").length
+
+  return (
+    <div className="flex flex-col flex-1">
+      <TopBar
+        title={campaign.name}
+        subtitle={`${campaign.organizationName} · ${t(campaignStatusKey(campaign.status))}`}
+        leading={
+          <Link href="/campaigns">
+            <Button variant="outline" size="sm" className="gap-1.5"><ArrowLeft size={14} /> Voltar</Button>
+          </Link>
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            {campaign.status === "rascunho" ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setStatus(campaign.id, "aberta")
+                  toast.add({
+                    type: "success",
+                    title: "Campanha aberta",
+                    description: "Os creators já podem encontrá-la, conforme o acesso escolhido.",
+                  })
+                }}
+              >
+                Abrir campanha
+              </Button>
+            ) : null}
+            <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium", STATUS_COLORS[campaign.status])}>
+              {t(campaignStatusKey(campaign.status))}
+            </span>
+          </div>
+        }
+      />
+
+      {/* Campaign hero banner */}
+      {campaign.coverImage && (
+        <div className="relative h-40 w-full overflow-hidden bg-zinc-100">
+          <img
+            src={campaign.coverImage}
+            alt={campaign.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
+            <div>
+              <p className="text-white font-semibold text-lg leading-tight drop-shadow-sm">{campaign.name}</p>
+              <p className="text-white/70 text-xs mt-0.5">{formatDateRangeBR(campaign.startDate, campaign.endDate)}</p>
+            </div>
+            <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium backdrop-blur-sm", STATUS_COLORS[campaign.status])}>
+              {t(campaignStatusKey(campaign.status))}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Completed campaign banner */}
+      {isCompleted && (
+        <div className="mx-6 mt-4 rounded-xl border border-zinc-200 bg-zinc-900 text-white px-5 py-4 flex items-center gap-4">
+          <Trophy size={20} className="text-yellow-400 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">Campanha concluída com sucesso</p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              ROI final: <span className="text-white font-medium">{campaign.roi}%</span> ·
+              Alcance: <span className="text-white font-medium">{fmt(campaign.totalReach ?? 0)}</span> ·
+              Receita: <span className="text-white font-medium">R$ {fmt(campaign.totalRevenue ?? 0)}</span>
+            </p>
+          </div>
+          <ActionsMenu
+            items={[
+              { label: "Gerar relatório", icon: FileBarChart2 },
+              { label: "Enviar pagamentos", icon: Send },
+            ]}
+          />
+        </div>
+      )}
+
+      <div className="p-6 space-y-4">
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {[
+            { label: "Creators", value: campaign.participants.length, icon: Users },
+            { label: "Orçamento", value: `R$ ${fmt(campaign.budget)}`, icon: DollarSign },
+            { label: "Alcance total", value: campaign.totalReach ? fmt(campaign.totalReach) : "—", icon: Eye },
+            { label: "Engajamento", value: campaign.totalEngagement ? fmt(campaign.totalEngagement) : "—", icon: Heart },
+            { label: "ROI", value: campaign.roi !== undefined ? `${campaign.roi > 0 ? "+" : ""}${campaign.roi}%` : "—", icon: TrendingUp },
+          ].map(({ label, value, icon: Icon }) => (
+            <Card key={label} className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-zinc-400">{label}</p>
+                <Icon size={14} className="text-zinc-300" />
+              </div>
+              <p className="text-xl font-semibold text-zinc-900">{value}</p>
+            </Card>
+          ))}
+        </div>
+
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">Informações</TabsTrigger>
+            <TabsTrigger value="participants">Creators ({campaign.participants.length})</TabsTrigger>
+            <TabsTrigger value="content">Conteúdos ({posts.length})</TabsTrigger>
+            <TabsTrigger value="calendar">Calendário</TabsTrigger>
+            <TabsTrigger value="metrics">Performance</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold text-zinc-800">Quem pode ver</h3>
+              <p className="mt-1 mb-3 text-xs text-zinc-500">
+                Pública entra em oportunidades. Privada fica só para a sua comunidade. Secreta só aparece no convite.
+              </p>
+              <CampaignVisibilityPicker
+                value={campaign.visibility}
+                onChange={(visibility) => setVisibility(campaign.id, visibility)}
+              />
+            </Card>
+            <div className="grid lg:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <h3 className="text-sm font-semibold text-zinc-800 mb-3">Detalhes da campanha</h3>
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="w-28 text-zinc-400 shrink-0">Tipo</span>
+                    <CampaignTypeBadge type={campaign.type} />
+                  </div>
+                  {[
+                    { label: "Objetivo", value: campaign.objective },
+                    { label: "Período", value: formatDateRangeBR(campaign.startDate, campaign.endDate) },
+                    { label: "Orçamento total", value: `R$ ${campaign.budget.toLocaleString("pt-BR")}` },
+                    { label: "Investido", value: `R$ ${campaign.budgetSpent.toLocaleString("pt-BR")}` },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex gap-3">
+                      <span className="w-28 text-zinc-400 shrink-0">{label}</span>
+                      <span className="text-zinc-800 capitalize">{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                    <span>Orçamento utilizado</span>
+                    <span>{campaign.budget > 0 ? Math.round((campaign.budgetSpent / campaign.budget) * 100) : 0}%</span>
+                  </div>
+                  <Progress value={campaign.budget > 0 ? (campaign.budgetSpent / campaign.budget) * 100 : 0} className="h-2" />
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <h3 className="text-sm font-semibold text-zinc-800 mb-3">Requisitos de conteúdo</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-zinc-400 mb-1.5">Hashtags obrigatórias</p>
+                    <div className="flex flex-wrap gap-1">
+                      {campaign.mandatoryHashtags.map((h) => <Badge key={h} variant="outline" className="text-xs">{h}</Badge>)}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-400 mb-1.5">Menções obrigatórias</p>
+                    <div className="flex flex-wrap gap-1">
+                      {campaign.mandatoryMentions.map((m) => (
+                        <Badge key={`${m.network}:${m.handle}`} variant="outline" className="gap-1 text-xs">
+                          <NetworkIcon network={m.network} />
+                          <span className="text-zinc-400">{SOCIAL_NETWORK_LABEL[m.network]}</span>
+                          {m.handle}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-400 mb-1.5">Nichos-alvo</p>
+                    <div className="flex flex-wrap gap-1">
+                      {campaign.targetNiches.map((n) => <Badge key={n} variant="outline" className="text-xs capitalize">{n}</Badge>)}
+                    </div>
+                  </div>
+                  {campaign.targetNetworks.length > 0 && (
+                    <div>
+                      <p className="text-xs text-zinc-400 mb-1.5">Redes</p>
+                      <div className="flex flex-wrap gap-1">
+                        {campaign.targetNetworks.map((network) => (
+                          <Badge key={network} variant="outline" className="text-xs capitalize">{network}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(campaign.contentFormats ?? []).length > 0 && (
+                    <div>
+                      <p className="text-xs text-zinc-400 mb-1.5">Formatos</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(campaign.contentFormats ?? []).map((format) => (
+                          <Badge key={format} variant="outline" className="text-xs">
+                            {contentFormatByValue(format)?.label ?? format}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+            {(campaign.recommended || campaign.notRecommended) && (
+              <div className="grid lg:grid-cols-2 gap-4">
+                {campaign.recommended && (
+                  <Card className="p-4 bg-emerald-50/70">
+                    <h3 className="text-sm font-semibold text-emerald-900 mb-1">Recomendável</h3>
+                    <p className="text-sm text-zinc-700 leading-relaxed">{campaign.recommended}</p>
+                  </Card>
+                )}
+                {campaign.notRecommended && (
+                  <Card className="p-4 bg-amber-50/80">
+                    <h3 className="text-sm font-semibold text-amber-900 mb-1">Não recomendável</h3>
+                    <p className="text-sm text-zinc-700 leading-relaxed">{campaign.notRecommended}</p>
+                  </Card>
+                )}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="participants" className="mt-4">
+            <ParticipantsTable campaign={campaign} />
+          </TabsContent>
+
+          <TabsContent value="content" className="mt-4">
+            {posts.length > 0 ? (
+              <>
+                <div className="flex items-center gap-4 mb-3">
+                  {[
+                    { icon: CheckCircle, label: "Aprovados", count: approvedPosts, cls: "text-emerald-600" },
+                    { icon: AlertTriangle, label: "Alerta", count: alertPosts, cls: "text-amber-600" },
+                    { icon: XCircle, label: "Reprovados", count: rejectedPosts, cls: "text-red-600" },
+                  ].map(({ icon: Icon, label, count, cls }) => (
+                    <div key={label} className="flex items-center gap-1.5 text-sm">
+                      <Icon size={14} className={cls} />
+                      <span className="font-semibold text-zinc-900">{count}</span>
+                      <span className="text-zinc-500">{label}</span>
+                    </div>
+                  ))}
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="flex items-center border border-zinc-200 rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setContentView("grid")}
+                        aria-label="Ver em grade"
+                        className={cn("p-1.5 transition-colors", contentView === "grid" ? "bg-zinc-900 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50")}
+                      >
+                        <LayoutGrid size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContentView("list")}
+                        aria-label="Ver em lista"
+                        className={cn("p-1.5 transition-colors", contentView === "list" ? "bg-zinc-900 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50")}
+                      >
+                        <List size={15} />
+                      </button>
+                    </div>
+                    <Button size="sm" variant="outline" className="gap-1.5 text-xs">
+                      <Download size={13} /> Exportar
+                    </Button>
+                  </div>
+                </div>
+                {contentView === "grid" ? (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    {posts.map((post) => (
+                      <PostCard key={post.id} post={post} />
+                    ))}
+                  </div>
+                ) : (
+                <div className="rounded-xl border border-zinc-200 overflow-hidden bg-white">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-zinc-50">
+                        {["Creator", "Rede · Formato", "Data", "Alcance", "Curtidas", "Coment.", "Eng.%", "IA", "Avaliação"].map((h) => (
+                          <th key={h} className="py-2.5 px-3 text-xs font-medium text-zinc-500">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {posts.map((post) => {
+                        const cfg = AI_CONFIG[post.aiStatus]
+                        const Icon = cfg.icon
+                        return (
+                          <tr key={post.id} className="border-t border-zinc-100 hover:bg-zinc-50">
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-700 shrink-0">
+                                  {post.avatar}
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-zinc-900 whitespace-nowrap">{post.creatorName}</p>
+                                  <p className="text-[10px] text-zinc-400">{post.creatorHandle}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center gap-1 text-xs text-zinc-600">
+                                <NetworkIcon network={post.network} />
+                                {post.type.replace(/_/g, " ")}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-zinc-600 whitespace-nowrap">{formatDateBR(post.publishedAt)}</td>
+                            <td className="py-2.5 px-3 text-xs font-medium text-zinc-800">{fmt(post.reach)}</td>
+                            <td className="py-2.5 px-3 text-xs text-zinc-700">{fmt(post.likes)}</td>
+                            <td className="py-2.5 px-3 text-xs text-zinc-700">{fmt(post.comments)}</td>
+                            <td className="py-2.5 px-3 text-xs font-medium text-zinc-800">{post.engagement.toFixed(1)}%</td>
+                            <td className="py-2.5 px-3">
+                              <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full", cfg.classes)}>
+                                <Icon size={10} />{cfg.label} · {post.aiScore}%
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {post.humanRating ? (
+                                <span className="flex items-center gap-0.5">
+                                  {Array.from({ length: 5 }, (_, i) => (
+                                    <Star key={i} size={11} className={i < post.humanRating! ? "fill-zinc-800 text-zinc-800" : "text-zinc-200"} />
+                                  ))}
+                                </span>
+                              ) : <span className="text-zinc-300 text-xs">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                )}
+              </>
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-sm text-zinc-400">Nenhum conteúdo capturado ainda.</p>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="calendar" className="mt-4">
+            <ContentCalendar slots={schedule} audience="brand" campaignId={campaign.id} />
+          </TabsContent>
+
+          <TabsContent value="metrics" className="mt-4 space-y-4">
+            {posts.length > 0 && (
+              <CampaignAnalytics posts={posts} participants={campaign.participants} />
+            )}
+            {metrics ? (
+              <>
+                <Card className="p-4">
+                  <h3 className="text-sm font-semibold text-zinc-900 mb-1">Alcance e engajamento diários</h3>
+                  <p className="text-xs text-zinc-400 mb-4">Evolução ao longo da campanha</p>
+                  <AreaChart
+                    data={metrics.series}
+                    index="date"
+                    categories={["reach", "engagement"]}
+                    colors={["zinc", "stone"]}
+                    valueFormatter={(v) => fmt(v)}
+                    showGridLines={false}
+                    showLegend
+                    className="h-52"
+                  />
+                </Card>
+                <Card className="p-4">
+                  <h3 className="text-sm font-semibold text-zinc-900 mb-1">Receita e cliques</h3>
+                  <AreaChart
+                    data={metrics.series}
+                    index="date"
+                    categories={["revenue", "clicks"]}
+                    colors={["zinc", "neutral"]}
+                    valueFormatter={(v) => fmt(v)}
+                    showGridLines={false}
+                    showLegend
+                    className="h-52"
+                  />
+                </Card>
+              </>
+            ) : posts.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-sm text-zinc-400">Dados de métricas ainda não disponíveis para esta campanha.</p>
+              </Card>
+            ) : null}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
