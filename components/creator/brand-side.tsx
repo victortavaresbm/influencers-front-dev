@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Users } from "lucide-react"
+import { Sparkles, Users } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -12,6 +12,8 @@ import { MOCK_USERS, ORG_LOGOS } from "@/lib/mock-data/users"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { usePartnerCommunity } from "@/lib/stores/partner-community"
+import { useEngagementStore } from "@/lib/stores/engagement"
+import { scoreEvents } from "@/lib/community-engagement"
 import { useI18n } from "@/lib/i18n"
 
 const LEVEL: Record<string, string> = {
@@ -60,20 +62,20 @@ export function BrandSide({ posts }: { posts: CommunityPost[] }) {
     return [...seen.values()]
   }, [brandCampaigns])
 
+  const allEngagementEvents = useEngagementStore((s) => s.events)
+
   const ranking = useMemo(() => {
-    const scores = new Map<string, { id: string; name: string; avatar: string; likes: number }>()
-    for (const member of members) {
-      scores.set(member.id, { id: member.id, name: member.name, avatar: member.avatar, likes: 0 })
-    }
-    const campaignIds = new Set(brandCampaigns.map((campaign) => campaign.id))
-    for (const post of posts) {
-      if (!post.campaignId || !campaignIds.has(post.campaignId)) continue
-      const current = scores.get(post.author.id)
-      if (!current) continue
-      current.likes += post.likeCount
-    }
-    return [...scores.values()].sort((a, b) => b.likes - a.likes).slice(0, 3)
-  }, [members, posts, brandCampaigns])
+    const orgId = brand?.id ?? ""
+    const orgEvents = allEngagementEvents.filter((e) => e.organizationId === orgId)
+    const scores = scoreEvents(orgEvents, 30)
+    return members
+      .map((member) => ({
+        ...member,
+        pts: scores.get(member.id)?.total ?? 0,
+      }))
+      .sort((a, b) => b.pts - a.pts)
+      .slice(0, 3)
+  }, [members, allEngagementEvents, brand?.id])
 
   if (!brand) return null
 
@@ -146,19 +148,33 @@ export function BrandSide({ posts }: { posts: CommunityPost[] }) {
       </Card>
 
       <Card className="px-(--card-spacing)">
-        <div>
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-4 text-amber-500" />
           <h2 className="text-sm font-semibold text-foreground">{t("nav.ranking")}</h2>
-          <p className="text-xs text-muted-foreground">{t("brand.likesReceived")}</p>
         </div>
-        <ol className="flex flex-col gap-3">
+        <ol className="flex flex-col gap-2">
           {ranking.map((item, index) => (
-            <li key={item.id} className="flex items-center gap-3">
-              <span className="w-4 text-sm tabular-nums text-muted-foreground">{index + 1}</span>
+            <li
+              key={item.id}
+              className="podium-card flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60"
+              style={{ "--podium-delay": `${index * 100}ms` } as React.CSSProperties}
+            >
+              <span
+                className={[
+                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+                  index === 0 ? "bg-amber-400 text-amber-900" : index === 1 ? "bg-zinc-300 text-zinc-700" : "bg-amber-700/60 text-white",
+                ].join(" ")}
+              >
+                {index + 1}
+              </span>
               <Avatar size="sm">
+                {item.photo && <AvatarImage src={item.photo} alt="" />}
                 <AvatarFallback>{item.avatar}</AvatarFallback>
               </Avatar>
               <span className="min-w-0 flex-1 truncate text-sm">{item.name}</span>
-              <span className="text-sm tabular-nums text-muted-foreground">{item.likes}</span>
+              <span className="text-xs font-bold tabular-nums text-muted-foreground">
+                {item.pts.toLocaleString("pt-BR")} pts
+              </span>
             </li>
           ))}
         </ol>

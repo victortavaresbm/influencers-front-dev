@@ -65,6 +65,7 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
+import { TIERS as AUDIENCE_TIERS } from "@/lib/audience-tiers"
 
 const STEP_DEFS = [
   { id: "type", key: "wizard.type", hintKey: "wizard.typeHint" },
@@ -121,13 +122,7 @@ function FormatNetwork({ network, selected }: { network: string; selected: boole
   return null
 }
 
-const TIERS = [
-  { id: "nano", label: "Nano", min: 1_000, max: 10_000, range: "1–10 mil" },
-  { id: "micro", label: "Micro", min: 10_000, max: 50_000, range: "10–50 mil" },
-  { id: "mid", label: "Médio", min: 50_000, max: 500_000, range: "50–500 mil" },
-  { id: "macro", label: "Macro", min: 500_000, max: 1_000_000, range: "500 mil–1 mi" },
-  { id: "mega", label: "Mega", min: 1_000_000, max: 10_000_000, range: "1 mi+" },
-]
+const TIERS = AUDIENCE_TIERS
 
 const ENGAGEMENT_PRESETS = [1, 2, 3.5, 5]
 

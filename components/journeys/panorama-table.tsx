@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
+import { CircleHelp, ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useI18n } from "@/lib/i18n"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useI18n, type MessageKey } from "@/lib/i18n"
 import { aggregateByCreator, formatBrl, type CreatorJourneyStats, type Visitor } from "@/lib/mock-data/journeys"
 
 type SortKey = keyof Omit<CreatorJourneyStats, "creatorId" | "creatorName" | "creatorHandle" | "creatorAvatar">
@@ -47,14 +48,14 @@ export function PanoramaTable({ visitors, place }: { visitors: Visitor[]; place?
     return sortDir === "desc" ? <ChevronDown className="text-zinc-600" /> : <ChevronUp className="text-zinc-600" />
   }
 
-  const COLS: { key: SortKey; label: string }[] = [
+  const COLS: { key: SortKey; label: string; hint?: MessageKey }[] = [
     { key: "visitorsBrought", label: t("journeys.colVisitors") },
     { key: "checkouts", label: t("journeys.colCheckouts") },
     { key: "abandonments", label: t("journeys.colAbandon") },
     { key: "purchases", label: t("journeys.colPurchases") },
-    { key: "revenueDiscovery", label: t("journeys.colRevDisc") },
-    { key: "revenueAssist", label: t("journeys.colRevAssist") },
-    { key: "revenueConversion", label: t("journeys.colRevConv") },
+    { key: "revenueDiscovery", label: t("journeys.colRevDisc"), hint: "journeys.hintRevDisc" },
+    { key: "revenueAssist", label: t("journeys.colRevAssist"), hint: "journeys.hintRevAssist" },
+    { key: "revenueConversion", label: t("journeys.colRevConv"), hint: "journeys.hintRevConv" },
   ]
 
   return (
@@ -63,13 +64,33 @@ export function PanoramaTable({ visitors, place }: { visitors: Visitor[]; place?
         {place ? `${t("journeys.showingPlace", { place })}. ` : ""}
         {t("journeys.panoramaHint")}
       </p>
+      <TooltipProvider delay={200}>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="pl-4">{t("journeys.colCreator")}</TableHead>
             {COLS.map((col) => (
               <TableHead key={col.key}>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-end">
+                  {col.hint ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={t("journeys.hintAbout", { label: col.label })}
+                            className="text-zinc-400"
+                          />
+                        }
+                      >
+                        <CircleHelp />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-64 text-left leading-relaxed whitespace-normal">
+                        {t(col.hint)}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
                   <Button
                     variant="ghost"
                     size="xs"
@@ -115,6 +136,7 @@ export function PanoramaTable({ visitors, place }: { visitors: Visitor[]; place?
           )}
         </TableBody>
       </Table>
+      </TooltipProvider>
     </div>
   )
 }
