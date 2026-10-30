@@ -564,6 +564,9 @@ const pt = {
   "journeys.panorama": "Panorama por creator",
   "journeys.visitorList": "Visitantes",
   "journeys.colCreator": "Creator",
+  "journeys.colLastCreator": "Último creator",
+  "journeys.colVisitor": "Visitante",
+  "journeys.colStatus": "Status",
   "journeys.colVisitors": "Visitantes",
   "journeys.colCheckouts": "Checkouts",
   "journeys.colAbandon": "Abandonos",
@@ -613,6 +616,9 @@ const pt = {
   "journeys.visitorOne": "{count} visitante",
   "journeys.visitorMany": "{count} visitantes",
   "journeys.showingPlace": "Mostrando {place}",
+  "journeys.viewList": "Ver em lista",
+  "journeys.viewKanban": "Ver em kanban",
+  "journeys.columnEmpty": "Nenhum visitante",
 } as const
 
 export type MessageKey = keyof typeof pt
@@ -1179,6 +1185,9 @@ const en: Record<MessageKey, string> = {
   "journeys.panorama": "Creator panorama",
   "journeys.visitorList": "Visitors",
   "journeys.colCreator": "Creator",
+  "journeys.colLastCreator": "Last creator",
+  "journeys.colVisitor": "Visitor",
+  "journeys.colStatus": "Status",
   "journeys.colVisitors": "Visitors",
   "journeys.colCheckouts": "Checkouts",
   "journeys.colAbandon": "Abandons",
@@ -1228,6 +1237,9 @@ const en: Record<MessageKey, string> = {
   "journeys.visitorOne": "{count} visitor",
   "journeys.visitorMany": "{count} visitors",
   "journeys.showingPlace": "Showing {place}",
+  "journeys.viewList": "View as list",
+  "journeys.viewKanban": "View as kanban",
+  "journeys.columnEmpty": "No visitors",
 }
 
 const es: Record<MessageKey, string> = {
@@ -1792,6 +1804,9 @@ const es: Record<MessageKey, string> = {
   "journeys.panorama": "Panorama por creator",
   "journeys.visitorList": "Visitantes",
   "journeys.colCreator": "Creator",
+  "journeys.colLastCreator": "Último creator",
+  "journeys.colVisitor": "Visitante",
+  "journeys.colStatus": "Estado",
   "journeys.colVisitors": "Visitantes",
   "journeys.colCheckouts": "Checkouts",
   "journeys.colAbandon": "Abandonos",
@@ -1841,6 +1856,9 @@ const es: Record<MessageKey, string> = {
   "journeys.visitorOne": "{count} visitante",
   "journeys.visitorMany": "{count} visitantes",
   "journeys.showingPlace": "Mostrando {place}",
+  "journeys.viewList": "Ver en lista",
+  "journeys.viewKanban": "Ver en kanban",
+  "journeys.columnEmpty": "Ningún visitante",
 }
 
 const messages: Record<Locale, Record<MessageKey, string>> = { pt, en, es }

@@ -152,8 +152,15 @@ export function aggregateByCreator(visitors: Visitor[]): CreatorJourneyStats[] {
 
     for (const order of visitor.orders) {
       for (const role of order.roles) {
-        const s = map.get(role.creatorId)
-        if (!s) continue
+        const s = map.get(role.creatorId) ?? ensure({
+          id: `role-${role.creatorId}`,
+          creatorId: role.creatorId,
+          creatorName: role.creatorName,
+          creatorHandle: role.creatorHandle,
+          creatorAvatar: role.creatorAvatar,
+          linkUrl: "",
+          at: role.touchAt,
+        })
         if (role.role === "discovery") { s.purchases++; s.revenueDiscovery += order.value }
         if (role.role === "assist") s.revenueAssist += order.value
         if (role.role === "conversion") s.revenueConversion += order.value

@@ -44,7 +44,6 @@ export function OriginMap({
           </span>
           <div>
             <h2 className="text-sm font-semibold text-foreground">{t("journeys.originTitle")}</h2>
-            <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">{t("journeys.originHint")}</p>
           </div>
         </div>
         {selected ? (
@@ -58,9 +57,9 @@ export function OriginMap({
       {cities.length === 0 ? (
         <p className="px-4 py-16 text-center text-sm text-muted-foreground">{t("journeys.originEmpty")}</p>
       ) : (
-        <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-          <div className="border-b bg-muted/50 lg:border-r lg:border-b-0">
-            <div className="relative mx-auto aspect-[420/460] w-full max-w-[480px]">
+        <div className="flex flex-col">
+          <div className="border-b bg-muted/50">
+            <div className="relative mx-auto aspect-[420/460] w-full max-w-[220px]">
               <svg
                 viewBox={`0 0 ${BRAZIL_VIEWBOX.width} ${BRAZIL_VIEWBOX.height}`}
                 className="absolute inset-0 size-full"
@@ -80,8 +79,8 @@ export function OriginMap({
 
               {cities.map((city) => {
                 const point = projectBrazil(city.lat, city.lng)
-                const dot = 9 + Math.sqrt(city.visitors / maxVisitors) * 13
-                const hit = dot + 14
+                const dot = 6 + Math.sqrt(city.visitors / maxVisitors) * 8
+                const hit = dot + 10
                 const isSelected = city.key === selectedKey
                 const isHovered = city.key === hoverKey
                 const dimmed = Boolean(selectedKey) && !isSelected && !isHovered
@@ -127,7 +126,7 @@ export function OriginMap({
 
           <div className="flex min-h-0 flex-col">
             <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">{t("journeys.cities")}</p>
-            <ScrollArea className="h-80 lg:h-[440px]">
+            <ScrollArea className="h-48">
               <div className="flex flex-col gap-0.5 px-2 pb-3">
                 {cities.map((city, index) => {
                   const isSelected = city.key === selectedKey
@@ -139,7 +138,7 @@ export function OriginMap({
                       onMouseEnter={() => setHoverKey(city.key)}
                       onMouseLeave={() => setHoverKey((current) => (current === city.key ? null : current))}
                       onClick={() => onSelect(isSelected ? null : city.key)}
-                      className="h-auto w-full items-stretch justify-start px-2 py-2 text-left"
+                      className="h-auto w-full items-stretch justify-start overflow-hidden px-2 py-2 text-left whitespace-normal"
                     >
                       <span className="w-5 shrink-0 pt-0.5 text-xs text-muted-foreground tabular-nums">
                         {String(index + 1).padStart(2, "0")}

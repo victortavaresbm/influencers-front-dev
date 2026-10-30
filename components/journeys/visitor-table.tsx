@@ -1,12 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { ChevronRight, MapPin, Search } from "lucide-react"
+import { ChevronRight, Kanban, List, MapPin, Search } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -29,16 +27,26 @@ const STATUS_CLASS: Record<VisitorStatus, string> = {
 }
 
 type StatusFilter = "all" | VisitorStatus
+type VisitorView = "list" | "kanban"
 
-export function VisitorTable({ visitors, place }: { visitors: Visitor[]; place?: string | null }) {
+const STAGES: VisitorStatus[] = ["visitor", "cart", "checkout", "customer", "abandoned"]
+
+export function VisitorTable({
+  visitors,
+  place,
+  onSelect,
+}: {
+  visitors: Visitor[]
+  place?: string | null
+  onSelect: (id: string) => void
+}) {
   const { locale, t } = useI18n()
-  const router = useRouter()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<StatusFilter>("all")
+  const [view, setView] = useState<VisitorView>("list")
   const dateLocale = locale === "en" ? "en-US" : locale === "es" ? "es-ES" : "pt-BR"
 
-  const filtered = visitors.filter((visitor) => {
-    if (status !== "all" && visitor.status !== status) return false
+  const searched = visitors.filter((visitor) => {
     if (!query.trim()) return true
     const q = query.toLowerCase()
     if (visitorDisplayName(visitor).toLowerCase().includes(q)) return true
@@ -46,7 +54,10 @@ export function VisitorTable({ visitors, place }: { visitors: Visitor[]; place?:
     return visitor.touches.some(
       (touch) => touch.creatorName.toLowerCase().includes(q) || touch.creatorHandle.toLowerCase().includes(q)
     )
-  })
+  }).sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+
+  const filtered = status === "all" ? searched : searched.filter((visitor) => visitor.status === status)
+  const shown = view === "kanban" ? searched : filtered
 
   function statusLabel(value: VisitorStatus) {
     if (value === "visitor") return t("journeys.statusVisitor")
@@ -61,7 +72,7 @@ export function VisitorTable({ visitors, place }: { visitors: Visitor[]; place?:
   }
 
   function openVisitor(id: string) {
-    router.push(`/journeys/${id}`)
+    onSelect(id)
   }
 
   const filters: { value: StatusFilter; label: string }[] = [
@@ -73,50 +84,83 @@ export function VisitorTable({ visitors, place }: { visitors: Visitor[]; place?:
     { value: "visitor", label: t("journeys.statusVisitor") },
   ]
 
-  const countLabel = filtered.length === 1
-    ? t("journeys.visitorOne", { count: filtered.length })
-    : t("journeys.visitorMany", { count: filtered.length })
+  const countLabel = shown.length === 1
+    ? t("journeys.visitorOne", { count: shown.length })
+    : t("journeys.visitorMany", { count: shown.length })
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">{t("journeys.visitorList")}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+    <div>
+      <div className="flex flex-col gap-3 border-b px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
             {place ? `${place} · ${countLabel}` : countLabel}
           </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Tabs value={status} onValueChange={(value) => setStatus((value as StatusFilter) || "all")}>
-            <TabsList>
-              {filters.map((filter) => (
-                <TabsTrigger key={filter.value} value={filter.value}>
-                  {filter.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <div className="relative w-full sm:w-56">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("journeys.search")}
-              aria-label={t("journeys.search")}
-              className="pl-8"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-56">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("journeys.search")}
+                aria-label={t("journeys.search")}
+                className="pl-8"
+              />
+            </div>
+            <div className="flex items-center overflow-hidden rounded-lg border border-border">
+              <Button
+                size="icon-sm"
+                variant={view === "list" ? "default" : "ghost"}
+                className="rounded-none"
+                aria-label={t("journeys.viewList")}
+                aria-pressed={view === "list"}
+                onClick={() => setView("list")}
+              >
+                <List />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant={view === "kanban" ? "default" : "ghost"}
+                className="rounded-none"
+                aria-label={t("journeys.viewKanban")}
+                aria-pressed={view === "kanban"}
+                onClick={() => setView("kanban")}
+              >
+                <Kanban />
+              </Button>
+            </div>
           </div>
         </div>
+        {view === "list" ? (
+          <div className="overflow-x-auto">
+            <Tabs value={status} onValueChange={(value) => setStatus((value as StatusFilter) || "all")}>
+              <TabsList>
+                {filters.map((filter) => (
+                  <TabsTrigger key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+        ) : null}
       </div>
 
+      {view === "kanban" ? (
+        <VisitorKanban
+          visitors={searched}
+          statusLabel={statusLabel}
+          onOpen={openVisitor}
+          emptyLabel={t("journeys.columnEmpty")}
+        />
+      ) : (
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="pl-4">{t("journeys.visitorList")}</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead className="pl-4">{t("journeys.colVisitor")}</TableHead>
+            <TableHead>{t("journeys.colStatus")}</TableHead>
             <TableHead>{t("journeys.colLocation")}</TableHead>
             <TableHead>{t("journeys.touches")}</TableHead>
-            <TableHead>{t("journeys.colCreator")}</TableHead>
+            <TableHead>{t("journeys.colLastCreator")}</TableHead>
             <TableHead className="text-right">{t("journeys.kpiRevenue")}</TableHead>
             <TableHead>{t("journeys.firstSeen")}</TableHead>
             <TableHead className="w-10" />
@@ -195,6 +239,76 @@ export function VisitorTable({ visitors, place }: { visitors: Visitor[]; place?:
           )}
         </TableBody>
       </Table>
-    </Card>
+      )}
+    </div>
+  )
+}
+
+function VisitorKanban({
+  visitors,
+  statusLabel,
+  onOpen,
+  emptyLabel,
+}: {
+  visitors: Visitor[]
+  statusLabel: (status: VisitorStatus) => string
+  onOpen: (id: string) => void
+  emptyLabel: string
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto p-3">
+      {STAGES.map((stage) => {
+        const column = visitors.filter((visitor) => visitor.status === stage)
+        return (
+          <div key={stage} className="flex w-60 shrink-0 flex-col rounded-xl bg-muted/60">
+            <div className="flex items-center gap-2 px-3 py-2.5">
+              <Badge variant="secondary" className={STATUS_CLASS[stage]}>
+                {statusLabel(stage)}
+              </Badge>
+              <span className="ml-auto text-xs font-medium text-muted-foreground tabular-nums">{column.length}</span>
+            </div>
+            <div className="flex flex-col gap-2 px-2 pb-2">
+              {column.length === 0 ? (
+                <p className="px-2 py-6 text-center text-xs text-muted-foreground">{emptyLabel}</p>
+              ) : (
+                column.map((visitor) => {
+                  const latest = latestTouch(visitor)
+                  const revenue = visitor.orders.reduce((sum, order) => sum + order.value, 0)
+                  return (
+                    <Button
+                      key={visitor.id}
+                      variant="outline"
+                      className="h-auto w-full flex-col items-stretch justify-start gap-1.5 bg-card px-3 py-2.5 text-left whitespace-normal"
+                      onClick={() => onOpen(visitor.id)}
+                    >
+                      <span className="text-sm font-medium text-foreground">{visitorDisplayName(visitor)}</span>
+                      <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          <MapPin className="size-3 shrink-0" />
+                          <span className="truncate">
+                            {visitor.location ? `${visitor.location.city}, ${visitor.location.state}` : "—"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 tabular-nums text-foreground">
+                          {revenue > 0 ? formatBrl(revenue) : "—"}
+                        </span>
+                      </span>
+                      {latest ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Avatar size="sm">
+                            <AvatarFallback>{latest.creatorAvatar}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-muted-foreground">{latest.creatorHandle}</span>
+                        </span>
+                      ) : null}
+                    </Button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }

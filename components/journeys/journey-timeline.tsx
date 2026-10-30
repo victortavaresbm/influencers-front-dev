@@ -73,24 +73,16 @@ export function JourneyTimeline({ visitor }: { visitor: Visitor }) {
     <div className="space-y-6">
       {/* header */}
       <Card className="gap-0 py-0">
-        <div className={`grid grid-cols-2 divide-x ${visitor.location ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
-          {visitor.location ? (
-            <div className="px-4 py-3">
-              <p className="text-xs text-zinc-500">{t("journeys.colLocation")}</p>
-              <p className="mt-0.5 text-sm font-semibold text-zinc-900">
-                {visitor.location.city}, {visitor.location.state}
-              </p>
-            </div>
-          ) : null}
-          <div className="px-4 py-3">
+        <div className="grid grid-cols-2 gap-px bg-border">
+          <div className="bg-card px-4 py-3">
             <p className="text-xs text-zinc-500">{t("journeys.firstSeen")}</p>
             <p className="mt-0.5 text-sm font-semibold text-zinc-900">{fmtDate(visitor.firstSeenAt)}</p>
           </div>
-          <div className="px-4 py-3">
+          <div className="bg-card px-4 py-3">
             <p className="text-xs text-zinc-500">{t("journeys.lastSeen")}</p>
             <p className="mt-0.5 text-sm font-semibold text-zinc-900">{fmtDate(visitor.lastSeenAt)}</p>
           </div>
-          <div className="px-4 py-3">
+          <div className="bg-card px-4 py-3">
             <p className="text-xs text-zinc-500">{t("journeys.touches")}</p>
             <p className="mt-0.5 text-sm font-semibold text-zinc-900">
               {visitor.touches.length === 1
@@ -98,7 +90,7 @@ export function JourneyTimeline({ visitor }: { visitor: Visitor }) {
                 : t("journeys.touchCountMany", { count: visitor.touches.length })}
             </p>
           </div>
-          <div className="px-4 py-3">
+          <div className="bg-card px-4 py-3">
             <p className="text-xs text-zinc-500">Status</p>
             <p className="mt-0.5 text-sm font-semibold text-zinc-900">
               {visitor.status === "visitor" && t("journeys.statusVisitor")}

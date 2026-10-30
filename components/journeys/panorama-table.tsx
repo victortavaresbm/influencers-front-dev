@@ -4,7 +4,6 @@ import { useMemo, useState } from "react"
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -59,14 +58,11 @@ export function PanoramaTable({ visitors, place }: { visitors: Visitor[]; place?
   ]
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <div className="border-b px-4 py-3">
-        <h2 className="text-sm font-semibold text-foreground">{t("journeys.panorama")}</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t("journeys.panoramaHint")}</p>
-        {place ? (
-          <p className="mt-1 text-xs font-medium text-foreground">{t("journeys.showingPlace", { place })}</p>
-        ) : null}
-      </div>
+    <div>
+      <p className="border-b px-4 py-3 text-xs text-muted-foreground">
+        {place ? `${t("journeys.showingPlace", { place })}. ` : ""}
+        {t("journeys.panoramaHint")}
+      </p>
       <Table>
         <TableHeader>
           <TableRow>
@@ -119,6 +115,6 @@ export function PanoramaTable({ visitors, place }: { visitors: Visitor[]; place?
           )}
         </TableBody>
       </Table>
-    </Card>
+    </div>
   )
 }

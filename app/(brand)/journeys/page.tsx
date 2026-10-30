@@ -1,19 +1,23 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/lib/stores/auth"
 import { TopBar } from "@/components/layout/top-bar"
 import { JourneyStats } from "@/components/journeys/journey-stats"
 import { OriginMap } from "@/components/journeys/origin-map"
-import { PanoramaTable } from "@/components/journeys/panorama-table"
-import { VisitorTable } from "@/components/journeys/visitor-table"
+import { JourneyWorkspace } from "@/components/journeys/journey-workspace"
+import { VisitorSheet } from "@/components/journeys/visitor-sheet"
 import { useI18n } from "@/lib/i18n"
 import { aggregateByCity, cityKey, VISITORS } from "@/lib/mock-data/journeys"
 
 export default function JourneysPage() {
   const { t } = useI18n()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const user = useAuthStore((s) => s.user)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const selectedVisitorId = searchParams.get("visitor")
 
   const visitors = useMemo(() => {
     if (!user) return []
@@ -33,6 +37,20 @@ export default function JourneysPage() {
   }, [visitors, selected])
 
   const place = selected ? `${selected.city}, ${selected.state}` : null
+  const selectedVisitor = visitors.find((visitor) => visitor.id === selectedVisitorId) ?? null
+
+  function openVisitor(id: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("visitor", id)
+    router.replace(`/journeys?${params.toString()}`, { scroll: false })
+  }
+
+  function closeVisitor() {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("visitor")
+    const next = params.toString()
+    router.replace(next ? `/journeys?${next}` : "/journeys", { scroll: false })
+  }
 
   if (!user) return null
 
@@ -45,10 +63,18 @@ export default function JourneysPage() {
 
       <div className="flex flex-col gap-6 p-6">
         <JourneyStats visitors={scoped} place={place} />
-        <OriginMap visitors={visitors} selectedKey={selectedKey} onSelect={setSelectedKey} />
-        <PanoramaTable visitors={scoped} place={place} />
-        <VisitorTable visitors={scoped} place={place} />
+        <div className="grid items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <OriginMap visitors={visitors} selectedKey={selectedKey} onSelect={setSelectedKey} />
+          <JourneyWorkspace visitors={scoped} place={place} onSelectVisitor={openVisitor} />
+        </div>
       </div>
+
+      <VisitorSheet
+        visitor={selectedVisitor}
+        onOpenChange={(open) => {
+          if (!open) closeVisitor()
+        }}
+      />
     </div>
   )
 }

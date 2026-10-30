@@ -93,24 +93,25 @@ export function ContentLibrary({ canManage }: { canManage: boolean }) {
             </CardDescription>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map((course) => (
-              <Card key={course.id} className="h-full gap-0 overflow-hidden py-0">
+              <Card key={course.id} className="group relative h-full gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+                <Link
+                  href={`${base}/${course.id}`}
+                  aria-label={course.title}
+                  className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
                 {course.cover && (
-                  <Link href={`${base}/${course.id}`} className="relative block aspect-[16/9] overflow-hidden bg-muted">
+                  <div className="relative aspect-[16/9] overflow-hidden bg-muted">
                     <img
                       src={course.cover}
                       alt=""
-                      className="size-full object-cover transition-transform duration-300 hover:scale-[1.03]"
+                      className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
-                  </Link>
+                  </div>
                 )}
                 <CardHeader className="py-4">
-                  <CardTitle>
-                    <Link href={`${base}/${course.id}`} className="hover:underline">
-                      {course.title}
-                    </Link>
-                  </CardTitle>
+                  <CardTitle className="group-hover:underline">{course.title}</CardTitle>
                   {course.description && <CardDescription className="line-clamp-2">{course.description}</CardDescription>}
                   <div className="mt-2 flex items-center gap-2">
                     <Badge variant={course.status === "published" ? "secondary" : "outline"}>
@@ -121,7 +122,7 @@ export function ContentLibrary({ canManage }: { canManage: boolean }) {
                     </span>
                   </div>
                   {canManage && (
-                    <CardAction>
+                    <CardAction className="relative z-20">
                       <ActionsMenu
                         items={[
                           {
