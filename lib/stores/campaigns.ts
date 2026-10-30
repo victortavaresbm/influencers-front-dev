@@ -9,12 +9,16 @@ import {
   type CampaignVisibility,
   type Participant,
 } from "@/lib/mock-data/campaigns"
+import type { SeedingMode, SeedingProduct } from "@/lib/mock-data/seeding"
 
 export type WizardDraft = Partial<Campaign> & {
   audienceTiers?: string[]
   briefingMode?: "skip" | "existing" | "new"
   newBriefingTitle?: string
   newBriefingObjective?: string
+  seedingMode?: SeedingMode
+  daysToPost?: number
+  seedingProducts?: SeedingProduct[]
 }
 
 interface CampaignState {
@@ -29,6 +33,7 @@ interface CampaignState {
   createCampaign: (campaign: Campaign) => void
   addParticipant: (campaignId: string, participant: Participant) => void
   setVisibility: (campaignId: string, visibility: CampaignVisibility) => void
+  setSuccessTargets: (campaignId: string, successTargets: { metric: string; target: number }[]) => void
   setStatus: (campaignId: string, status: CampaignStatus) => void
   assignTracking: (campaignId: string, creatorId: string, offer: { couponCode?: string; trackingLink?: string }) => void
 }
@@ -68,6 +73,12 @@ export const useCampaignStore = create<CampaignState>()(
             campaign.id === campaignId ? { ...campaign, visibility } : campaign,
           ),
         })),
+      setSuccessTargets: (campaignId, successTargets) =>
+        set((s) => ({
+          campaigns: s.campaigns.map((campaign) =>
+            campaign.id === campaignId ? { ...campaign, successTargets } : campaign,
+          ),
+        })),
       setStatus: (campaignId, status) =>
         set((s) => ({
           campaigns: s.campaigns.map((campaign) =>
@@ -96,13 +107,15 @@ export const useCampaignStore = create<CampaignState>()(
     }),
     {
       name: "wesell-campaign-wizard",
-      version: 2,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as { wizardStep?: number; wizardDraft?: WizardDraft }
         if (state.wizardDraft) {
           state.wizardDraft.mandatoryMentions = normalizeMentions(state.wizardDraft.mandatoryMentions)
         }
         if (version < 2 && (state.wizardStep ?? 0) >= 3) state.wizardStep = 5
+        if (version < 3 && (state.wizardStep ?? 0) >= 2) state.wizardStep = (state.wizardStep ?? 0) + 1
+        if (version < 4 && (state.wizardStep ?? 0) >= 4) state.wizardStep = (state.wizardStep ?? 0) + 1
         return state
       },
       partialize: (state) => ({

@@ -4,16 +4,9 @@ import { TopBar } from "@/components/layout/top-bar"
 import { MONITOR_POSTS, type MonitorPost } from "@/lib/mock-data/metrics"
 import { CAMPAIGNS } from "@/lib/mock-data/campaigns"
 import { useAuthStore } from "@/lib/stores/auth"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { FilterMenu } from "@/components/ui/filter-menu"
 import { AiBadge, AI_CONFIG, PostCard, POST_TYPE_LABELS, StarRating } from "@/components/posts/post-card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { formatDateBR } from "@/lib/dates"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import {
@@ -38,38 +31,6 @@ const NetworkIcon = ({ network, size = 13 }: { network: string; size?: number })
 
 type SortKey = "publishedAt" | "reach" | "likes" | "comments" | "engagement" | "aiScore"
 type SortDir = "asc" | "desc"
-
-function FilterMenu({
-  value,
-  onValueChange,
-  options,
-}: {
-  value: string
-  onValueChange: (value: string) => void
-  options: { value: string; label: string }[]
-}) {
-  const current = options.find((option) => option.value === value)?.label ?? options[0]?.label
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="outline" size="sm" className="px-3 font-normal" />}
-      >
-        {current}
-        <ChevronDown data-icon="inline-end" className="text-zinc-400" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-auto min-w-44">
-        <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
-          {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (

@@ -197,7 +197,7 @@ export function InsightsTable({ snapshots, ownId }: { snapshots: BrandSnapshot[]
             </TableRow>
           ) : (
             visible.map(({ snapshot, rank }) => {
-              const href = snapshot.brand.id === ownId ? undefined : `/tracking/${snapshot.brand.id}`
+              const href = snapshot.brand.id === ownId ? undefined : `/benchmark/${snapshot.brand.id}`
               return (
               <TableRow key={snapshot.brand.id}>
                 <TableCell className="pl-4 text-zinc-400 tabular-nums">{rank}</TableCell>

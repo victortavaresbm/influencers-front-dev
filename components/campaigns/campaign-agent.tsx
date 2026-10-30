@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Check, Loader2, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -41,8 +40,6 @@ import { useBriefingStore } from "@/lib/stores/briefings"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import type { Locale } from "@/lib/stores/preferences"
 import { cn } from "@/lib/utils"
-
-export const CAMPAIGN_AGENT_PROMPT_KEY = "wesell-campaign-agent-prompt"
 
 const EXAMPLES: Record<Locale, string[]> = {
   pt: [
@@ -102,51 +99,6 @@ function stepStatus(index: number, run: RunState, total: number) {
   return "pending" as const
 }
 
-export function CampaignAgentEntry() {
-  const { t } = useI18n()
-  const router = useRouter()
-  const [prompt, setPrompt] = useState("")
-
-  function open(text: string) {
-    const value = text.trim()
-    if (!value) return
-    sessionStorage.setItem(CAMPAIGN_AGENT_PROMPT_KEY, value)
-    router.push("/campaigns/agent")
-  }
-
-  return (
-    <Card className="mb-6 max-w-2xl gap-0 py-0">
-      <form
-        className="space-y-4 p-5"
-        onSubmit={(event) => {
-          event.preventDefault()
-          open(prompt)
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600 ring-1 ring-sky-100">
-            <Sparkles className="size-4" />
-          </span>
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-900">{t("agent.cardTitle")}</h2>
-            <p className="mt-1 text-sm text-zinc-500">{t("agent.cardHelp")}</p>
-          </div>
-        </div>
-        <Textarea
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          placeholder={t("agent.promptPlaceholder")}
-          rows={3}
-        />
-        <Button type="submit" disabled={!prompt.trim()}>
-          <Sparkles />
-          {t("agent.build")}
-        </Button>
-      </form>
-    </Card>
-  )
-}
-
 export function CampaignAgent() {
   const { t, locale } = useI18n()
   const user = useAuthStore((state) => state.user)
@@ -164,23 +116,6 @@ export function CampaignAgent() {
     () => ({ locale, brandFallback: user?.organizationName || "Marca" }),
     [locale, user?.organizationName],
   )
-
-  const pendingPrompt = useRef<string | null>(null)
-  useEffect(() => {
-    if (pendingPrompt.current === null) {
-      pendingPrompt.current = sessionStorage.getItem(CAMPAIGN_AGENT_PROMPT_KEY)
-      if (pendingPrompt.current) sessionStorage.removeItem(CAMPAIGN_AGENT_PROMPT_KEY)
-    }
-    const text = pendingPrompt.current
-    if (!text) return
-    setThinking(true)
-    const timer = window.setTimeout(() => {
-      setPlan((current) => current ?? buildPlan(text, options))
-      setThinking(false)
-      pendingPrompt.current = ""
-    }, 600)
-    return () => window.clearTimeout(timer)
-  }, [options])
 
   useEffect(() => {
     if (!run.active || run.waiting || !plan) return

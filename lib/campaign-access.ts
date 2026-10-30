@@ -18,7 +18,7 @@ export const CAMPAIGN_VISIBILITY_META: {
   },
   {
     value: "secreta",
-    label: "Secreta",
+    label: "Exclusiva",
     description: "Só aparece para quem você convidar.",
   },
 ]

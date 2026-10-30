@@ -27,6 +27,7 @@ const SLIDES: Slide[] = [
   { id: "instagram-story", format: "stories", network: "instagram", kind: "story", label: "Stories", light: false },
   { id: "instagram-post", format: "feed", network: "instagram", kind: "post", label: "Feed", light: true },
   { id: "tiktok-post", format: "tiktok", network: "tiktok", kind: "video", label: "TikTok", light: false },
+  { id: "youtube-video", format: "youtube", network: "youtube", kind: "video", label: "Vídeo", light: false },
   { id: "youtube-shorts", format: "shorts", network: "youtube", kind: "shorts", label: "Shorts", light: false },
   { id: "live", format: "live", network: "instagram", kind: "live", label: "Live", light: false },
 ]

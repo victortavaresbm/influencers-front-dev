@@ -30,25 +30,25 @@ export function CampaignVisibilityPicker({
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              "flex items-start gap-3 rounded-2xl border p-3 text-left transition-all",
+              "flex flex-col items-start gap-2.5 rounded-2xl border p-3 text-left transition-all",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2",
               selected
                 ? "border-zinc-900 bg-zinc-50 shadow-[0_0_0_1px_#18181b]"
                 : "border-zinc-200 bg-white hover:border-zinc-400",
             )}
           >
-            <span
-              className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                ICONS[option.value].wellClass,
-              )}
-            >
-              <Icon size={18} />
+            <span className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                  ICONS[option.value].wellClass,
+                )}
+              >
+                <Icon size={18} />
+              </span>
+              <span className="text-sm font-semibold text-zinc-900">{option.label}</span>
             </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-zinc-900">{option.label}</span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-zinc-500">{option.description}</span>
-            </span>
+            <span className="text-xs leading-relaxed text-zinc-500">{option.description}</span>
           </button>
         )
       })}

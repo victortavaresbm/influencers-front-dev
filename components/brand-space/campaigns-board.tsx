@@ -1,16 +1,29 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowUpRight, Calendar, DollarSign } from "lucide-react"
+import { useState } from "react"
+import { Calendar, Users } from "lucide-react"
 import { useBrandSearch } from "@/components/creator/brand-shell"
+import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CREATORS } from "@/lib/mock-data/creators"
-import { formatDateBR } from "@/lib/dates"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateRangeBR } from "@/lib/dates"
 import { campaignStatusKey, participantStatusKey, useI18n } from "@/lib/i18n"
+import type { Campaign, CampaignStatus, Participant } from "@/lib/mock-data/campaigns"
+import { CREATORS } from "@/lib/mock-data/creators"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { usePartnerCommunity } from "@/lib/stores/partner-community"
+
+const STATUS_VARIANT: Record<CampaignStatus, "default" | "secondary" | "destructive"> = {
+  em_execucao: "default",
+  aberta: "default",
+  rascunho: "secondary",
+  concluida: "secondary",
+  cancelada: "destructive",
+  arquivada: "secondary",
+}
 
 export function CampaignsBoard({ manage = false }: { manage?: boolean }) {
   const { t } = useI18n()
@@ -38,43 +51,106 @@ export function CampaignsBoard({ manage = false }: { manage?: boolean }) {
         {mine.length === 0 ? (
           <div className="py-16 text-center text-sm text-muted-foreground">{t("space.campaignsEmpty")}</div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {mine.map((campaign) => {
               const participant = campaign.participants.find((item) => item.creatorId === creator?.id)
               const href = manage ? `/campaigns/${campaign.id}` : `/creator/campaigns/${campaign.id}`
               return (
-                <Link key={campaign.id} href={href}>
-                  <div className="group flex items-center gap-4 rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
-                      {campaign.organizationName.slice(0, 2)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-sm font-semibold text-foreground group-hover:underline">{campaign.name}</p>
-                      <p className="text-xs text-muted-foreground">{campaign.organizationName}</p>
-                    </div>
-                    <div className="hidden items-center gap-4 text-xs text-muted-foreground sm:flex">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={11} />
-                        {formatDateBR(campaign.endDate)}
-                      </span>
-                      {!manage && participant?.fee ? (
-                        <span className="flex items-center gap-1">
-                          <DollarSign size={11} />
-                          R$ {participant.fee.toLocaleString("pt-BR")}
-                        </span>
-                      ) : null}
-                    </div>
-                    <Badge variant="secondary">
-                      {manage ? t(campaignStatusKey(campaign.status)) : participant ? t(participantStatusKey(participant.status)) : null}
-                    </Badge>
-                    <ArrowUpRight size={14} className="text-muted-foreground" />
-                  </div>
-                </Link>
+                <CampaignCard
+                  key={campaign.id}
+                  campaign={campaign}
+                  href={href}
+                  manage={manage}
+                  participant={participant}
+                />
               )
             })}
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function CampaignCard({
+  campaign,
+  href,
+  manage,
+  participant,
+}: {
+  campaign: Campaign
+  href: string
+  manage: boolean
+  participant?: Participant
+}) {
+  const { t } = useI18n()
+  const status = manage
+    ? t(campaignStatusKey(campaign.status))
+    : participant
+      ? t(participantStatusKey(participant.status))
+      : null
+
+  return (
+    <Link
+      href={href}
+      className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <Card className="h-full gap-0 overflow-hidden py-0 transition-shadow group-hover:shadow-md">
+        <div className="relative aspect-[2/1] overflow-hidden bg-muted">
+          <CampaignBanner campaign={campaign} />
+          {status && (
+            <Badge
+              variant={manage ? STATUS_VARIANT[campaign.status] : "secondary"}
+              className="absolute top-3 right-3 shadow-sm ring-1 ring-background/70"
+            >
+              {status}
+            </Badge>
+          )}
+        </div>
+        <CardHeader className="pt-4">
+          <CardTitle className="line-clamp-2 min-h-12 leading-snug">{campaign.name}</CardTitle>
+          <CardDescription className="flex items-center gap-1.5 text-xs">
+            <Calendar className="size-3.5 shrink-0" />
+            <span className="truncate">{formatDateRangeBR(campaign.startDate, campaign.endDate)}</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="mt-auto flex items-center justify-between gap-3 pb-4">
+          <CampaignTypeBadge type={campaign.type} />
+          {manage ? (
+            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <Users className="size-3.5" />
+              {campaign.participants.length}
+            </span>
+          ) : participant?.fee ? (
+            <span className="shrink-0 text-xs font-medium tabular-nums">
+              R$ {participant.fee.toLocaleString("pt-BR")}
+            </span>
+          ) : !manage ? (
+            <span className="truncate text-xs text-muted-foreground">{campaign.organizationName}</span>
+          ) : null}
+        </CardContent>
+      </Card>
+    </Link>
+  )
+}
+
+function CampaignBanner({ campaign }: { campaign: Campaign }) {
+  const [failed, setFailed] = useState(false)
+
+  if (!campaign.coverImage || failed) {
+    return (
+      <div className="flex size-full items-end bg-gradient-to-br from-zinc-900 via-zinc-700 to-zinc-400 p-4">
+        <span className="text-sm font-semibold tracking-wide text-white">{campaign.organizationName}</span>
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={campaign.coverImage}
+      alt=""
+      className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+      onError={() => setFailed(true)}
+    />
   )
 }

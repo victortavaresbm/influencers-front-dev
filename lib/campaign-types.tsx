@@ -1,13 +1,14 @@
 import type { LucideIcon } from "lucide-react"
 import {
   BadgePercent,
-  Circle,
   Clapperboard,
   Crown,
+  GalleryVertical,
   Gift,
   Heart,
   Image as ImageIcon,
   Megaphone,
+  Play,
   Radio,
   ShoppingBag,
   ShoppingCart,
@@ -15,7 +16,7 @@ import {
   TvMinimalPlay,
   Video,
 } from "lucide-react"
-import type { CampaignType, ContentFormat } from "@/lib/mock-data/campaigns"
+import type { CampaignType, ContentFormat, SocialNetwork } from "@/lib/mock-data/campaigns"
 
 export type CampaignGoalId = "alcance" | "conteudo" | "vendas"
 
@@ -49,7 +50,7 @@ export const CAMPAIGN_GOALS: CampaignGoal[] = [
     id: "alcance",
     label: "Alcance",
     description: "Fazer a marca ser vista e lembrada",
-    measures: "Impressões, alcance e reconhecimento",
+    measures: "Visualizações, alcance e reconhecimento",
     icon: Megaphone,
     wellClass: "bg-violet-100 text-violet-700",
     iconClass: "text-violet-700",
@@ -80,7 +81,7 @@ export const CAMPAIGN_TYPE_META: CampaignTypeMeta[] = [
     label: "Awareness",
     goal: "alcance",
     description: "Apresentar a marca para gente que ainda não conhece.",
-    measures: "alcance e impressões",
+    measures: "visualizações e alcance",
     suggestedObjective: "Gerar reconhecimento da marca e alcance qualificado.",
     audienceTip: "Reels e TikTok costumam abrir mais alcance do que o feed parado.",
     suggestedNetworks: ["instagram", "tiktok"],
@@ -237,13 +238,20 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
   },
 ]
 
-export const CONTENT_FORMATS: { value: ContentFormat; label: string; hint: string; icon: LucideIcon }[] = [
-  { value: "reels", label: "Reels", hint: "Vídeo curto", icon: Clapperboard },
-  { value: "stories", label: "Stories", hint: "24 horas", icon: Circle },
-  { value: "feed", label: "Feed", hint: "Post estático", icon: ImageIcon },
-  { value: "tiktok", label: "TikTok", hint: "Vídeo nativo", icon: Video },
-  { value: "shorts", label: "Shorts", hint: "YouTube curto", icon: TvMinimalPlay },
-  { value: "live", label: "Live", hint: "Ao vivo", icon: Radio },
+export const CONTENT_FORMATS: {
+  value: ContentFormat
+  label: string
+  hint: string
+  icon: LucideIcon
+  network: SocialNetwork
+}[] = [
+  { value: "reels", label: "Reels", hint: "Vídeo curto", icon: Clapperboard, network: "instagram" },
+  { value: "stories", label: "Stories", hint: "24 horas", icon: GalleryVertical, network: "instagram" },
+  { value: "feed", label: "Feed", hint: "Post estático", icon: ImageIcon, network: "instagram" },
+  { value: "tiktok", label: "TikTok", hint: "Vídeo nativo", icon: Video, network: "tiktok" },
+  { value: "youtube", label: "Vídeo", hint: "YouTube", icon: Play, network: "youtube" },
+  { value: "shorts", label: "Shorts", hint: "YouTube curto", icon: TvMinimalPlay, network: "youtube" },
+  { value: "live", label: "Live", hint: "Ao vivo", icon: Radio, network: "instagram" },
 ]
 
 export function campaignTypeByValue(value?: string) {

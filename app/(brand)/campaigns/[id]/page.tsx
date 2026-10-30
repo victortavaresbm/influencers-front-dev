@@ -3,7 +3,7 @@ import { use, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { TopBar } from "@/components/layout/top-bar"
 import { useCampaignStore } from "@/lib/stores/campaigns"
-import { CAMPAIGN_METRICS, MONITOR_POSTS } from "@/lib/mock-data/metrics"
+import { CAMPAIGN_METRICS, MONITOR_POSTS, type MonitorPost } from "@/lib/mock-data/metrics"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,17 +22,20 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { CouponTicket } from "@/components/ui/coupon-ticket"
 import { campaignStatusKey, participantStatusKey, useI18n } from "@/lib/i18n"
-import { SOCIAL_NETWORK_LABEL, type Campaign } from "@/lib/mock-data/campaigns"
+import { isSocialNetwork, SOCIAL_NETWORK_LABEL, type Campaign } from "@/lib/mock-data/campaigns"
 import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
 import { CampaignVisibilityPicker } from "@/components/campaigns/campaign-visibility-picker"
+import { CampaignSuccessTargets } from "@/components/campaigns/campaign-success-targets"
 import { InviteCreatorsSheet } from "@/components/campaigns/invite-creators-sheet"
 import { contentFormatByValue } from "@/lib/campaign-types"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
 import { CampaignAnalytics } from "@/components/campaigns/campaign-analytics"
+import { SeedingResults, seedingCampaignFor } from "@/components/seeding/seeding-results"
+import { useSeedingStore } from "@/lib/stores/seeding"
 import { ContentCalendar } from "@/components/calendar/content-calendar"
 import { buildSchedule } from "@/lib/schedule"
-import { PostCard } from "@/components/posts/post-card"
+import { PostCard, PostDetailSheet } from "@/components/posts/post-card"
 import { CreatorContact } from "@/components/creators/creator-contact"
 
 const CREATOR_PHOTOS: Record<string, string> = Object.fromEntries(
@@ -98,14 +101,21 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
   const participants = campaign.participants
   const addParticipant = useCampaignStore((s) => s.addParticipant)
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [sortBy, setSortBy] = useState<"reach" | "roi" | "revenue" | null>("reach")
+  const [sortBy, setSortBy] = useState<"reach" | "roi" | "revenue">("reach")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
+
+  function toggleSort(column: "reach" | "roi" | "revenue") {
+    if (sortBy === column) setSortDir((dir) => (dir === "desc" ? "asc" : "desc"))
+    else {
+      setSortBy(column)
+      setSortDir("desc")
+    }
+  }
 
   const sorted = [...participants].sort((a, b) => {
-    if (!sortBy) return 0
-    if (sortBy === "reach") return (b.totalReach ?? 0) - (a.totalReach ?? 0)
-    if (sortBy === "roi") return (b.roi ?? -999) - (a.roi ?? -999)
-    if (sortBy === "revenue") return (b.revenue ?? 0) - (a.revenue ?? 0)
-    return 0
+    const left = sortBy === "reach" ? (a.totalReach ?? 0) : sortBy === "roi" ? (a.roi ?? -999) : (a.revenue ?? 0)
+    const right = sortBy === "reach" ? (b.totalReach ?? 0) : sortBy === "roi" ? (b.roi ?? -999) : (b.revenue ?? 0)
+    return sortDir === "desc" ? right - left : left - right
   })
 
   const total = sorted.filter((p) => p.totalReach)
@@ -146,24 +156,21 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
               <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Status</th>
               <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Tier · Nível</th>
               <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Fee</th>
-              <th
-                className="py-2.5 px-3 text-xs font-medium text-zinc-500 cursor-pointer hover:text-zinc-700 select-none"
-                onClick={() => setSortBy("reach")}
-              >
-                Alcance {sortBy === "reach" && "↓"}
+              <th className="py-2.5 px-3 text-left">
+                <Button variant="ghost" size="xs" className="-ml-1.5 font-medium text-zinc-500" aria-pressed={sortBy === "reach"} onClick={() => toggleSort("reach")}>
+                  Alcance {sortBy === "reach" ? (sortDir === "desc" ? "↓" : "↑") : ""}
+                </Button>
               </th>
               <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Posts</th>
-              <th
-                className="py-2.5 px-3 text-xs font-medium text-zinc-500 cursor-pointer hover:text-zinc-700 select-none"
-                onClick={() => setSortBy("revenue")}
-              >
-                Receita {sortBy === "revenue" && "↓"}
+              <th className="py-2.5 px-3 text-left">
+                <Button variant="ghost" size="xs" className="-ml-1.5 font-medium text-zinc-500" aria-pressed={sortBy === "revenue"} onClick={() => toggleSort("revenue")}>
+                  Receita {sortBy === "revenue" ? (sortDir === "desc" ? "↓" : "↑") : ""}
+                </Button>
               </th>
-              <th
-                className="py-2.5 px-3 text-xs font-medium text-zinc-500 cursor-pointer hover:text-zinc-700 select-none"
-                onClick={() => setSortBy("roi")}
-              >
-                ROI {sortBy === "roi" && "↓"}
+              <th className="py-2.5 px-3 text-left">
+                <Button variant="ghost" size="xs" className="-ml-1.5 font-medium text-zinc-500" aria-pressed={sortBy === "roi"} onClick={() => toggleSort("roi")}>
+                  ROI {sortBy === "roi" ? (sortDir === "desc" ? "↓" : "↑") : ""}
+                </Button>
               </th>
               <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Cupom</th>
               <th className="py-2.5 px-3 text-xs font-medium text-zinc-500">Último post</th>
@@ -276,7 +283,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params)
   const router = useRouter()
   const campaigns = useCampaignStore((s) => s.campaigns)
+  const seedingCampaigns = useSeedingStore((s) => s.campaigns)
   const setVisibility = useCampaignStore((s) => s.setVisibility)
+  const setSuccessTargets = useCampaignStore((s) => s.setSuccessTargets)
   const setStatus = useCampaignStore((s) => s.setStatus)
   const campaign = campaigns.find((c) => c.id === id)
   const metrics = CAMPAIGN_METRICS.find((m) => m.campaignId === id)
@@ -286,6 +295,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     [campaigns, id],
   )
   const [contentView, setContentView] = useState<"grid" | "list">("grid")
+  const [tab, setTab] = useState("overview")
+  const [aiFilter, setAiFilter] = useState<MonitorPost["aiStatus"] | null>(null)
+  const [selectedPost, setSelectedPost] = useState<MonitorPost | null>(null)
 
   if (!campaign) {
     return (
@@ -300,12 +312,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const approvedPosts = posts.filter((p) => p.aiStatus === "aprovado").length
   const alertPosts = posts.filter((p) => p.aiStatus === "alerta").length
   const rejectedPosts = posts.filter((p) => p.aiStatus === "reprovado").length
+  const visiblePosts = aiFilter ? posts.filter((post) => post.aiStatus === aiFilter) : posts
 
   return (
     <div className="flex flex-col flex-1">
       <TopBar
         title={campaign.name}
-        subtitle={`${campaign.organizationName} · ${t(campaignStatusKey(campaign.status))}`}
+        subtitle={`${campaign.organizationName} · ${formatDateRangeBR(campaign.startDate, campaign.endDate)}`}
         leading={
           <Link href="/campaigns">
             <Button variant="outline" size="sm" className="gap-1.5"><ArrowLeft size={14} /> Voltar</Button>
@@ -335,27 +348,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         }
       />
 
-      {/* Campaign hero banner */}
-      {campaign.coverImage && (
-        <div className="relative h-40 w-full overflow-hidden bg-zinc-100">
-          <img
-            src={campaign.coverImage}
-            alt={campaign.name}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
-            <div>
-              <p className="text-white font-semibold text-lg leading-tight drop-shadow-sm">{campaign.name}</p>
-              <p className="text-white/70 text-xs mt-0.5">{formatDateRangeBR(campaign.startDate, campaign.endDate)}</p>
-            </div>
-            <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium backdrop-blur-sm", STATUS_COLORS[campaign.status])}>
-              {t(campaignStatusKey(campaign.status))}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Completed campaign banner */}
       {isCompleted && (
         <div className="mx-6 mt-4 rounded-xl border border-zinc-200 bg-zinc-900 text-white px-5 py-4 flex items-center gap-4">
@@ -381,40 +373,56 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
-            { label: "Creators", value: campaign.participants.length, icon: Users },
-            { label: "Orçamento", value: `R$ ${fmt(campaign.budget)}`, icon: DollarSign },
-            { label: "Alcance total", value: campaign.totalReach ? fmt(campaign.totalReach) : "—", icon: Eye },
-            { label: "Engajamento", value: campaign.totalEngagement ? fmt(campaign.totalEngagement) : "—", icon: Heart },
-            { label: "ROI", value: campaign.roi !== undefined ? `${campaign.roi > 0 ? "+" : ""}${campaign.roi}%` : "—", icon: TrendingUp },
-          ].map(({ label, value, icon: Icon }) => (
-            <Card key={label} className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-zinc-400">{label}</p>
+            { label: "Creators", value: String(campaign.participants.length), icon: Users, tab: "participants" },
+            { label: "Orçamento", value: `R$ ${fmt(campaign.budget)}`, icon: DollarSign, tab: "overview" },
+            { label: "Alcance total", value: campaign.totalReach ? fmt(campaign.totalReach) : "—", icon: Eye, tab: "metrics" },
+            { label: "Engajamento", value: campaign.totalEngagement ? fmt(campaign.totalEngagement) : "—", icon: Heart, tab: "metrics" },
+            { label: "ROI", value: campaign.roi !== undefined ? `${campaign.roi > 0 ? "+" : ""}${campaign.roi}%` : "—", icon: TrendingUp, tab: "metrics" },
+          ].map(({ label, value, icon: Icon, tab: target }) => (
+            <Button
+              key={label}
+              variant="outline"
+              onClick={() => setTab(target)}
+              className="h-auto w-full flex-col items-stretch gap-1 rounded-xl bg-card px-3 py-3 text-left font-normal whitespace-normal shadow-none hover:bg-zinc-50"
+            >
+              <span className="flex items-center justify-between">
+                <span className="text-xs text-zinc-400">{label}</span>
                 <Icon size={14} className="text-zinc-300" />
-              </div>
-              <p className="text-xl font-semibold text-zinc-900">{value}</p>
-            </Card>
+              </span>
+              <span className="text-xl font-semibold text-zinc-900">{value}</span>
+            </Button>
           ))}
         </div>
 
-        <Tabs defaultValue="overview">
+        <Tabs value={tab} onValueChange={(value) => setTab(value || "overview")}>
           <TabsList>
             <TabsTrigger value="overview">Informações</TabsTrigger>
             <TabsTrigger value="participants">Creators ({campaign.participants.length})</TabsTrigger>
             <TabsTrigger value="content">Conteúdos ({posts.length})</TabsTrigger>
             <TabsTrigger value="calendar">Calendário</TabsTrigger>
             <TabsTrigger value="metrics">Performance</TabsTrigger>
+            {campaign.type === "seeding" && (
+              <TabsTrigger value="seeding-results">Resultados</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
             <Card className="p-4">
               <h3 className="text-sm font-semibold text-zinc-800">Quem pode ver</h3>
               <p className="mt-1 mb-3 text-xs text-zinc-500">
-                Pública entra em oportunidades. Privada fica só para a sua comunidade. Secreta só aparece no convite.
+                Pública entra em oportunidades. Privada fica só para a sua comunidade. Exclusiva só aparece no convite.
               </p>
               <CampaignVisibilityPicker
                 value={campaign.visibility}
                 onChange={(visibility) => setVisibility(campaign.id, visibility)}
+              />
+            </Card>
+            <Card className="p-4">
+              <CampaignSuccessTargets
+                networks={campaign.targetNetworks.filter(isSocialNetwork)}
+                type={campaign.type}
+                value={campaign.successTargets}
+                onChange={(successTargets) => setSuccessTargets(campaign.id, successTargets)}
               />
             </Card>
             <div className="grid lg:grid-cols-2 gap-4">
@@ -523,46 +531,66 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <TabsContent value="content" className="mt-4">
             {posts.length > 0 ? (
               <>
-                <div className="flex items-center gap-4 mb-3">
-                  {[
-                    { icon: CheckCircle, label: "Aprovados", count: approvedPosts, cls: "text-emerald-600" },
-                    { icon: AlertTriangle, label: "Alerta", count: alertPosts, cls: "text-amber-600" },
-                    { icon: XCircle, label: "Reprovados", count: rejectedPosts, cls: "text-red-600" },
-                  ].map(({ icon: Icon, label, count, cls }) => (
-                    <div key={label} className="flex items-center gap-1.5 text-sm">
-                      <Icon size={14} className={cls} />
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {([
+                    { status: "aprovado" as const, icon: CheckCircle, label: "Aprovados", count: approvedPosts, cls: "text-emerald-600" },
+                    { status: "alerta" as const, icon: AlertTriangle, label: "Alerta", count: alertPosts, cls: "text-amber-600" },
+                    { status: "reprovado" as const, icon: XCircle, label: "Reprovados", count: rejectedPosts, cls: "text-red-600" },
+                  ]).map(({ status, icon: Icon, label, count, cls }) => (
+                    <Button
+                      key={status}
+                      type="button"
+                      size="sm"
+                      variant={aiFilter === status ? "secondary" : "ghost"}
+                      aria-pressed={aiFilter === status}
+                      onClick={() => setAiFilter((current) => (current === status ? null : status))}
+                    >
+                      <Icon className={cls} />
                       <span className="font-semibold text-zinc-900">{count}</span>
                       <span className="text-zinc-500">{label}</span>
-                    </div>
+                    </Button>
                   ))}
                   <div className="ml-auto flex items-center gap-2">
-                    <div className="flex items-center border border-zinc-200 rounded-lg overflow-hidden">
-                      <button
+                    <div className="flex items-center overflow-hidden rounded-lg border border-zinc-200">
+                      <Button
                         type="button"
-                        onClick={() => setContentView("grid")}
+                        size="icon-sm"
+                        variant={contentView === "grid" ? "default" : "ghost"}
+                        className="rounded-none"
                         aria-label="Ver em grade"
-                        className={cn("p-1.5 transition-colors", contentView === "grid" ? "bg-zinc-900 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50")}
+                        aria-pressed={contentView === "grid"}
+                        onClick={() => setContentView("grid")}
                       >
-                        <LayoutGrid size={15} />
-                      </button>
-                      <button
+                        <LayoutGrid />
+                      </Button>
+                      <Button
                         type="button"
-                        onClick={() => setContentView("list")}
+                        size="icon-sm"
+                        variant={contentView === "list" ? "default" : "ghost"}
+                        className="rounded-none"
                         aria-label="Ver em lista"
-                        className={cn("p-1.5 transition-colors", contentView === "list" ? "bg-zinc-900 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50")}
+                        aria-pressed={contentView === "list"}
+                        onClick={() => setContentView("list")}
                       >
-                        <List size={15} />
-                      </button>
+                        <List />
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline" className="gap-1.5 text-xs">
-                      <Download size={13} /> Exportar
+                    <Button size="sm" variant="outline">
+                      <Download /> Exportar
                     </Button>
                   </div>
                 </div>
-                {contentView === "grid" ? (
+                {visiblePosts.length === 0 ? (
+                  <Card className="p-8 text-center">
+                    <p className="text-sm text-zinc-400">Nenhum conteúdo com esse status.</p>
+                    <Button variant="outline" size="sm" className="mt-3" onClick={() => setAiFilter(null)}>
+                      Ver todos
+                    </Button>
+                  </Card>
+                ) : contentView === "grid" ? (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                    {posts.map((post) => (
-                      <PostCard key={post.id} post={post} />
+                    {visiblePosts.map((post) => (
+                      <PostCard key={post.id} post={post} onSelect={() => setSelectedPost(post)} />
                     ))}
                   </div>
                 ) : (
@@ -576,11 +604,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       </tr>
                     </thead>
                     <tbody>
-                      {posts.map((post) => {
+                      {visiblePosts.map((post) => {
                         const cfg = AI_CONFIG[post.aiStatus]
                         const Icon = cfg.icon
                         return (
-                          <tr key={post.id} className="border-t border-zinc-100 hover:bg-zinc-50">
+                          <tr
+                            key={post.id}
+                            className="cursor-pointer border-t border-zinc-100 hover:bg-zinc-50"
+                            onClick={() => setSelectedPost(post)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault()
+                                setSelectedPost(post)
+                              }
+                            }}
+                            tabIndex={0}
+                          >
                             <td className="py-2.5 px-3">
                               <div className="flex items-center gap-2">
                                 <div className="h-7 w-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-700 shrink-0">
@@ -676,8 +715,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               </Card>
             ) : null}
           </TabsContent>
+
+          {campaign.type === "seeding" && (
+            <TabsContent value="seeding-results" className="mt-4">
+              <SeedingResults campaign={seedingCampaignFor(campaign, seedingCampaigns)} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
+      <PostDetailSheet
+        post={selectedPost}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPost(null)
+        }}
+      />
     </div>
   )
 }

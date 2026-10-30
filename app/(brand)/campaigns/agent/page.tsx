@@ -15,8 +15,8 @@ export default function CampaignAgentPage() {
         title={t("agent.title")}
         subtitle={t("agent.subtitle")}
         actions={
-          <Button variant="outline" size="sm" render={<Link href="/campaigns" />}>
-            {t("pages.cancel")}
+          <Button variant="outline" size="sm" render={<Link href="/campaigns/create" />}>
+            {t("pages.back")}
           </Button>
         }
       />

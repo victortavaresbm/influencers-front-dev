@@ -206,7 +206,7 @@ export function PerformancePanel({
           <TableBody>
             {ranked.map((snapshot, index) => {
               const href = linkCompetitors && snapshot.brand.id !== ownId && snapshot.brand.id !== "average"
-                ? `/tracking/${snapshot.brand.id}`
+                ? `/benchmark/${snapshot.brand.id}`
                 : undefined
               return (
               <TableRow key={snapshot.brand.id}>

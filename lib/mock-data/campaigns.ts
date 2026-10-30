@@ -18,7 +18,7 @@ export type CampaignType =
   | "live"
   | "afiliado"
 
-export type ContentFormat = "reels" | "stories" | "feed" | "tiktok" | "shorts" | "live"
+export type ContentFormat = "reels" | "stories" | "feed" | "tiktok" | "youtube" | "shorts" | "live"
 
 export type SocialNetwork = "instagram" | "tiktok" | "youtube"
 
@@ -120,6 +120,7 @@ export interface Campaign {
   totalRevenue?: number
   roi?: number
   visibility: CampaignVisibility
+  successTargets?: { metric: string; target: number }[]
 }
 
 export const CAMPAIGNS: Campaign[] = [
@@ -252,6 +253,12 @@ export const CAMPAIGNS: Campaign[] = [
     totalRevenue: 63500,
     roi: 22,
     visibility: "secreta",
+    successTargets: [
+      { metric: "views", target: 1_500_000 },
+      { metric: "reach", target: 800_000 },
+      { metric: "saves", target: 12_000 },
+      { metric: "shares", target: 8_000 },
+    ],
   },
   {
     id: "camp4",

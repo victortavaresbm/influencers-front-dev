@@ -17,6 +17,7 @@ import { ArrowLeft, Check, X, Calendar, DollarSign, Users, Target, CheckCircle2,
 import Link from "next/link"
 import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
 import { campaignIsVisibleTo, creatorCanApply } from "@/lib/campaign-access"
+import { formatSuccessTarget, readSuccessTargets, successMetricById } from "@/lib/success-metrics"
 import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
 import { ContentCalendar } from "@/components/calendar/content-calendar"
 import { buildSchedule } from "@/lib/schedule"
@@ -50,6 +51,7 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
   const canApply = creatorCanApply(campaign, creator.id, campaigns) && !applied
   const myAcceptance = briefing?.acceptances?.find((a) => a.creatorId === creator.id)
   const needsAcceptance = isParticipant && briefing?.status === "publicado" && myAcceptance && myAcceptance.status !== "accepted" && !briefingAccepted
+  const successTargets = readSuccessTargets(campaign.successTargets).filter((item) => item.target > 0)
 
   return (
     <div className="flex flex-col flex-1">
@@ -99,6 +101,23 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
               </div>
             ))}
           </div>
+          {successTargets.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-medium text-zinc-500">Metas de sucesso</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {successTargets.map((item) => {
+                  const metric = successMetricById(item.metric)
+                  if (!metric) return null
+                  return (
+                    <div key={item.metric} className="rounded-xl border border-zinc-200 px-3 py-2 text-left">
+                      <p className="text-xs text-zinc-400">{metric.label}</p>
+                      <p className="text-sm font-semibold text-zinc-900">{formatSuccessTarget(metric, item.target)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Apply button */}

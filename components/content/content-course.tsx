@@ -45,8 +45,8 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
   const deletePage = useContentStore((state) => state.deletePage)
 
   const editorRef = useRef<HTMLDivElement>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [title, setTitle] = useState("")
+  const [titlePageId, setTitlePageId] = useState<string | null>(null)
   const [draftKey, setDraftKey] = useState(0)
   const [folderDialog, setFolderDialog] = useState<{ id?: string; name: string } | null>(null)
 
@@ -66,12 +66,19 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
   const courseFolders = folders.filter((folder) => folder.courseId === courseId && (canManage || folder.status === "published"))
   const coursePages = pages.filter((page) => page.courseId === courseId && (canManage || page.status === "published"))
   const rootPages = coursePages.filter((page) => page.folderId === null)
+  const firstPageId = rootPages[0]?.id ?? coursePages[0]?.id ?? null
+  const [pickedId, setPickedId] = useState<string | null>(firstPageId)
+  const [pickedCourseId, setPickedCourseId] = useState(courseId)
+  if (pickedCourseId !== courseId) {
+    setPickedCourseId(courseId)
+    setPickedId(firstPageId)
+  }
+  const selectedId = pickedId && coursePages.some((page) => page.id === pickedId) ? pickedId : firstPageId
   const selected = coursePages.find((page) => page.id === selectedId) ?? null
-
-  useEffect(() => {
-    if (!selected) return
-    setTitle(selected.title)
-  }, [selected])
+  if ((selected?.id ?? null) !== titlePageId) {
+    setTitlePageId(selected?.id ?? null)
+    setTitle(selected?.title ?? "")
+  }
 
   if (!course || (!canManage && course.status !== "published")) {
     return (
@@ -92,7 +99,7 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
 
   function createPage(folderId: string | null) {
     const pageId = addPage({ courseId, folderId, title: t("content.newPage") })
-    setSelectedId(pageId)
+    setPickedId(pageId)
   }
 
   return (
@@ -148,7 +155,7 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
                 selected={selected?.id === page.id}
                 canManage={canManage}
                 draftLabel={t("content.draft")}
-                onSelect={() => setSelectedId(page.id)}
+                onSelect={() => setPickedId(page.id)}
               />
             ))}
             {courseFolders.map((folder) => (
@@ -198,7 +205,7 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
                       canManage={canManage}
                       draftLabel={t("content.draft")}
                       nested
-                      onSelect={() => setSelectedId(page.id)}
+                      onSelect={() => setPickedId(page.id)}
                     />
                   ))}
                 </ul>
@@ -241,7 +248,7 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
                         icon: Trash2,
                         destructive: true,
                         onSelect: () => {
-                          setSelectedId(null)
+                          setPickedId(null)
                           deletePage(selected.id)
                         },
                       },

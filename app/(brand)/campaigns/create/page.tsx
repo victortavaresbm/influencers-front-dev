@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useI18n } from "@/lib/i18n"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore, type WizardDraft } from "@/lib/stores/campaigns"
+import { useSeedingStore } from "@/lib/stores/seeding"
 import {
   CAMPAIGN_GOALS,
   CAMPAIGN_TEMPLATES,
@@ -22,6 +25,8 @@ import {
   type CampaignGoalId,
 } from "@/lib/campaign-types"
 import { CampaignVisibilityPicker } from "@/components/campaigns/campaign-visibility-picker"
+import { CampaignSuccessTargets } from "@/components/campaigns/campaign-success-targets"
+import { formatSuccessTargetList, metricsForNetworks, readSuccessTargets } from "@/lib/success-metrics"
 import { visibilityLabel } from "@/lib/campaign-access"
 import { SocialPreviewCarousel } from "@/components/campaigns/social-preview-carousel"
 import { WizardFormStep } from "@/components/forms/wizard-form-step"
@@ -31,24 +36,29 @@ import { useBriefingStore } from "@/lib/stores/briefings"
 import { formatDateBR } from "@/lib/dates"
 import {
   SOCIAL_NETWORK_LABEL,
+  isSocialNetwork,
   normalizeMentions,
   type Campaign,
   type CampaignMention,
   type CampaignType,
   type SocialNetwork,
 } from "@/lib/mock-data/campaigns"
+import type { SeedingProduct } from "@/lib/mock-data/seeding"
 import { cn } from "@/lib/utils"
 import {
   Check,
+  CircleHelp,
   Cpu,
   Drama,
   Dumbbell,
   Gamepad2,
+  PackagePlus,
   Plane,
   Plus,
   Shirt,
   Sparkles,
   Sun,
+  Trash2,
   UtensilsCrossed,
   Wallet,
   X,
@@ -56,14 +66,27 @@ import {
 import type { LucideIcon } from "lucide-react"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 
-const STEPS = [
-  { key: "wizard.type", hintKey: "wizard.typeHint" },
-  { key: "wizard.campaign", hintKey: "wizard.campaignHint" },
-  { key: "wizard.audience", hintKey: "wizard.audienceHint" },
-  { key: "wizard.form", hintKey: "wizard.formHint" },
-  { key: "wizard.briefing", hintKey: "wizard.briefingHint" },
-  { key: "wizard.review", hintKey: "wizard.reviewHint" },
+const STEP_DEFS = [
+  { id: "type", key: "wizard.type", hintKey: "wizard.typeHint" },
+  { id: "campaign", key: "wizard.campaign", hintKey: "wizard.campaignHint" },
+  { id: "format", key: "wizard.format", hintKey: "wizard.formatHint" },
+  { id: "audience", key: "wizard.audience", hintKey: "wizard.audienceHint" },
+  { id: "goals", key: "wizard.goals", hintKey: "wizard.goalsHint" },
+  { id: "form", key: "wizard.form", hintKey: "wizard.formHint" },
+  { id: "briefing", key: "wizard.briefing", hintKey: "wizard.briefingHint" },
+  { id: "review", key: "wizard.review", hintKey: "wizard.reviewHint" },
 ] as const
+
+type WizardStepId = (typeof STEP_DEFS)[number]["id"] | "seeding"
+
+function campaignSteps(type?: string) {
+  const steps: { id: WizardStepId; key: string; hintKey: string }[] = STEP_DEFS.map((item) => ({ ...item }))
+  if (type === "seeding") {
+    const review = steps.findIndex((item) => item.id === "review")
+    steps.splice(review, 0, { id: "seeding", key: "wizard.seeding", hintKey: "wizard.seedingHint" })
+  }
+  return steps
+}
 
 const NICHES: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "beleza", label: "Beleza", icon: Sparkles },
@@ -89,6 +112,14 @@ const NETWORKS: {
   { id: "tiktok", label: "TikTok", hint: "Vídeos curtos", wellClass: "bg-zinc-100 text-zinc-900", icon: SiTiktok },
   { id: "youtube", label: "YouTube", hint: "Vídeos e Shorts", wellClass: "bg-red-50 text-red-600", icon: SiYoutube },
 ]
+
+function FormatNetwork({ network, selected }: { network: string; selected: boolean }) {
+  const className = cn("shrink-0", selected ? "text-current" : "text-zinc-400")
+  if (network === "instagram") return <SiInstagram size={13} className={className} />
+  if (network === "tiktok") return <SiTiktok size={13} className={className} />
+  if (network === "youtube") return <SiYoutube size={13} className={className} />
+  return null
+}
 
 const TIERS = [
   { id: "nano", label: "Nano", min: 1_000, max: 10_000, range: "1–10 mil" },
@@ -140,6 +171,23 @@ function formatMoney(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
 }
 
+function blankSeedingProduct(): SeedingProduct {
+  return {
+    id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: "",
+    variants: ["Único"],
+    unitCost: 0,
+    stockForSeeding: 0,
+    stockUsed: 0,
+  }
+}
+
+function seedingStepReady(products?: SeedingProduct[], days?: number) {
+  if (!products?.length) return false
+  if (!products.every((product) => product.name.trim())) return false
+  return (days ?? 0) >= 1
+}
+
 function hashtagFromName(name: string) {
   const clean = name
     .normalize("NFD")
@@ -188,6 +236,9 @@ export default function CreateCampaignPage() {
   const briefings = useBriefingStore((state) => state.briefings)
   const draft = wizardDraft
   const step = wizardStep
+  const steps = campaignSteps(draft.type)
+  const safeStep = Math.min(step, Math.max(steps.length - 1, 0))
+  const currentId = steps[safeStep]?.id
   const mainRef = useRef<HTMLDivElement>(null)
   const [goalFilter, setGoalFilter] = useState<CampaignGoalId | "all" | null>(null)
   const [lastGoal, setLastGoal] = useState<CampaignGoalId | null>(null)
@@ -198,6 +249,9 @@ export default function CreateCampaignPage() {
   const [creating, setCreating] = useState(false)
 
   const skipScroll = useRef(true)
+  useEffect(() => {
+    if (step > steps.length - 1) setWizardStep(steps.length - 1)
+  }, [step, steps.length, setWizardStep])
   useEffect(() => {
     if (skipScroll.current) {
       skipScroll.current = false
@@ -214,10 +268,13 @@ export default function CreateCampaignPage() {
     : CAMPAIGN_GOALS.filter((goal) => goal.id === activeGoal)
 
   const datesOk = datesAreValid(draft.startDate, draft.endDate)
+  const stepId = (index: number) => steps[index]?.id
   const stepIsValid = (index: number) => {
-    if (index === 0) return Boolean(draft.type)
-    if (index === 1) return Boolean(draft.name?.trim()) && datesOk
-    if (index === 2) return Boolean(draft.visibility)
+    const id = stepId(index)
+    if (id === "type") return Boolean(draft.type)
+    if (id === "campaign") return Boolean(draft.name?.trim()) && datesOk
+    if (id === "audience") return Boolean(draft.visibility)
+    if (id === "seeding") return seedingStepReady(draft.seedingProducts, draft.daysToPost)
     return true
   }
   const canOpen = (index: number) => {
@@ -228,15 +285,17 @@ export default function CreateCampaignPage() {
     return true
   }
   const continueHint =
-    step === 0 && !draft.type
+    currentId === "type" && !draft.type
       ? "Escolha um tipo para continuar"
-      : step === 1 && !draft.name?.trim()
+      : currentId === "campaign" && !draft.name?.trim()
         ? "Dê um nome à campanha"
-        : step === 1 && !datesOk
+        : currentId === "campaign" && !datesOk
           ? "Ajuste as datas para continuar"
-          : !draft.visibility && (step === 2 || step === 5)
+          : !draft.visibility && (currentId === "audience" || currentId === "review")
             ? "Escolha quem pode ver a campanha"
-            : null
+            : currentId === "seeding" && !seedingStepReady(draft.seedingProducts, draft.daysToPost)
+              ? "Dê um nome a cada produto do envio"
+              : null
 
   const goTo = (index: number) => {
     if (canOpen(index)) setWizardStep(index)
@@ -247,6 +306,11 @@ export default function CreateCampaignPage() {
     if (!meta) return
     const previous = campaignTypeByValue(draft.type)
     const patch: WizardDraft = { type: value }
+    if (value === "seeding" && !draft.seedingProducts?.length) {
+      patch.seedingMode = draft.seedingMode ?? "fechado"
+      patch.daysToPost = draft.daysToPost ?? 7
+      patch.seedingProducts = [blankSeedingProduct()]
+    }
     if (!draft.objective || STOCK_OBJECTIVES.has(draft.objective)) {
       patch.objective = meta.suggestedObjective
     }
@@ -285,6 +349,31 @@ export default function CreateCampaignPage() {
     const current = (draft[key] ?? []) as string[]
     const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
     updateWizardDraft({ [key]: next } as WizardDraft)
+  }
+
+  const toggleFormat = (value: (typeof CONTENT_FORMATS)[number]["value"]) => {
+    const format = contentFormatByValue(value)
+    const current = draft.contentFormats ?? []
+    const selected = current.includes(value)
+    const nextFormats = selected ? current.filter((item) => item !== value) : [...current, value]
+    const networks = new Set(draft.targetNetworks ?? [])
+    if (format) {
+      const stillUsed = nextFormats.some((item) => contentFormatByValue(item)?.network === format.network)
+      if (!selected) networks.add(format.network)
+      else if (!stillUsed) networks.delete(format.network)
+    }
+    updateWizardDraft({ contentFormats: nextFormats, targetNetworks: [...networks] })
+  }
+
+  const toggleNetwork = (id: string) => {
+    const current = draft.targetNetworks ?? []
+    const selected = current.includes(id)
+    updateWizardDraft({
+      targetNetworks: selected ? current.filter((item) => item !== id) : [...current, id],
+      contentFormats: selected
+        ? (draft.contentFormats ?? []).filter((item) => contentFormatByValue(item)?.network !== id)
+        : draft.contentFormats,
+    })
   }
 
   const toggleTier = (id: string) => {
@@ -331,6 +420,7 @@ export default function CreateCampaignPage() {
 
   const handleCreate = () => {
     if (creating || !draft.type || !draft.name?.trim() || !datesOk || !draft.visibility) return
+    if (draft.type === "seeding" && !seedingStepReady(draft.seedingProducts, draft.daysToPost)) return
     setCreating(true)
     const today = new Date().toISOString().split("T")[0]
     const campaignId = `camp_${Date.now()}`
@@ -374,6 +464,9 @@ export default function CreateCampaignPage() {
       mandatoryHashtags: draft.mandatoryHashtags ?? [],
       mandatoryMentions: normalizeMentions(draft.mandatoryMentions),
       contentFormats: draft.contentFormats ?? [],
+      successTargets: readSuccessTargets(draft.successTargets).filter(
+        (item) => item.target > 0 && metricsForNetworks((draft.targetNetworks ?? []).filter(isSocialNetwork)).some((metric) => metric.id === item.metric),
+      ),
       recommended: draft.recommended?.trim() || undefined,
       notRecommended: draft.notRecommended?.trim() || undefined,
       participants: [],
@@ -382,6 +475,32 @@ export default function CreateCampaignPage() {
       visibility: draft.visibility,
     }
     createCampaign(campaign)
+    if (draft.type === "seeding") {
+      const products = (draft.seedingProducts ?? []).map((product) => ({
+        ...product,
+        name: product.name.trim(),
+        variants: product.variants.length ? product.variants : ["Único"],
+        stockUsed: 0,
+      }))
+      useSeedingStore.getState().createCampaign({
+        id: `s-${campaignId}`,
+        campaignId,
+        organizationId: campaign.organizationId,
+        name: campaign.name,
+        status: "rascunho",
+        mode: draft.seedingMode ?? "fechado",
+        objective: campaign.objective,
+        expectedHashtag: campaign.mandatoryHashtags[0],
+        expectedMention: campaign.mandatoryMentions[0]?.handle,
+        expectedFormats: campaign.contentFormats ?? [],
+        daysToPost: draft.daysToPost ?? 7,
+        products,
+        creators: [],
+        createdAt: today,
+        startDate: campaign.startDate || undefined,
+        endDate: campaign.endDate || undefined,
+      })
+    }
     router.push(`/campaigns/${campaign.id}`)
   }
 
@@ -412,7 +531,7 @@ export default function CreateCampaignPage() {
     <div className="flex flex-1 flex-col">
       <TopBar
         title={t("pages.newCampaign")}
-        subtitle={t("pages.step", { current: step + 1, total: STEPS.length, name: t(STEPS[step].key) })}
+        subtitle={t("pages.step", { current: safeStep + 1, total: steps.length, name: t(steps[safeStep].key) })}
         actions={
           <Link href="/campaigns">
             <Button variant="outline" size="sm" type="button">
@@ -426,39 +545,39 @@ export default function CreateCampaignPage() {
         <div
           className={cn(
             "mx-auto grid max-w-6xl gap-6 lg:grid-cols-[208px_minmax(0,1fr)]",
-            step !== 1 && step !== 3 && step !== 4 && "xl:grid-cols-[208px_minmax(0,1fr)_280px]"
+            step !== 1 && currentId !== "format" && currentId !== "goals" && currentId !== "form" && currentId !== "briefing" && currentId !== "seeding" && "xl:grid-cols-[208px_minmax(0,1fr)_280px]"
           )}
         >
           <nav className="lg:sticky lg:top-24 lg:self-start xl:row-span-2" aria-label={t("pages.campaignSteps")}>
             <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
-              {STEPS.map((item, index) => (
+              {steps.map((item, index) => (
                 <button
                   key={item.key}
                   type="button"
                   disabled={!canOpen(index)}
                   onClick={() => goTo(index)}
-                  aria-current={index === step ? "step" : undefined}
+                  aria-current={index === safeStep ? "step" : undefined}
                   className={cn(
                     "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                    index === step
+                    index === safeStep
                       ? "border-zinc-900 bg-zinc-900 text-white"
-                      : index < step
+                      : index < safeStep
                         ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                         : "border-zinc-200 bg-white text-zinc-500",
                     !canOpen(index) && "cursor-not-allowed opacity-50"
                   )}
                 >
                   <span className="flex h-4 w-4 items-center justify-center">
-                    {index < step ? <Check size={12} /> : index + 1}
+                    {index < safeStep ? <Check size={12} /> : index + 1}
                   </span>
                   {t(item.key)}
                 </button>
               ))}
             </div>
             <ol className="hidden space-y-1 lg:block">
-              {STEPS.map((item, index) => {
-                const done = index < step
-                const current = index === step
+              {steps.map((item, index) => {
+                const done = index < safeStep
+                const current = index === safeStep
                 return (
                   <li key={item.key}>
                     <button
@@ -497,7 +616,7 @@ export default function CreateCampaignPage() {
 
           <div ref={mainRef} className="scroll-mt-24 min-w-0">
             <div key={step} className="animate-in fade-in duration-300">
-              {step > 0 && step < 3 && selectedType && (
+              {step > 0 && step < 4 && selectedType && (
                 <button
                   type="button"
                   onClick={() => goTo(0)}
@@ -514,21 +633,11 @@ export default function CreateCampaignPage() {
                 </button>
               )}
 
-              {step === 0 && (
+              {currentId === "type" && (
                 <StepShell
                   title="Qual é o tipo da campanha?"
                   subtitle="Comece pelo objetivo. Os tipos aparecem em seguida, já com ícone e com o que a campanha vai medir."
                 >
-                  <div className="flex flex-col gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-900">{t("agent.manualEntryTitle")}</p>
-                      <p className="text-xs text-zinc-500">{t("agent.manualEntryHelp")}</p>
-                    </div>
-                    <Button variant="outline" size="sm" render={<Link href="/campaigns/agent" />}>
-                      <Sparkles />
-                      {t("agent.title")}
-                    </Button>
-                  </div>
                   <div>
                     <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">Começar por um modelo</p>
                     <div className="grid gap-2 sm:grid-cols-3">
@@ -670,13 +779,24 @@ export default function CreateCampaignPage() {
                       })}
                     </div>
                   )}
+
+                  <div className="flex flex-col gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">{t("agent.manualEntryTitle")}</p>
+                      <p className="text-xs text-zinc-500">{t("agent.manualEntryHelp")}</p>
+                    </div>
+                    <Button variant="outline" size="sm" render={<Link href="/campaigns/agent" />}>
+                      <Sparkles />
+                      {t("agent.title")}
+                    </Button>
+                  </div>
                 </StepShell>
               )}
 
-              {step === 1 && (
+              {currentId === "campaign" && (
                 <StepShell
                   title="Dados da campanha"
-                  subtitle="Nome, período, orçamento e regras. O briefing de instruções vem no passo seguinte ao formulário."
+                  subtitle="Nome, período e orçamento. Os formatos da publicação vêm na etapa seguinte."
                 >
                   <div className="space-y-1.5">
                     <Label htmlFor="campaign-name">Nome da campanha *</Label>
@@ -780,6 +900,46 @@ export default function CreateCampaignPage() {
                       <p className="text-xs text-zinc-500">{formatMoney(Number(draft.budget))} para dividir entre os creators.</p>
                     ) : null}
                   </div>
+                </StepShell>
+              )}
+
+              {currentId === "format" && (
+                <StepShell
+                  title="Formatos"
+                  subtitle="Redes, o que o creator entrega e como a publicação aparece."
+                >
+                  <div>
+                    <Label className="mb-2 block">Redes</Label>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {NETWORKS.map((network) => {
+                        const selected = (draft.targetNetworks ?? []).includes(network.id)
+                        const Icon = network.icon
+                        return (
+                          <button
+                            key={network.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => toggleNetwork(network.id)}
+                            className={cn(
+                              "flex items-center gap-3 rounded-2xl border p-3 text-left transition-all",
+                              selected
+                                ? "border-zinc-900 bg-zinc-50 shadow-[0_0_0_1px_#18181b]"
+                                : "border-zinc-200 bg-white hover:border-zinc-400"
+                            )}
+                          >
+                            <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", network.wellClass)}>
+                              <Icon size={18} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-zinc-900">{network.label}</span>
+                              <span className="block text-xs text-zinc-500">{network.hint}</span>
+                            </span>
+                            {selected && <Check size={16} className="ml-auto shrink-0 text-zinc-900" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
 
                   <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
                     <div className="min-w-0 space-y-5">
@@ -794,13 +954,16 @@ export default function CreateCampaignPage() {
                                 key={format.value}
                                 type="button"
                                 aria-pressed={selected}
-                                onClick={() => toggleIn("contentFormats", format.value)}
+                                onClick={() => toggleFormat(format.value)}
                                 className={cn(
                                   "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors",
                                   selected ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 bg-white hover:border-zinc-400"
                                 )}
                               >
-                                <Icon size={16} className={cn("shrink-0", selected ? "text-current" : "text-zinc-500")} />
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  <FormatNetwork network={format.network} selected={selected} />
+                                  <Icon size={16} className={cn(selected ? "text-current" : "text-zinc-500")} />
+                                </span>
                                 <span>
                                   <span className="block text-sm font-medium">{format.label}</span>
                                   <span className={cn("block text-[11px]", selected ? "text-zinc-300" : "text-zinc-400")}>{format.hint}</span>
@@ -857,7 +1020,7 @@ export default function CreateCampaignPage() {
                 </StepShell>
               )}
 
-              {step === 2 && (
+              {currentId === "audience" && (
                 <StepShell
                   title="Público"
                   subtitle="Escolha quem encontra a campanha. O restante ajuda a achar o perfil certo e não impede de criar."
@@ -896,39 +1059,6 @@ export default function CreateCampaignPage() {
                           >
                             <Icon size={14} />
                             {niche.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="mb-2 block">Redes</Label>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      {NETWORKS.map((network) => {
-                        const selected = (draft.targetNetworks ?? []).includes(network.id)
-                        const Icon = network.icon
-                        return (
-                          <button
-                            key={network.id}
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => toggleIn("targetNetworks", network.id)}
-                            className={cn(
-                              "flex items-center gap-3 rounded-2xl border p-3 text-left transition-all",
-                              selected
-                                ? "border-zinc-900 bg-zinc-50 shadow-[0_0_0_1px_#18181b]"
-                                : "border-zinc-200 bg-white hover:border-zinc-400"
-                            )}
-                          >
-                            <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", network.wellClass)}>
-                              <Icon size={18} />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block text-sm font-semibold text-zinc-900">{network.label}</span>
-                              <span className="block text-xs text-zinc-500">{network.hint}</span>
-                            </span>
-                            {selected && <Check size={16} className="ml-auto shrink-0 text-zinc-900" />}
                           </button>
                         )
                       })}
@@ -1004,7 +1134,28 @@ export default function CreateCampaignPage() {
                   </div>
 
                   <div>
-                    <Label className="mb-2 block">Engajamento mínimo</Label>
+                    <div className="mb-2 flex items-center gap-1">
+                      <Label>Engajamento mínimo</Label>
+                      <TooltipProvider delay={200}>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label="O que é engajamento"
+                              />
+                            }
+                          >
+                            <CircleHelp />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-64 whitespace-normal text-left leading-relaxed">
+                            Percentual de interações do creator — curtidas, comentários, salvamentos e encaminhamentos — sobre o alcance. Quem fica abaixo desse mínimo não entra na campanha.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -1043,7 +1194,22 @@ export default function CreateCampaignPage() {
                 </StepShell>
               )}
 
-              {step === 3 && (
+              {currentId === "goals" && (
+                <StepShell
+                  title="Metas de sucesso"
+                  subtitle="Marque o que a campanha precisa alcançar. A sugestão segue o tipo escolhido e as redes desta etapa."
+                >
+                  <CampaignSuccessTargets
+                    networks={(draft.targetNetworks ?? []).filter(isSocialNetwork)}
+                    type={draft.type}
+                    value={draft.successTargets}
+                    onChange={(successTargets) => updateWizardDraft({ successTargets })}
+                    showHeading={false}
+                  />
+                </StepShell>
+              )}
+
+              {currentId === "form" && (
                 <WizardFormStep
                   organizationId={user?.organizationId ?? "org1"}
                   organizationName={user?.organizationName ?? ""}
@@ -1052,7 +1218,7 @@ export default function CreateCampaignPage() {
                 />
               )}
 
-              {step === 4 && (
+              {currentId === "briefing" && (
                 <WizardBriefingStep
                   organizationId={user?.organizationId ?? "org1"}
                   mode={draft.briefingMode ?? "skip"}
@@ -1063,12 +1229,39 @@ export default function CreateCampaignPage() {
                 />
               )}
 
-              {step === 5 && (
+              {currentId === "seeding" && (
+                <SeedingStep
+                  products={draft.seedingProducts ?? []}
+                  mode={draft.seedingMode ?? "fechado"}
+                  daysToPost={draft.daysToPost ?? 7}
+                  onChange={updateWizardDraft}
+                />
+              )}
+
+              {currentId === "review" && (
                 <div className="space-y-4">
                   <ReviewHero draft={draft} onChangeType={() => goTo(0)} />
                   <ReviewBlock title="Campanha" onEdit={() => goTo(1)}>
                     <Fact label="Período" value={periodLabel(draft)} />
                     <Fact label="Orçamento" value={draft.budget ? formatMoney(Number(draft.budget)) : "A definir"} />
+                    {(draft.recommended || draft.notRecommended) && (
+                      <div className="grid gap-3 pt-2 sm:grid-cols-2 sm:col-span-2">
+                        <Quote tone="good" title="Recomendável" text={draft.recommended} />
+                        <Quote tone="avoid" title="Não recomendável" text={draft.notRecommended} />
+                      </div>
+                    )}
+                  </ReviewBlock>
+                  <ReviewBlock title="Formato" onEdit={() => goTo(2)}>
+                    <Fact
+                      label="Redes"
+                      value={
+                        (draft.targetNetworks ?? []).length
+                          ? (draft.targetNetworks ?? [])
+                              .map((id) => NETWORKS.find((network) => network.id === id)?.label ?? id)
+                              .join(", ")
+                          : "A definir"
+                      }
+                    />
                     <Fact
                       label="Formatos"
                       value={
@@ -1086,14 +1279,8 @@ export default function CreateCampaignPage() {
                           : "A definir"
                       }
                     />
-                    {(draft.recommended || draft.notRecommended) && (
-                      <div className="grid gap-3 pt-2 sm:grid-cols-2 sm:col-span-2">
-                        <Quote tone="good" title="Recomendável" text={draft.recommended} />
-                        <Quote tone="avoid" title="Não recomendável" text={draft.notRecommended} />
-                      </div>
-                    )}
                   </ReviewBlock>
-                  <ReviewBlock title="Público" onEdit={() => goTo(2)}>
+                  <ReviewBlock title="Público" onEdit={() => goTo(3)}>
                     <Fact label="Quem pode ver" value={visibilityLabel(draft.visibility)} />
                     <Fact
                       label="Nichos"
@@ -1105,29 +1292,22 @@ export default function CreateCampaignPage() {
                           : "A definir"
                       }
                     />
-                    <Fact
-                      label="Redes"
-                      value={
-                        (draft.targetNetworks ?? []).length
-                          ? (draft.targetNetworks ?? [])
-                              .map((id) => NETWORKS.find((network) => network.id === id)?.label ?? id)
-                              .join(", ")
-                          : "A definir"
-                      }
-                    />
                     <Fact label="Seguidores" value={followersLabel(draft)} />
                     <Fact
                       label="Engajamento"
                       value={draft.minEngagement ? `Mínimo de ${draft.minEngagement}%` : "Sem mínimo"}
                     />
                   </ReviewBlock>
-                  <ReviewBlock title="Formulário" onEdit={() => goTo(3)}>
+                  <ReviewBlock title="Metas" onEdit={() => goTo(steps.findIndex((item) => item.id === "goals"))}>
+                    <Fact label="Sucesso" value={formatSuccessTargetList(draft.successTargets)} />
+                  </ReviewBlock>
+                  <ReviewBlock title="Formulário" onEdit={() => goTo(steps.findIndex((item) => item.id === "form"))}>
                     <Fact
                       label="Candidatura"
                       value={forms.find((form) => form.id === draft.formId)?.title ?? "Sem formulário"}
                     />
                   </ReviewBlock>
-                  <ReviewBlock title="Briefing" onEdit={() => goTo(4)}>
+                  <ReviewBlock title="Briefing" onEdit={() => goTo(steps.findIndex((item) => item.id === "briefing"))}>
                     <Fact
                       label="Documento"
                       value={
@@ -1139,6 +1319,21 @@ export default function CreateCampaignPage() {
                       }
                     />
                   </ReviewBlock>
+                  {draft.type === "seeding" && (
+                    <ReviewBlock
+                      title="Seeding"
+                      onEdit={() => goTo(steps.findIndex((item) => item.id === "seeding"))}
+                    >
+                      <Fact label="Modo" value={draft.seedingMode === "aberto" ? "Aberto — creators se candidatam" : "Fechado — a marca convida"} />
+                      <Fact label="Prazo para postar" value={`${draft.daysToPost ?? 7} dias após a entrega`} />
+                      <Fact
+                        label="Produtos"
+                        value={
+                          (draft.seedingProducts ?? []).map((product) => product.name.trim()).filter(Boolean).join(", ") || "A definir"
+                        }
+                      />
+                    </ReviewBlock>
+                  )}
                   <p className="text-sm text-zinc-500">
                     A campanha entra como <span className="font-medium text-zinc-800">rascunho</span>. As candidaturas só abrem quando você quiser.
                   </p>
@@ -1147,13 +1342,13 @@ export default function CreateCampaignPage() {
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3">
-              <Button type="button" variant="outline" size="lg" onClick={() => goTo(step - 1)} disabled={step === 0}>
+              <Button type="button" variant="outline" size="lg" onClick={() => goTo(safeStep - 1)} disabled={safeStep === 0}>
                 Voltar
               </Button>
               <div className="flex items-center gap-3">
                 {continueHint && <p className="hidden text-xs text-zinc-500 sm:block">{continueHint}</p>}
-                {step < 5 ? (
-                  <Button type="button" size="lg" onClick={() => goTo(step + 1)} disabled={!stepIsValid(step)}>
+                {safeStep < steps.length - 1 ? (
+                  <Button type="button" size="lg" onClick={() => goTo(safeStep + 1)} disabled={!stepIsValid(safeStep)}>
                     Continuar
                   </Button>
                 ) : (
@@ -1161,7 +1356,14 @@ export default function CreateCampaignPage() {
                     type="button"
                     size="lg"
                     onClick={handleCreate}
-                    disabled={creating || !draft.type || !draft.name?.trim() || !datesOk || !draft.visibility}
+                    disabled={
+                      creating
+                      || !draft.type
+                      || !draft.name?.trim()
+                      || !datesOk
+                      || !draft.visibility
+                      || (draft.type === "seeding" && !seedingStepReady(draft.seedingProducts, draft.daysToPost))
+                    }
                   >
                     {creating ? "Criando..." : "Criar campanha"}
                   </Button>
@@ -1171,7 +1373,7 @@ export default function CreateCampaignPage() {
             {continueHint && <p className="mt-2 text-right text-xs text-zinc-500 sm:hidden">{continueHint}</p>}
           </div>
 
-          {step !== 1 && step !== 3 && step !== 4 && (
+          {currentId !== "campaign" && currentId !== "format" && currentId !== "goals" && currentId !== "form" && currentId !== "briefing" && currentId !== "seeding" && (
             <aside className="lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-span-2 xl:row-start-1 xl:sticky xl:top-24 xl:self-start">
               <Preview draft={draft} dirty={dirty} onClear={clearDraft} />
             </aside>
@@ -1179,6 +1381,145 @@ export default function CreateCampaignPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function SeedingStep({
+  products,
+  mode,
+  daysToPost,
+  onChange,
+}: {
+  products: SeedingProduct[]
+  mode: "fechado" | "aberto"
+  daysToPost: number
+  onChange: (data: WizardDraft) => void
+}) {
+  const [variantText, setVariantText] = useState<Record<string, string>>({})
+
+  function updateProduct(index: number, patch: Partial<SeedingProduct>) {
+    onChange({
+      seedingProducts: products.map((product, productIndex) =>
+        productIndex === index ? { ...product, ...patch } : product
+      ),
+    })
+  }
+
+  return (
+    <StepShell
+      title="Envio de produto"
+      subtitle="O que sai para os creators, como eles entram na campanha e em quantos dias devem publicar depois de receber."
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Modo de participação</Label>
+          <Select value={mode} onValueChange={(value) => onChange({ seedingMode: value === "aberto" ? "aberto" : "fechado" })}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fechado">Fechado — a marca convida</SelectItem>
+              <SelectItem value="aberto">Aberto — creators se candidatam</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="daysToPost">Prazo para postar após a entrega</Label>
+          <Input
+            id="daysToPost"
+            type="number"
+            min={1}
+            max={60}
+            value={daysToPost}
+            onChange={(event) => onChange({ daysToPost: Number(event.target.value) || 0 })}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900">Produtos para envio</h3>
+          <p className="mt-0.5 text-xs text-zinc-500">Nome, variantes, custo e quanto pode ser enviado.</p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onChange({ seedingProducts: [...products, blankSeedingProduct()] })}
+        >
+          <PackagePlus data-icon="inline-start" />
+          Adicionar produto
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {products.map((product, index) => (
+          <div key={product.id} className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-zinc-500">Produto {index + 1}</p>
+              {products.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remover ${product.name || `produto ${index + 1}`}`}
+                  onClick={() => onChange({ seedingProducts: products.filter((item) => item.id !== product.id) })}
+                >
+                  <Trash2 />
+                </Button>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor={`product-name-${product.id}`}>Nome do produto</Label>
+                <Input
+                  id={`product-name-${product.id}`}
+                  placeholder="Ex: Kit Hidratação Facial"
+                  value={product.name}
+                  onChange={(event) => updateProduct(index, { name: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`product-variants-${product.id}`}>Variantes</Label>
+                <Input
+                  id={`product-variants-${product.id}`}
+                  placeholder="Pele Seca, Pele Oleosa"
+                  value={variantText[product.id] ?? product.variants.join(", ")}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    setVariantText((current) => ({ ...current, [product.id]: raw }))
+                    const variants = raw.split(",").map((item) => item.trim()).filter(Boolean)
+                    updateProduct(index, { variants: variants.length ? variants : ["Único"] })
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`product-cost-${product.id}`}>Custo unitário (R$)</Label>
+                <Input
+                  id={`product-cost-${product.id}`}
+                  type="number"
+                  min={0}
+                  placeholder="120"
+                  value={product.unitCost || ""}
+                  onChange={(event) => updateProduct(index, { unitCost: Number(event.target.value) || 0 })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`product-stock-${product.id}`}>Estoque para seeding</Label>
+                <Input
+                  id={`product-stock-${product.id}`}
+                  type="number"
+                  min={0}
+                  placeholder="25"
+                  value={product.stockForSeeding || ""}
+                  onChange={(event) => updateProduct(index, { stockForSeeding: Number(event.target.value) || 0 })}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </StepShell>
   )
 }
 
@@ -1541,7 +1882,8 @@ function Preview({ draft, dirty, onClear }: { draft: WizardDraft; dirty: boolean
     { label: "Nome definido", done: Boolean(draft.name?.trim()) },
     { label: "Período", done: Boolean(draft.startDate && draft.endDate) },
     { label: "Quem pode ver", done: Boolean(draft.visibility) },
-    { label: "Público marcado", done: Boolean((draft.targetNiches ?? []).length || (draft.targetNetworks ?? []).length) },
+    { label: "Redes escolhidas", done: Boolean((draft.targetNetworks ?? []).length) },
+    { label: "Público marcado", done: Boolean((draft.targetNiches ?? []).length) },
   ]
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-4">

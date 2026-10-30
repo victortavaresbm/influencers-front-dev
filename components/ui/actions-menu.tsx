@@ -34,7 +34,7 @@ export function ActionsMenu({
 
   if (items.length === 0) return null
 
-  if (items.length === 1) {
+  if (items.length === 1 && trigger !== "ellipsis") {
     const item = items[0]
     const Icon = item.icon
     return (

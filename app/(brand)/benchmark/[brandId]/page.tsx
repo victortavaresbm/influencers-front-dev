@@ -34,9 +34,9 @@ export default function TrackingBrandPage() {
       <div className="flex flex-1 flex-col">
         <TopBar
           title="Marca não encontrada"
-          subtitle="Escolha uma concorrente na lista de Tracking."
+          subtitle="Escolha uma concorrente na lista de Benchmark."
           leading={
-            <Link href="/tracking">
+            <Link href="/benchmark">
               <Button variant="outline" size="sm">
                 <ArrowLeft />
                 Voltar
@@ -54,7 +54,7 @@ export default function TrackingBrandPage() {
         title={competitor.name}
         subtitle={`Comparativo com ${catalog.own.name}`}
         leading={
-          <Link href="/tracking">
+          <Link href="/benchmark">
             <Button variant="outline" size="sm">
               <ArrowLeft />
               Voltar
