@@ -6,10 +6,12 @@ import { PAYMENT_ORDERS, FINANCIAL_SUMMARY, type PaymentStatus } from "@/lib/moc
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DollarSign, TrendingUp, Clock, CheckCircle, Download } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { formatDateBR } from "@/lib/dates"
+import { ALL_PERIOD, dateInPeriod, type PeriodValue } from "@/lib/period"
 
 const STATUS_LABELS: Record<PaymentStatus, string> = {
   pendente: "Pendente",
@@ -28,7 +30,9 @@ const STATUS_COLORS: Record<PaymentStatus, string> = {
 export default function FinancialPage() {
   const { t } = useI18n()
   const user = useAuthStore((s) => s.user)
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
   const orders = PAYMENT_ORDERS.filter((p) => p.organizationId === user?.organizationId)
+    .filter((order) => dateInPeriod(order.dueDate, period))
   const summary = FINANCIAL_SUMMARY[user?.organizationId as keyof typeof FINANCIAL_SUMMARY]
 
   const tabs = [
@@ -72,22 +76,25 @@ export default function FinancialPage() {
         )}
 
         <Tabs defaultValue="all">
-          <TabsList>
-            {tabs.map((t) => (
-              <TabsTrigger key={t.key} value={t.key}>
-                {t.label}
-                <span className="ml-1.5 text-xs bg-zinc-200 text-zinc-700 rounded-full px-1.5 py-0.5">
-                  {t.items.length}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="flex flex-wrap items-center gap-2">
+            <TabsList>
+              {tabs.map((t) => (
+                <TabsTrigger key={t.key} value={t.key}>
+                  {t.label}
+                  <span className="ml-1.5 text-xs bg-zinc-200 text-zinc-700 rounded-full px-1.5 py-0.5">
+                    {t.items.length}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <PeriodFilter value={period} onChange={setPeriod} />
+          </div>
 
           {tabs.map((tab) => (
             <TabsContent key={tab.key} value={tab.key} className="mt-4">
               {tab.items.length === 0 ? (
                 <div className="py-12 text-center text-sm text-zinc-400 border border-dashed border-zinc-200 rounded-xl">
-                  Nenhuma ordem nesta categoria.
+                  {period.preset === "all" ? "Nenhuma ordem nesta categoria." : "Nenhuma ordem neste período."}
                 </div>
               ) : (
                 <div className="rounded-xl border border-zinc-200 overflow-hidden bg-white">

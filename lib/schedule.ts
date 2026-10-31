@@ -1,5 +1,6 @@
 import { type Campaign, type SocialNetwork } from "@/lib/mock-data/campaigns"
 import { MONITOR_POSTS, type PostAiStatus } from "@/lib/mock-data/metrics"
+import { memberTracksContent } from "@/lib/stores/membership"
 
 export type SlotStatus = "publicado" | "agendado" | "pendente" | "atrasado"
 export type DayHealth = "ok" | "atencao" | "atraso"
@@ -270,7 +271,7 @@ export function buildSchedule(campaigns: Campaign[], today = todayIso()): Conten
 
   const published = MONITOR_POSTS.flatMap((post) => {
     const campaign = byId.get(post.campaignId)
-    if (!campaign) return []
+    if (!campaign || !memberTracksContent(post.creatorId)) return []
     const inFuture = post.publishedAt > today
     const slot: ContentSlot = {
       id: `post-${post.id}`,
@@ -294,7 +295,7 @@ export function buildSchedule(campaigns: Campaign[], today = todayIso()): Conten
 
   const planned = PLANNED.flatMap((slot) => {
     const campaign = byId.get(slot.campaignId)
-    if (!campaign) return []
+    if (!campaign || !memberTracksContent(slot.creatorId)) return []
     return [{
       ...slot,
       campaignName: campaign.name,

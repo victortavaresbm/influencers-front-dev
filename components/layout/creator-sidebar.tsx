@@ -7,6 +7,7 @@ import { useI18n, type MessageKey } from "@/lib/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
 import { SidebarIconLink } from "@/components/layout/sidebar-icon"
+import { SuggestionsButton } from "@/components/layout/suggestions-button"
 import { UserMenu } from "@/components/layout/user-menu"
 import { PartnerCommunitySwitcher } from "@/components/community/partner-community-switcher"
 import { usePartnerCommunity } from "@/lib/stores/partner-community"
@@ -68,7 +69,10 @@ export function CreatorSidebar() {
           )}
         </nav>
 
-        <UserMenu settingsHref="/creator/settings" />
+        <div className="flex flex-col items-center gap-1">
+          <SuggestionsButton />
+          <UserMenu settingsHref="/creator/settings" />
+        </div>
       </aside>
     </TooltipProvider>
   )

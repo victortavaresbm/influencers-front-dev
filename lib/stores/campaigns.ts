@@ -13,9 +13,6 @@ import type { SeedingMode, SeedingProduct } from "@/lib/mock-data/seeding"
 
 export type WizardDraft = Partial<Campaign> & {
   audienceTiers?: string[]
-  briefingMode?: "skip" | "existing" | "new"
-  newBriefingTitle?: string
-  newBriefingObjective?: string
   seedingMode?: SeedingMode
   daysToPost?: number
   seedingProducts?: SeedingProduct[]
@@ -107,16 +104,35 @@ export const useCampaignStore = create<CampaignState>()(
     }),
     {
       name: "wesell-campaign-wizard",
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
-        const state = persisted as { wizardStep?: number; wizardDraft?: WizardDraft }
-        if (state.wizardDraft) {
-          state.wizardDraft.mandatoryMentions = normalizeMentions(state.wizardDraft.mandatoryMentions)
+        const state = (persisted ?? {}) as {
+          wizardStep?: number
+          wizardDraft?: WizardDraft & { recommended?: string; notRecommended?: string }
+        }
+        const draft = state.wizardDraft
+        if (draft) {
+          draft.mandatoryMentions = normalizeMentions(draft.mandatoryMentions)
+          if (version < 5) {
+            const lines = (value?: string) =>
+              (value ?? "")
+                .split("\n")
+                .map((item) => item.trim())
+                .filter(Boolean)
+            if (!draft.doList?.length && draft.recommended) draft.doList = lines(draft.recommended)
+            if (!draft.dontList?.length && draft.notRecommended) draft.dontList = lines(draft.notRecommended)
+            delete draft.recommended
+            delete draft.notRecommended
+          }
         }
         if (version < 2 && (state.wizardStep ?? 0) >= 3) state.wizardStep = 5
         if (version < 3 && (state.wizardStep ?? 0) >= 2) state.wizardStep = (state.wizardStep ?? 0) + 1
         if (version < 4 && (state.wizardStep ?? 0) >= 4) state.wizardStep = (state.wizardStep ?? 0) + 1
-        return state
+        if (version < 5 && (state.wizardStep ?? 0) > 6) state.wizardStep = (state.wizardStep ?? 0) - 1
+        return {
+          wizardStep: state.wizardStep ?? 0,
+          wizardDraft: draft ?? {},
+        }
       },
       partialize: (state) => ({
         wizardStep: state.wizardStep,

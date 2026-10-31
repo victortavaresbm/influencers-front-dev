@@ -1,4 +1,8 @@
+"use client"
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { NotTracked } from "@/components/members/membership-badge"
+import { memberTracksContent, useMembershipStore } from "@/lib/stores/membership"
 import {
   BarChart3,
   DollarSign,
@@ -10,6 +14,7 @@ import {
 } from "lucide-react"
 import type { Campaign } from "@/lib/mock-data/campaigns"
 import type { SeedingCampaign } from "@/lib/mock-data/seeding"
+import { ROI_TOOLTIP, seedingRoi } from "@/lib/roi"
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -22,7 +27,8 @@ function currency(n: number) {
 }
 
 export function SeedingResults({ campaign }: { campaign: SeedingCampaign }) {
-  const posted = campaign.creators.filter((creator) => creator.status === "postou")
+  const roles = useMembershipStore((state) => state.roles)
+  const posted = campaign.creators.filter((creator) => creator.status === "postou" && memberTracksContent(creator.creatorId, roles))
   const sent = campaign.creators.filter((creator) =>
     ["enviado", "entregue", "postou", "nao_postou"].includes(creator.status)
   )
@@ -39,6 +45,7 @@ export function SeedingResults({ campaign }: { campaign: SeedingCampaign }) {
       return sum + (product?.unitCost ?? 0)
     }, 0)
 
+  const roi = seedingRoi(campaign)
   const giftToPostRate = sent.length > 0 ? Math.round((posted.length / sent.length) * 100) : 0
   const cpp = posted.length > 0 ? Math.round(totalProductCost / posted.length) : 0
   const emv = Math.round(totalViews * 0.015 + totalLikes * 0.3 + totalComments * 1.2)
@@ -50,13 +57,20 @@ export function SeedingResults({ campaign }: { campaign: SeedingCampaign }) {
     { label: "CPP (custo/post)", value: currency(cpp), sub: "meta: < R$ 250", icon: <DollarSign size={16} />, highlight: cpp > 0 && cpp < 250 },
     { label: "EMV estimado", value: currency(emv), sub: "valor de mídia gerado", icon: <TrendingUp size={16} /> },
     { label: "Vendas atribuídas", value: currency(totalSales), sub: "via cupom dos creators", icon: <BarChart3 size={16} /> },
+    {
+      label: "ROI",
+      value: roi !== undefined ? `${roi > 0 ? "+" : ""}${roi}%` : "—",
+      sub: "cupom sobre o produto enviado",
+      icon: <TrendingUp size={16} />,
+      title: ROI_TOOLTIP,
+    },
   ]
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {metrics.map((metric) => (
-          <div key={metric.label} className={`rounded-xl border bg-white p-4 ${metric.highlight ? "border-zinc-900" : "border-zinc-200"}`}>
+          <div key={metric.label} title={"title" in metric ? metric.title : undefined} className={`rounded-xl border bg-white p-4 ${metric.highlight ? "border-zinc-900" : "border-zinc-200"}`}>
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase">{metric.label}</p>
               <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${metric.highlight ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"}`}>
@@ -88,8 +102,9 @@ export function SeedingResults({ campaign }: { campaign: SeedingCampaign }) {
               {posted
                 .sort((a, b) => (b.postViews ?? 0) - (a.postViews ?? 0))
                 .map((entry) => {
+                  const content = memberTracksContent(entry.creatorId, roles)
                   const engagement =
-                    entry.postViews && entry.postViews > 0
+                    content && entry.postViews && entry.postViews > 0
                       ? (((entry.postLikes ?? 0) + (entry.postComments ?? 0)) / entry.postViews * 100).toFixed(1)
                       : null
 
@@ -108,22 +123,28 @@ export function SeedingResults({ campaign }: { campaign: SeedingCampaign }) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {entry.postUrl ? (
+                        {!content ? <NotTracked /> : entry.postUrl ? (
                           <a href={entry.postUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
                             Ver post
                           </a>
                         ) : <span className="text-xs text-zinc-300">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-zinc-900">{entry.postViews ? fmt(entry.postViews) : "—"}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-zinc-900">{!content ? <NotTracked /> : entry.postViews ? fmt(entry.postViews) : "—"}</td>
                       <td className="flex items-center gap-1 px-4 py-3 text-sm text-zinc-700">
-                        <Heart size={11} className="text-zinc-400" />
-                        {entry.postLikes ? fmt(entry.postLikes) : "—"}
+                        {!content ? <NotTracked /> : (
+                          <>
+                            <Heart size={11} className="text-zinc-400" />
+                            {entry.postLikes ? fmt(entry.postLikes) : "—"}
+                          </>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-700">
-                        <span className="flex items-center gap-1">
-                          <MessageCircle size={11} className="text-zinc-400" />
-                          {entry.postComments ? fmt(entry.postComments) : "—"}
-                        </span>
+                        {!content ? <NotTracked /> : (
+                          <span className="flex items-center gap-1">
+                            <MessageCircle size={11} className="text-zinc-400" />
+                            {entry.postComments ? fmt(entry.postComments) : "—"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {engagement ? <span className="font-medium text-zinc-900">{engagement}%</span> : <span className="text-zinc-300">—</span>}

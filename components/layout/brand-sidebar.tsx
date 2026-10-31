@@ -4,9 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   CalendarDays,
-  ChartColumn,
   CircleDollarSign,
-  ClipboardList,
   FileText,
   Gauge,
   Gift,
@@ -22,6 +20,7 @@ import {
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarIconLink } from "@/components/layout/sidebar-icon"
+import { SuggestionsButton } from "@/components/layout/suggestions-button"
 import { UserMenu } from "@/components/layout/user-menu"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
@@ -36,11 +35,9 @@ const NAV: { href: string; icon: LucideIcon; labelKey: MessageKey }[] = [
   { href: "/crm", icon: Users, labelKey: "nav.prm" },
   { href: "/community", icon: MessagesSquare, labelKey: "nav.community" },
   { href: "/forms", icon: FileText, labelKey: "nav.forms" },
-  { href: "/briefing", icon: ClipboardList, labelKey: "nav.briefing" },
   { href: "/monitoring", icon: Radio, labelKey: "nav.monitoring" },
   { href: "/benchmark", icon: Gauge, labelKey: "nav.tracking" },
   { href: "/journeys", icon: Milestone, labelKey: "nav.journeys" },
-  { href: "/metrics", icon: ChartColumn, labelKey: "nav.metrics" },
   { href: "/financial", icon: CircleDollarSign, labelKey: "nav.financial" },
 ]
 
@@ -65,7 +62,7 @@ export function BrandSidebar() {
           WS
         </Link>
 
-        <nav className="flex flex-col items-center gap-1 flex-1">
+        <nav className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">
           {NAV.map(({ href, icon, labelKey }) => (
             <SidebarIconLink
               key={href}
@@ -78,7 +75,10 @@ export function BrandSidebar() {
           ))}
         </nav>
 
-        <UserMenu settingsHref="/settings" />
+        <div className="flex flex-col items-center gap-1">
+          <SuggestionsButton />
+          <UserMenu settingsHref="/settings" />
+        </div>
       </aside>
     </TooltipProvider>
   )

@@ -9,7 +9,9 @@ import { toast } from "@/components/ui/toast"
 import { useI18n } from "@/lib/i18n"
 import { startCircleThemeTransition } from "@/components/lightswind/toggle-theme"
 import { usePreferencesStore, type Locale, type Theme } from "@/lib/stores/preferences"
-import { Check, Moon, Plug, SlidersHorizontal, Store, Sun } from "lucide-react"
+import { CreatorLevelsPanel } from "@/components/settings/creator-levels-panel"
+import { useAuthStore } from "@/lib/stores/auth"
+import { Check, Medal, Moon, Plug, SlidersHorizontal, Store, Sun, type LucideIcon } from "lucide-react"
 import { SiFacebook, SiInstagram, SiShopify, SiTiktok, SiYoutube } from "react-icons/si"
 import { cn } from "@/lib/utils"
 
@@ -29,15 +31,21 @@ const INTEGRATIONS = [
 ] as const
 
 type IntegrationId = (typeof INTEGRATIONS)[number]["id"]
-type Section = "integrations" | "preferences"
+type Section = "integrations" | "preferences" | "levels"
 
 export default function SettingsPage() {
   const { t } = useI18n()
   const locale = usePreferencesStore((state) => state.locale)
   const theme = usePreferencesStore((state) => state.theme)
   const setLocale = usePreferencesStore((state) => state.setLocale)
+  const role = useAuthStore((state) => state.user?.role)
   const [section, setSection] = useState<Section>("preferences")
   const [connected, setConnected] = useState<IntegrationId[]>([])
+  const sections: { id: Section; label: string; icon: LucideIcon }[] = [
+    { id: "integrations", label: t("settings.integrations"), icon: Plug },
+    { id: "preferences", label: t("settings.preferences"), icon: SlidersHorizontal },
+  ]
+  if (role === "brand") sections.push({ id: "levels", label: t("settings.levels"), icon: Medal })
 
   const themes: { id: Theme; label: string; help: string; icon: typeof Sun }[] = [
     { id: "light", label: t("settings.light"), help: t("settings.lightHelp"), icon: Sun },
@@ -60,10 +68,7 @@ export default function SettingsPage() {
       <TopBar title={t("settings.title")} subtitle={t("settings.subtitle")} />
       <div className="grid w-full gap-6 p-6 xl:px-[200px] lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label={t("settings.title")} className="space-y-1">
-          {([
-            ["integrations", t("settings.integrations"), Plug],
-            ["preferences", t("settings.preferences"), SlidersHorizontal],
-          ] as const).map(([id, label, Icon]) => (
+          {sections.map(({ id, label, icon: Icon }) => (
             <Button
               key={id}
               type="button"
@@ -79,7 +84,9 @@ export default function SettingsPage() {
         </nav>
 
         <div className="min-w-0 space-y-4">
-          {section === "preferences" ? (
+          {section === "levels" && role === "brand" ? (
+            <CreatorLevelsPanel />
+          ) : section === "preferences" ? (
             <>
               <Card className="p-5">
                 <h2 className="text-sm font-semibold text-zinc-900">{t("settings.language")}</h2>

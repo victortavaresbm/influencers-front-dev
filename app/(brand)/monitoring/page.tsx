@@ -4,10 +4,13 @@ import { TopBar } from "@/components/layout/top-bar"
 import { MONITOR_POSTS, type MonitorPost } from "@/lib/mock-data/metrics"
 import { CAMPAIGNS } from "@/lib/mock-data/campaigns"
 import { useAuthStore } from "@/lib/stores/auth"
+import { memberTracksContent, useMembershipStore } from "@/lib/stores/membership"
 import { Card } from "@/components/ui/card"
 import { FilterMenu } from "@/components/ui/filter-menu"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { AiBadge, AI_CONFIG, PostCard, POST_TYPE_LABELS, StarRating } from "@/components/posts/post-card"
 import { formatDateBR } from "@/lib/dates"
+import { ALL_PERIOD, dateInPeriod, type PeriodValue } from "@/lib/period"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import {
   LayoutGrid, List, X,
@@ -55,15 +58,18 @@ export default function MonitoringPage() {
   const [aiFilter, setAiFilter] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>("publishedAt")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
 
   const orgCampaignIds = orgCampaigns.map((c) => c.id)
+  const roles = useMembershipStore((state) => state.roles)
 
   const posts = useMemo(() => {
-    let data = MONITOR_POSTS.filter((p) => orgCampaignIds.includes(p.campaignId))
+    let data = MONITOR_POSTS.filter((p) => orgCampaignIds.includes(p.campaignId) && memberTracksContent(p.creatorId, roles))
     if (campaignFilter) data = data.filter((p) => p.campaignId === campaignFilter)
     if (networkFilter) data = data.filter((p) => p.network === networkFilter)
     if (formatFilter) data = data.filter((p) => p.type === formatFilter)
     if (aiFilter) data = data.filter((p) => p.aiStatus === aiFilter)
+    data = data.filter((post) => dateInPeriod(post.publishedAt, period))
     data.sort((a, b) => {
       let av: number, bv: number
       if (sortKey === "publishedAt") { av = new Date(a.publishedAt).getTime(); bv = new Date(b.publishedAt).getTime() }
@@ -73,7 +79,7 @@ export default function MonitoringPage() {
       return sortDir === "desc" ? bv - av : av - bv
     })
     return data
-  }, [orgCampaignIds, campaignFilter, networkFilter, formatFilter, aiFilter, sortKey, sortDir])
+  }, [orgCampaignIds, roles, campaignFilter, networkFilter, formatFilter, aiFilter, period, sortKey, sortDir])
 
   const totalReach = posts.reduce((s, p) => s + p.reach, 0)
   const totalEngagement = posts.reduce((s, p) => s + p.likes + p.comments, 0)
@@ -118,6 +124,7 @@ export default function MonitoringPage() {
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-2">
+          <PeriodFilter value={period} onChange={setPeriod} />
           <FilterMenu
             value={campaignFilter ?? "all"}
             onValueChange={(value) => setCampaignFilter(value === "all" ? null : value)}

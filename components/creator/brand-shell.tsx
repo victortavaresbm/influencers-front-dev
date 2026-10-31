@@ -56,7 +56,7 @@ export function BrandShell({ children, manage = false }: { children: React.React
 
   return (
     <BrandSearchContext.Provider value="">
-      <div className="flex min-h-screen flex-1 flex-col items-center bg-zinc-50">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col items-center bg-zinc-50">
         <header className="sticky top-0 z-30 w-full border-b border-border bg-background">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-6 py-3">
             {manage ? (
@@ -96,7 +96,7 @@ export function BrandShell({ children, manage = false }: { children: React.React
             </TabsList>
           </Tabs>
         </header>
-        <div className="flex w-full max-w-6xl flex-1 flex-col">{children}</div>
+        <div className="flex w-full min-w-0 max-w-6xl flex-1 flex-col">{children}</div>
       </div>
     </BrandSearchContext.Provider>
   )

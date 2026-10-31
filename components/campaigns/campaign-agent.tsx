@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { CampaignVisibilityPicker } from "@/components/campaigns/campaign-visibility-picker"
+import { GuidelineLists, cleanGuidelines } from "@/components/campaigns/guideline-list"
 import { campaignTypeLabel } from "@/lib/campaign-types"
 import {
   buildPlan,
   rankCreators,
   revisePlan,
   setPlanAmount,
-  type AgentBrief,
   type AgentDraft,
   type AgentPlan,
   type AgentStep,
@@ -36,7 +36,6 @@ import {
   type Participant,
 } from "@/lib/mock-data/campaigns"
 import { useAuthStore } from "@/lib/stores/auth"
-import { useBriefingStore } from "@/lib/stores/briefings"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import type { Locale } from "@/lib/stores/preferences"
 import { cn } from "@/lib/utils"
@@ -111,6 +110,7 @@ export function CampaignAgent() {
   const [run, setRun] = useState<RunState>(IDLE_RUN)
   const [campaignId, setCampaignId] = useState<string | null>(null)
   const saving = useRef(false)
+  const pendingCampaignId = useRef<string | null>(null)
 
   const options = useMemo(
     () => ({ locale, brandFallback: user?.organizationName || "Marca" }),
@@ -131,6 +131,13 @@ export function CampaignAgent() {
     return () => window.clearTimeout(timer)
   }, [plan, run.active, run.cursor, run.waiting])
 
+  useEffect(() => {
+    if (!pendingCampaignId.current || campaignId) return
+    if (!plan || !run.active || run.waiting) return
+    if (run.cursor < plan.steps.length) return
+    setCampaignId(pendingCampaignId.current)
+  }, [campaignId, plan, run.active, run.cursor, run.waiting])
+
   const ranked = useMemo(() => (plan ? rankCreators(plan.draft, CREATORS) : []), [plan])
   const locked = run.active || Boolean(campaignId)
   const currentStep = plan && run.cursor < plan.steps.length ? plan.steps[run.cursor] : null
@@ -141,6 +148,8 @@ export function CampaignAgent() {
     const value = text.trim()
     if (!value) return
     setCampaignId(null)
+    pendingCampaignId.current = null
+    saving.current = false
     setRun(IDLE_RUN)
     setFeedback("")
     setFeedbackError(null)
@@ -183,25 +192,15 @@ export function CampaignAgent() {
     setPlan((current) => (current ? { ...current, draft: { ...current.draft, ...partial } } : current))
   }
 
-  function updateBrief(partial: Partial<AgentBrief>) {
-    setPlan((current) =>
-      current ? { ...current, draft: { ...current.draft, brief: { ...current.draft.brief, ...partial } } } : current,
-    )
-  }
-
   function approve() {
     if (!plan || !currentStep) return
     if (currentStep.id === "create") {
       if (!plan.draft.name.trim()) return
       if (plan.draft.endDate < plan.draft.startDate) return
-    }
-    if (currentStep.id === "brief") {
-      if (campaignId || saving.current) return
-      saving.current = true
-      const id = persist(plan)
-      setCampaignId(id)
-      setRun((current) => ({ ...current, waiting: false, cursor: plan.steps.length }))
-      return
+      if (!campaignId && !saving.current) {
+        saving.current = true
+        pendingCampaignId.current = persist(plan)
+      }
     }
     setRun((current) => ({ ...current, waiting: false, cursor: current.cursor + 1 }))
   }
@@ -210,28 +209,8 @@ export function CampaignAgent() {
     const today = new Date().toISOString().slice(0, 10)
     const id = `camp_${Date.now()}`
     const organizationId = user?.organizationId ?? "org1"
-    const briefing = useBriefingStore.getState().addBriefing({
-      organizationId,
-      title: current.draft.brief.title.trim() || current.draft.name,
-      objective: current.draft.brief.objective.trim(),
-      campaignId: id,
-      campaignName: current.draft.name.trim(),
-    })
-    useBriefingStore.getState().updateBriefing(briefing.id, {
-      targetAudience: current.draft.brief.targetAudience,
-      toneOfVoice: current.draft.brief.toneOfVoice,
-      keyMessages: current.draft.brief.keyMessages.map((item) => item.trim()).filter(Boolean),
-      doList: current.draft.brief.doList.map((item) => item.trim()).filter(Boolean),
-      dontList: current.draft.brief.dontList.map((item) => item.trim()).filter(Boolean),
-      mandatoryElements: current.draft.brief.mandatoryElements,
-      publicationWindow: `${current.draft.startDate} – ${current.draft.endDate}`,
-      deliverables: current.draft.contentFormats.map((format) => ({
-        type: format,
-        quantity: 1,
-        deadline: current.draft.endDate,
-        notes: "",
-      })),
-    })
+    const doList = cleanGuidelines(current.draft.brief.doList)
+    const dontList = cleanGuidelines(current.draft.brief.dontList)
     const roster = current.draft.includeRoster ? rankCreators(current.draft, CREATORS) : []
     const participants: Participant[] = roster.map((item) => ({
       creatorId: item.creator.id,
@@ -250,7 +229,6 @@ export function CampaignAgent() {
     }))
     const campaign: Campaign = {
       id,
-      briefingId: briefing.id,
       organizationId,
       organizationName: user?.organizationName ?? current.draft.brand,
       name: current.draft.name.trim(),
@@ -270,8 +248,8 @@ export function CampaignAgent() {
       mandatoryHashtags: current.draft.mandatoryHashtags,
       mandatoryMentions: current.draft.mandatoryMentions,
       contentFormats: current.draft.contentFormats,
-      recommended: current.draft.brief.doList.map((item) => item.trim()).filter(Boolean).join("\n") || undefined,
-      notRecommended: current.draft.brief.dontList.map((item) => item.trim()).filter(Boolean).join("\n") || undefined,
+      doList: doList.length ? doList : undefined,
+      dontList: dontList.length ? dontList : undefined,
       participants,
       createdAt: today,
       updatedAt: today,
@@ -381,16 +359,9 @@ export function CampaignAgent() {
         />
       )}
 
-      {plan && currentStep?.id === "brief" && run.waiting && (
-        <BriefPreview
-          brief={plan.draft.brief}
-          onChange={updateBrief}
-          onBack={() => setRun(IDLE_RUN)}
-          onApprove={approve}
-        />
-      )}
-
       {campaignId && plan && <DoneCard campaignId={campaignId} count={plan.draft.includeRoster ? ranked.length : 0} onReset={() => {
+        pendingCampaignId.current = null
+        saving.current = false
         setPlan(null)
         setCampaignId(null)
         setRun(IDLE_RUN)
@@ -695,6 +666,11 @@ function CampaignPreview({
             </div>
           </div>
         </div>
+        <GuidelineLists
+          doList={draft.brief.doList}
+          dontList={draft.brief.dontList}
+          onChange={(next) => onChange({ brief: { ...draft.brief, ...next } })}
+        />
         <CampaignVisibilityPicker value={draft.visibility} onChange={(visibility) => onChange({ visibility })} />
         {missingName && <p className="text-xs text-red-600">{t("agent.nameRequired")}</p>}
         {invalidDates && <p className="text-xs text-red-600">{t("agent.datesInvalid")}</p>}
@@ -708,79 +684,6 @@ function CampaignPreview({
         </div>
       </div>
     </Card>
-  )
-}
-
-function BriefPreview({
-  brief,
-  onChange,
-  onBack,
-  onApprove,
-}: {
-  brief: AgentBrief
-  onChange: (partial: Partial<AgentBrief>) => void
-  onBack: () => void
-  onApprove: () => void
-}) {
-  const { t } = useI18n()
-  return (
-    <Card className="gap-0 py-0">
-      <div className="space-y-4 p-5 sm:p-6">
-        <div>
-          <h2 className="text-base font-semibold text-zinc-900">{t("agent.briefPreview")}</h2>
-          <p className="mt-1 text-sm text-zinc-500">{t("agent.briefPreviewHelp")}</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-brief-title">{t("agent.name")}</Label>
-          <Input id="agent-brief-title" value={brief.title} onChange={(event) => onChange({ title: event.target.value })} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-brief-objective">{t("agent.objective")}</Label>
-          <Textarea id="agent-brief-objective" rows={3} value={brief.objective} onChange={(event) => onChange({ objective: event.target.value })} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-tone">{t("agent.tone")}</Label>
-          <Input id="agent-tone" value={brief.toneOfVoice} onChange={(event) => onChange({ toneOfVoice: event.target.value })} />
-        </div>
-        <LinesField label={t("agent.messages")} value={brief.keyMessages} onChange={(keyMessages) => onChange({ keyMessages })} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <LinesField label={t("agent.dos")} value={brief.doList} onChange={(doList) => onChange({ doList })} />
-          <LinesField label={t("agent.donts")} value={brief.dontList} onChange={(dontList) => onChange({ dontList })} />
-        </div>
-        {brief.mandatoryElements.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {brief.mandatoryElements.map((item) => (
-              <Badge key={item} variant="outline">{item}</Badge>
-            ))}
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" variant="outline" size="lg" onClick={onBack}>
-            {t("agent.backToPlan")}
-          </Button>
-          <Button type="button" size="lg" onClick={onApprove} disabled={!brief.title.trim()}>
-            {t("agent.approveBrief")}
-          </Button>
-        </div>
-      </div>
-    </Card>
-  )
-}
-
-function LinesField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string[]
-  onChange: (lines: string[]) => void
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Textarea value={value.join("\n")} rows={4} onChange={(event) => onChange(event.target.value.split("\n"))} />
-    </div>
   )
 }
 

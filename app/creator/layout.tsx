@@ -20,7 +20,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen bg-zinc-50">
       <CreatorSidebar />
       <CreatorSaleTicker />
-      <main className="flex-1 ml-14 flex flex-col min-h-screen">{children}</main>
+      <main className="ml-14 flex min-h-screen min-w-0 flex-1 flex-col">{children}</main>
     </div>
   )
 }

@@ -57,6 +57,7 @@ export interface Creator {
   totalCommission?: number
   totalPosts?: number
   memberType: "standard" | "vip" | "ambassador"
+  membershipRole?: "affiliate" | "creator"
   level: "bronze" | "silver" | "gold" | "platinum"
   origin: "organic" | "invite" | "brand_page"
 }
@@ -86,7 +87,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 4800, email: "bianca@gmail.com", phone: "(11) 99999-0001",
     joined: "2024-01-15", lastActivity: "2026-10-25", lastPost: "2026-10-24",
     fraudScore: 2, pastCampaigns: 14, totalSales: 42000, totalCommission: 4200, totalPosts: 127,
-    memberType: "vip", level: "gold", origin: "invite",
+    memberType: "vip", membershipRole: "creator", level: "gold", origin: "invite",
   },
   {
     id: "c2",
@@ -110,7 +111,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 2200, email: "pedro@gmail.com", phone: "(41) 99999-0002",
     joined: "2024-03-20", lastActivity: "2026-10-26", lastPost: "2026-10-23",
     fraudScore: 1, pastCampaigns: 7, totalSales: 18600, totalCommission: 1860, totalPosts: 84,
-    memberType: "standard", level: "silver", origin: "organic",
+    memberType: "standard", membershipRole: "affiliate", level: "silver", origin: "organic",
   },
   {
     id: "c3",
@@ -134,7 +135,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 5600, email: "carol@gmail.com", phone: "(21) 99999-0003",
     joined: "2023-11-08", lastActivity: "2026-10-27", lastPost: "2026-10-26",
     fraudScore: 3, pastCampaigns: 21, totalSales: 67000, totalCommission: 6700, totalPosts: 203,
-    memberType: "ambassador", level: "platinum", origin: "invite",
+    memberType: "ambassador", membershipRole: "creator", level: "platinum", origin: "invite",
   },
   {
     id: "c4",
@@ -158,7 +159,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 3100, email: "lucas@gmail.com", phone: "(48) 99999-0004",
     joined: "2024-06-01", lastActivity: "2026-10-24", lastPost: "2026-10-21",
     fraudScore: 1, pastCampaigns: 5, totalSales: 12400, totalCommission: 1240, totalPosts: 56,
-    memberType: "standard", level: "silver", origin: "organic",
+    memberType: "standard", membershipRole: "affiliate", level: "silver", origin: "organic",
   },
   {
     id: "c5",
@@ -182,7 +183,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 12000, email: "fer@agencia.com", phone: "(11) 99999-0005",
     joined: "2023-08-14", lastActivity: "2026-10-27", lastPost: "2026-10-27",
     fraudScore: 2, pastCampaigns: 38, totalSales: 184000, totalCommission: 18400, totalPosts: 412,
-    memberType: "ambassador", level: "platinum", origin: "invite",
+    memberType: "ambassador", membershipRole: "creator", level: "platinum", origin: "invite",
   },
   {
     id: "c6",
@@ -206,7 +207,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 3800, email: "rafael@gmail.com", phone: "(31) 99999-0006",
     joined: "2024-02-10", lastActivity: "2026-10-26", lastPost: "2026-10-25",
     fraudScore: 4, pastCampaigns: 9, totalSales: 28000, totalCommission: 2800, totalPosts: 98,
-    memberType: "standard", level: "gold", origin: "organic",
+    memberType: "standard", membershipRole: "affiliate", level: "gold", origin: "organic",
   },
   {
     id: "c7",
@@ -254,7 +255,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 2900, email: "thiago@gmail.com", phone: "(11) 99999-0008",
     joined: "2024-04-03", lastActivity: "2026-10-25", lastPost: "2026-10-22",
     fraudScore: 1, pastCampaigns: 11, totalSales: 31000, totalCommission: 3100, totalPosts: 119,
-    memberType: "vip", level: "gold", origin: "organic",
+    memberType: "vip", membershipRole: "affiliate", level: "gold", origin: "organic",
   },
   {
     id: "c9",
@@ -278,7 +279,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 3200, email: "amanda@gmail.com", phone: "(19) 99999-0009",
     joined: "2024-01-08", lastActivity: "2026-10-27", lastPost: "2026-10-26",
     fraudScore: 1, pastCampaigns: 8, totalSales: 22000, totalCommission: 2200, totalPosts: 96,
-    memberType: "standard", level: "silver", origin: "organic",
+    memberType: "standard", membershipRole: "creator", level: "silver", origin: "organic",
   },
   {
     id: "c10",
@@ -326,7 +327,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 1400, email: "isabela@gmail.com", phone: "(11) 99999-0011",
     joined: "2024-07-12", lastActivity: "2026-10-23", lastPost: "2026-10-20",
     fraudScore: 2, pastCampaigns: 3, totalSales: 8400, totalCommission: 840, totalPosts: 41,
-    memberType: "standard", level: "bronze", origin: "organic",
+    memberType: "standard", membershipRole: "creator", level: "bronze", origin: "organic",
   },
   {
     id: "c12",
@@ -350,7 +351,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 1800, email: "giovanna@gmail.com", phone: "(16) 99999-0012",
     joined: "2024-02-28", lastActivity: "2026-10-27", lastPost: "2026-10-25",
     fraudScore: 1, pastCampaigns: 6, totalSales: 14200, totalCommission: 1420, totalPosts: 78,
-    memberType: "standard", level: "silver", origin: "organic",
+    memberType: "standard", membershipRole: "affiliate", level: "silver", origin: "organic",
   },
   {
     id: "c13",
@@ -374,7 +375,7 @@ export const CREATORS: Creator[] = [
     mediaValue: 4100, email: "henrique@gmail.com", phone: "(11) 99999-0013",
     joined: "2023-12-05", lastActivity: "2026-10-26", lastPost: "2026-10-25",
     fraudScore: 2, pastCampaigns: 16, totalSales: 48000, totalCommission: 4800, totalPosts: 178,
-    memberType: "vip", level: "gold", origin: "invite",
+    memberType: "vip", membershipRole: "creator", level: "gold", origin: "invite",
   },
   {
     id: "c14",

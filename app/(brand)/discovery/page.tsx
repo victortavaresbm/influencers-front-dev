@@ -11,11 +11,10 @@ import { emptyCreatorFilters, useCreatorStore, type FilterState } from "@/lib/st
 import { useFilterPresetStore } from "@/lib/stores/filter-presets"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useListStore } from "@/lib/stores/lists"
-import { ActionsMenu } from "@/components/ui/actions-menu"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
@@ -36,6 +35,8 @@ import { type Campaign } from "@/lib/mock-data/campaigns"
 import { fold, isLinkedPlatformMember, locationTokenLabel, locationTokens } from "@/lib/discovery/scope"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { type Creator } from "@/lib/mock-data/creators"
+import { MEMBERSHIP_ROLE_HELP, MEMBERSHIP_ROLE_LABEL } from "@/lib/membership"
+import { useMembershipStore } from "@/lib/stores/membership"
 import { SAVED_CREATOR_IDS } from "@/lib/mock-data/saved-creators"
 import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
 import { cn } from "@/lib/utils"
@@ -505,7 +506,10 @@ function CreatorDrawer({
 }) {
   const { t } = useI18n()
   const [section, setSection] = useState("overview")
+  const roles = useMembershipStore((state) => state.roles)
   if (!creator) return null
+  const role = roles[creator.id] ?? creator.membershipRole
+  const affiliate = role === "affiliate"
   const enrichedDate = "15/10/2026"
   const daysSince = 12
   const posts = topContents(creator.id)
@@ -514,7 +518,8 @@ function CreatorDrawer({
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="overflow-y-auto p-0">
+      <SheetContent className="gap-0 overflow-hidden p-0">
+        <div className="min-h-0 flex-1 overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-zinc-100 px-6 pt-6 pb-4 z-10">
           <SheetHeader>
@@ -593,7 +598,7 @@ function CreatorDrawer({
               {[
                 { label: "Tier", value: TIER_LABELS[creator.tier] },
                 { label: "Campanhas realizadas", value: creator.pastCampaigns },
-                { label: "Total posts", value: creator.totalPosts ?? "—" },
+                { label: "Total posts", value: affiliate ? "Não rastreado" : creator.totalPosts ?? "—" },
                 { label: "Última atividade", value: formatDateBR(creator.lastActivity) },
               ].map(({ label, value }) => (
                 <div key={label} className="p-3 rounded-lg bg-zinc-50 border border-zinc-100">
@@ -622,9 +627,9 @@ function CreatorDrawer({
                 <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Histórico de vendas</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: "Total vendas", value: `R$ ${creator.totalSales?.toLocaleString("pt-BR") ?? 0}` },
+                    { label: affiliate ? "Vendas do cupom" : "Total vendas", value: `R$ ${creator.totalSales?.toLocaleString("pt-BR") ?? 0}` },
                     { label: "Comissão paga", value: `R$ ${creator.totalCommission?.toLocaleString("pt-BR") ?? 0}` },
-                    { label: "Posts entregues", value: creator.totalPosts ?? 0 },
+                    { label: "Posts entregues", value: affiliate ? "Não rastreado" : creator.totalPosts ?? 0 },
                   ].map(({ label, value }) => (
                     <div key={label} className="p-2 rounded-lg bg-zinc-50 border border-zinc-100 text-center">
                       <p className="text-sm font-semibold text-zinc-900">{value}</p>
@@ -634,27 +639,15 @@ function CreatorDrawer({
                 </div>
               </div>
             )}
-            <div className="flex justify-end pt-2">
-              <ActionsMenu
-                items={[
-                  { label: "Convidar para campanha", icon: UserPlus },
-                  {
-                    label: t("discovery.saveToList"),
-                    icon: ListPlus,
-                    onSelect: () =>
-                      toast.add({
-                        type: "success",
-                        title: t("discovery.savedTitle"),
-                        description: t("discovery.savedDescription", { name: creator.name }),
-                      }),
-                  },
-                ]}
-              />
-            </div>
           </TabsContent>
 
           <TabsContent value="contents" className="space-y-3 pb-6 [[hidden]]:hidden">
-            {posts.length === 0 ? (
+            {affiliate ? (
+              <div className="rounded-xl border border-dashed border-zinc-200 px-4 py-10 text-center">
+                <p className="text-sm font-medium text-zinc-700">Conteúdo fora do rastreio</p>
+                <p className="mt-1 text-xs text-zinc-400">{MEMBERSHIP_ROLE_HELP.affiliate}</p>
+              </div>
+            ) : posts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-zinc-200 px-4 py-10 text-center">
                 <p className="text-sm font-medium text-zinc-700">Nenhum conteúdo para pré-visualizar</p>
                 <p className="mt-1 text-xs text-zinc-400">
@@ -752,7 +745,8 @@ function CreatorDrawer({
               {[
                 { label: "Na plataforma desde", value: formatDateBR(creator.joined) },
                 { label: "Última atividade", value: formatDateBR(creator.lastActivity) },
-                { label: "Tipo de membro", value: creator.memberType === "ambassador" ? "Embaixador" : creator.memberType === "vip" ? "VIP" : "Padrão" },
+                { label: "Tipo de membro", value: role ? `${MEMBERSHIP_ROLE_LABEL[role]}. ${MEMBERSHIP_ROLE_HELP[role]}` : "Ainda não definido" },
+                { label: "Categoria", value: creator.memberType === "ambassador" ? "Embaixador" : creator.memberType === "vip" ? "VIP" : "Padrão" },
                 { label: "Origem do cadastro", value: creator.origin === "invite" ? "Convite" : creator.origin === "brand_page" ? "Página da marca" : "Orgânico" },
               ].map(({ label, value }, i, arr) => (
                 <div key={label}>
@@ -770,6 +764,27 @@ function CreatorDrawer({
             </TabsContent>
           )}
         </Tabs>
+        </div>
+        <SheetFooter className="flex-row justify-end border-t bg-background">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              toast.add({
+                type: "success",
+                title: t("discovery.savedTitle"),
+                description: t("discovery.savedDescription", { name: creator.name }),
+              })
+            }
+          >
+            <ListPlus />
+            {t("discovery.saveToList")}
+          </Button>
+          <Button type="button">
+            <UserPlus />
+            Convidar para campanha
+          </Button>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   )

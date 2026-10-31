@@ -27,6 +27,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "@/components/ui/toast"
 import type { Creator } from "@/lib/mock-data/creators"
+import { CREATORS } from "@/lib/mock-data/creators"
+import { MEMBERSHIP_ROLE_HELP, type MembershipRole } from "@/lib/membership"
+import { membershipRoleOf, useMembershipStore } from "@/lib/stores/membership"
 import { MOCK_USERS } from "@/lib/mock-data/users"
 
 const VOUCHER_PRICES = [
@@ -50,9 +53,11 @@ export function ApproveCreatorDialog({
   creators: Creator[]
   organizationId?: string
   onOpenChange: (open: boolean) => void
-  onApprove: (ids: string[]) => void
+  onApprove: (ids: string[], role: MembershipRole) => void
 }) {
+  const roles = useMembershipStore((state) => state.roles)
   const managers = MOCK_USERS.filter((user) => user.role === "brand" && user.organizationId === organizationId)
+  const [role, setRole] = useState<MembershipRole | "">("")
   const [managerId, setManagerId] = useState("")
   const [couponMode, setCouponMode] = useState<CouponMode>("vincular")
   const [couponCode, setCouponCode] = useState("")
@@ -66,6 +71,8 @@ export function ApproveCreatorDialog({
 
   useEffect(() => {
     if (!open) return
+    const current = creators.length === 1 ? membershipRoleOf(creators[0].id) ?? "" : ""
+    setRole(current)
     setManagerId("")
     setCouponMode("vincular")
     setCouponCode("")
@@ -78,10 +85,14 @@ export function ApproveCreatorDialog({
     setSummaryId(creators[0]?.id ?? "")
   }, [open])
 
+  const creatorQuota = CREATORS.filter((creator) => (roles[creator.id] ?? creator.membershipRole) === "creator").length
+  const affiliateQuota = CREATORS.filter((creator) => (roles[creator.id] ?? creator.membershipRole) === "affiliate").length
   const needsCode = couponMode === "vincular" || couponMode === "personalizado"
   const ready =
     creators.length > 0 &&
+    role !== "" &&
     managerId !== "" &&
+    (role !== "affiliate" || couponMode !== "nao_criar") &&
     (!needsCode || couponCode.trim() !== "") &&
     (couponMode === "nao_criar" || commissionMode !== "personalizada" || commission.trim() !== "") &&
     (voucher === "nao" || voucherPrice !== "") &&
@@ -100,11 +111,11 @@ export function ApproveCreatorDialog({
           onSubmit={(event) => {
             event.preventDefault()
             if (!ready) return
-            onApprove(creators.map((creator) => creator.id))
+            onApprove(creators.map((creator) => creator.id), role)
           }}
         >
           <SheetHeader className="border-b px-5 py-5 pr-14">
-            <SheetTitle className="text-xl">Solicitação de Creator</SheetTitle>
+            <SheetTitle className="text-xl">Aceitar membro</SheetTitle>
             <SheetDescription>{creators.length > 0 ? countLabel : "Nenhum creator selecionado."}</SheetDescription>
           </SheetHeader>
 
@@ -118,21 +129,34 @@ export function ApproveCreatorDialog({
             <TabsContent value="approval" className="min-h-0 overflow-y-auto">
           <TooltipProvider>
             <div className="flex flex-col gap-5 px-5 py-4">
-              <section className="grid gap-2">
+              <section className="grid gap-3">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-sm font-medium text-zinc-900">Tipo de membro</h3>
                   <FieldHint text="Afiliados entram sem limite. Creators usam a cota do plano." />
+                  <RequiredMark />
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-700">Afiliados</span>
-                    <span className="text-zinc-500">Ilimitado</span>
+                    <span className="text-zinc-500">{affiliateQuota} · ilimitado</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-700">Creators</span>
-                    <span className="text-zinc-500">174/1000</span>
+                    <span className="text-zinc-500">{creatorQuota}/1000</span>
                   </div>
                 </div>
+                <RadioGroup
+                  value={role}
+                  onValueChange={(value) => {
+                    const next = value as MembershipRole
+                    setRole(next)
+                    if (next === "affiliate" && couponMode === "nao_criar") setCouponMode("vincular")
+                  }}
+                  className="grid gap-2"
+                >
+                  <RoleOption value="affiliate" title="Afiliado" description={MEMBERSHIP_ROLE_HELP.affiliate} />
+                  <RoleOption value="creator" title="Creator" description={MEMBERSHIP_ROLE_HELP.creator} />
+                </RadioGroup>
               </section>
 
               <div className="grid gap-1.5">
@@ -163,8 +187,11 @@ export function ApproveCreatorDialog({
               <section className="grid gap-3">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-sm font-medium text-zinc-900">Cupom</h3>
-                  <FieldHint text="O cupom liga as vendas ao creator aprovado." />
+                  <FieldHint text={role === "affiliate" ? "O afiliado só é rastreado pelas vendas deste cupom." : "O cupom liga as vendas ao membro aceito."} />
                 </div>
+                {role === "affiliate" && (
+                  <p className="text-sm text-zinc-500">Sem cupom não há o que rastrear. Vincule ou crie um código.</p>
+                )}
                 <div className="grid gap-2">
                   <p className="text-sm text-zinc-600">Como deseja criar cupom para o creator?</p>
                   <RadioGroup
@@ -175,7 +202,7 @@ export function ApproveCreatorDialog({
                     <Choice value="automatico" label="Automático" />
                     <Choice value="personalizado" label="Personalizado" />
                     <Choice value="vincular" label="Vincular" />
-                    <Choice value="nao_criar" label="Não criar" />
+                    {role !== "affiliate" && <Choice value="nao_criar" label="Não criar" />}
                   </RadioGroup>
                 </div>
 
@@ -356,7 +383,7 @@ export function ApproveCreatorDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={!ready}>
-              Aprovar
+              Aceitar
             </Button>
           </SheetFooter>
         </form>
@@ -553,6 +580,18 @@ function RequiredMark() {
       <span className="text-red-600" aria-hidden="true">*</span>
       <span className="sr-only">obrigatório</span>
     </>
+  )
+}
+
+function RoleOption({ value, title, description }: { value: MembershipRole; title: string; description: string }) {
+  return (
+    <Label className="items-start gap-2 rounded-lg border border-zinc-200 p-3 font-normal">
+      <RadioGroupItem value={value} className="mt-0.5" />
+      <span>
+        <span className="block text-sm font-medium text-zinc-900">{title}</span>
+        <span className="mt-0.5 block text-sm leading-relaxed text-zinc-500">{description}</span>
+      </span>
+    </Label>
   )
 }
 

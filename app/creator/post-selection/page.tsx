@@ -1,21 +1,19 @@
 "use client"
 import { TopBar } from "@/components/layout/top-bar"
 import { CAMPAIGNS } from "@/lib/mock-data/campaigns"
-import { useBriefingStore } from "@/lib/stores/briefings"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { useAuthStore } from "@/lib/stores/auth"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
-import { Check, X, Calendar, DollarSign, ExternalLink } from "lucide-react"
+import { Check } from "lucide-react"
+import { GuidelineLists, cleanGuidelines } from "@/components/campaigns/guideline-list"
 import { CouponTicket } from "@/components/ui/coupon-ticket"
 import { useI18n } from "@/lib/i18n"
-import { formatDateBR } from "@/lib/dates"
 
 const CHECKLIST_ITEMS = [
-  { id: "read_briefing", label: "Ler e confirmar o briefing", done: true },
+  { id: "read_guidelines", label: "Ler o que pode e o que não pode fazer", done: true },
   { id: "accept_terms", label: "Aceitar os termos da campanha", done: true },
   { id: "create_content", label: "Criar os conteúdos", done: false },
   { id: "submit_review", label: "Enviar para revisão (se aplicável)", done: false },
@@ -28,7 +26,6 @@ export default function PostSelectionPage() {
   const { t } = useI18n()
   const user = useAuthStore((s) => s.user)
   const creator = CREATORS.find((c) => c.email === user?.email) ?? CREATORS[0]
-  const briefings = useBriefingStore((s) => s.briefings)
 
   const activeCampaigns = CAMPAIGNS.filter((c) =>
     c.participants.some((p) => p.creatorId === creator.id && (p.status === "selecionado" || p.status === "entregue"))
@@ -49,7 +46,6 @@ export default function PostSelectionPage() {
         ) : (
           activeCampaigns.map((campaign) => {
             const participant = campaign.participants.find((p) => p.creatorId === creator.id)
-            const briefing = briefings.find((b) => b.id === campaign.briefingId) ?? briefings.find((b) => b.campaignId === campaign.id)
             const delivered = participant?.postsDelivered ?? 0
             const total = participant?.deliverables.reduce((s, d) => s + d.quantity, 0) ?? 0
 
@@ -91,7 +87,7 @@ export default function PostSelectionPage() {
                   <TabsList>
                     <TabsTrigger value="checklist">Checklist ({doneTasks}/{totalTasks})</TabsTrigger>
                     <TabsTrigger value="deliverables">Entregáveis</TabsTrigger>
-                    <TabsTrigger value="briefing">Briefing</TabsTrigger>
+                    <TabsTrigger value="guidelines">Orientações</TabsTrigger>
                     <TabsTrigger value="commission">Comissão</TabsTrigger>
                   </TabsList>
 
@@ -121,85 +117,30 @@ export default function PostSelectionPage() {
                   </TabsContent>
 
                   <TabsContent value="deliverables" className="mt-4 space-y-3">
-                    {participant?.deliverables.map((d, i) => {
-                      const matchingBriefingDeliverable = briefing?.deliverables?.[i]
-                      return (
-                        <Card key={i} className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-semibold text-zinc-900">
-                              {d.type.replace(/_/g, " ")} × {d.quantity}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              {i < delivered ? (
-                                <Badge className="text-xs bg-green-50 text-green-700 border-green-200">Entregue</Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">Pendente</Badge>
-                              )}
-                            </div>
-                          </div>
-                          {matchingBriefingDeliverable && (
-                            <>
-                              <div className="flex items-center gap-1 text-xs text-zinc-500">
-                                <Calendar size={11} />
-                                Prazo: {formatDateBR(matchingBriefingDeliverable.deadline)}
-                              </div>
-                              <p className="text-xs text-zinc-400 mt-1">{matchingBriefingDeliverable.notes}</p>
-                            </>
+                    {participant?.deliverables.map((item, index) => (
+                      <Card key={`${item.type}-${index}`} className="p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-zinc-900">
+                            {item.type.replace(/_/g, " ")} × {item.quantity}
+                          </p>
+                          {index < delivered ? (
+                            <Badge className="text-xs bg-green-50 text-green-700 border-green-200">Entregue</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">Pendente</Badge>
                           )}
-                        </Card>
-                      )
-                    })}
+                        </div>
+                      </Card>
+                    ))}
                   </TabsContent>
 
-                  <TabsContent value="briefing" className="mt-4">
-                    {briefing ? (
-                      <Card className="p-5 space-y-4">
-                        <div>
-                          <p className="text-xs text-zinc-400 mb-1">Objetivo</p>
-                          <p className="text-sm text-zinc-700">{briefing.objective}</p>
-                        </div>
-                        <Separator />
-                        <div>
-                          <p className="text-xs text-zinc-400 mb-1">Tom de voz</p>
-                          <p className="text-sm text-zinc-700">{briefing.toneOfVoice}</p>
-                        </div>
-                        <Separator />
-                        <div>
-                          <p className="text-xs text-zinc-400 mb-2">✅ Pode fazer</p>
-                          <ul className="space-y-1.5">
-                            {briefing.doList.map((item) => (
-                              <li key={item} className="flex items-start gap-2 text-sm text-zinc-600">
-                                <Check size={12} className="text-green-600 mt-1 shrink-0" />
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <Separator />
-                        <div>
-                          <p className="text-xs text-zinc-400 mb-2">❌ Não pode fazer</p>
-                          <ul className="space-y-1.5">
-                            {briefing.dontList.map((item) => (
-                              <li key={item} className="flex items-start gap-2 text-sm text-zinc-600">
-                                <X size={12} className="text-red-500 mt-1 shrink-0" />
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <Separator />
-                        <div>
-                          <p className="text-xs text-zinc-400 mb-2">Elementos obrigatórios</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {briefing.mandatoryElements.map((e) => (
-                              <Badge key={e} variant="outline" className="text-xs">{e}</Badge>
-                            ))}
-                          </div>
-                        </div>
+                  <TabsContent value="guidelines" className="mt-4">
+                    {cleanGuidelines(campaign.doList).length > 0 || cleanGuidelines(campaign.dontList).length > 0 ? (
+                      <Card className="p-5">
+                        <GuidelineLists doList={cleanGuidelines(campaign.doList)} dontList={cleanGuidelines(campaign.dontList)} />
                       </Card>
                     ) : (
                       <Card className="p-8 text-center">
-                        <p className="text-sm text-zinc-400">Briefing não disponível.</p>
+                        <p className="text-sm text-zinc-400">Esta campanha ainda não tem orientações.</p>
                       </Card>
                     )}
                   </TabsContent>

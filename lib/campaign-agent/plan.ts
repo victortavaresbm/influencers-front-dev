@@ -16,10 +16,9 @@ export type AgentTool =
   | "create_campaign"
   | "find_creators_by_content"
   | "assess_creators"
-  | "generate_campaign_brief"
 
 export interface AgentStep {
-  id: "create" | "find" | "assess" | "brief"
+  id: "create" | "find" | "assess"
   tool: AgentTool
   mode: "read" | "write"
   pausesForApproval: boolean
@@ -813,22 +812,6 @@ function buildSteps(draft: AgentDraft, locale: Locale): AgentStep[] {
       },
     )
   }
-  steps.push({
-    id: "brief",
-    tool: "generate_campaign_brief",
-    mode: "write",
-    pausesForApproval: true,
-    segments: [
-      {
-        type: "text",
-        text: locale === "en"
-          ? "Generate a creative brief for the new campaign."
-          : locale === "es"
-            ? "Generar el briefing creativo de la nueva campaña."
-            : "Gerar o briefing criativo da nova campanha.",
-      },
-    ],
-  })
   return steps
 }
 

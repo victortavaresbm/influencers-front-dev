@@ -41,6 +41,28 @@ export type ContentPage = {
   status: ContentStatus
 }
 
+export type ContentTask = {
+  id: string
+  folderId: string
+  title: string
+}
+
+export type ContentTaskDone = {
+  taskId: string
+  userId: string
+}
+
+export type ContentQuestion = {
+  id: string
+  pageId: string
+  authorId: string
+  authorName: string
+  authorAvatar: string
+  authorPhoto?: string
+  body: string
+  createdAt: string
+}
+
 function film(id: string, title: string) {
   return `<iframe src="https://www.youtube.com/embed/${id}" title="${title}" allowfullscreen></iframe>`
 }
@@ -555,5 +577,108 @@ ${film("ph0p2pDW-s8", "Natura Ekos Tukumã")}
     title: "Onde colocar o cupom",
     body: "O cupom da Magazine Luiza entra na legenda e na fala. Marque @magazineluiza e use o link de rastreio da campanha.",
     status: "published",
+  },
+]
+
+export const CONTENT_TASKS: ContentTask[] = [
+  { id: "task-marca-1", folderId: "folder-casa-marca", title: "Assistir ao filme da marca sonora" },
+  { id: "task-marca-2", folderId: "folder-casa-marca", title: "Anotar uma frase que caiba no seu vídeo" },
+  { id: "task-antes-1", folderId: "folder-antes", title: "Ver o filme com a luz da janela" },
+  { id: "task-antes-2", folderId: "folder-antes", title: "Separar o produto e o fundo" },
+  { id: "task-antes-3", folderId: "folder-antes", title: "Gravar o take dos três primeiros segundos" },
+  { id: "task-antes-4", folderId: "folder-antes", title: "Conferir se a embalagem aparece" },
+  { id: "task-publicar-1", folderId: "folder-publicar", title: "Escrever a legenda com uma sensação" },
+  { id: "task-publicar-2", folderId: "folder-publicar", title: "Marcar a marca e a hashtag da campanha" },
+  { id: "task-publicar-3", folderId: "folder-publicar", title: "Publicar dentro da janela combinada" },
+  { id: "task-primavera-1", folderId: "folder-primavera", title: "Ler o briefing antes de gravar" },
+  { id: "task-primavera-2", folderId: "folder-primavera", title: "Usar o filme como tom, sem copiar o roteiro" },
+  { id: "task-primavera-3", folderId: "folder-primavera", title: "Enviar o link da peça no mesmo dia" },
+]
+
+export const CONTENT_TASK_DONE: ContentTaskDone[] = [
+  { taskId: "task-antes-1", userId: "u4" },
+  { taskId: "task-antes-2", userId: "u4" },
+]
+
+export const CONTENT_QUESTIONS: ContentQuestion[] = [
+  {
+    id: "question-inicio-1",
+    pageId: "page-casa-inicio",
+    authorId: "u6",
+    authorName: "Carolina Souza",
+    authorAvatar: "CS",
+    authorPhoto: "https://i.pravatar.cc/300?img=5",
+    body: "Por onde eu começo se a campanha já está no ar?",
+    createdAt: "2026-10-25T12:00:00.000Z",
+  },
+  {
+    id: "question-inicio-2",
+    pageId: "page-casa-inicio",
+    authorId: "u1",
+    authorName: "Ana Beatriz Lima",
+    authorAvatar: "AB",
+    authorPhoto: "https://i.pravatar.cc/300?img=47",
+    body: "Pela pasta da campanha. Esta página é o tom da casa. O briefing diz o que entra na peça.",
+    createdAt: "2026-10-25T13:30:00.000Z",
+  },
+  {
+    id: "question-luz-1",
+    pageId: "page-oficina-luz",
+    authorId: "u4",
+    authorName: "Bianca Torres",
+    authorAvatar: "BT",
+    authorPhoto: "https://i.pravatar.cc/300?img=1",
+    body: "Se o dia estiver nublado, a ring light pode entrar ou a janela ainda ganha?",
+    createdAt: "2026-10-27T15:10:00.000Z",
+  },
+  {
+    id: "question-luz-2",
+    pageId: "page-oficina-luz",
+    authorId: "u1",
+    authorName: "Ana Beatriz Lima",
+    authorAvatar: "AB",
+    authorPhoto: "https://i.pravatar.cc/300?img=47",
+    body: "A janela ganha, mesmo nublada. Se a pele apagar, uma luz baixa e quente fora do quadro resolve. A ring light deixa a embalagem com cara de estúdio.",
+    createdAt: "2026-10-27T16:40:00.000Z",
+  },
+  {
+    id: "question-luz-3",
+    pageId: "page-oficina-luz",
+    authorId: "u5",
+    authorName: "Pedro Alves",
+    authorAvatar: "PA",
+    authorPhoto: "https://i.pravatar.cc/300?img=3",
+    body: "Parede de tijolo claro compete com a embalagem ou serve de fundo?",
+    createdAt: "2026-10-28T11:20:00.000Z",
+  },
+  {
+    id: "question-sonora-1",
+    pageId: "page-casa-sonora",
+    authorId: "u6",
+    authorName: "Carolina Souza",
+    authorAvatar: "CS",
+    authorPhoto: "https://i.pravatar.cc/300?img=5",
+    body: "Preciso explicar a marca sonora no vídeo ou basta o silêncio antes do nome do produto?",
+    createdAt: "2026-10-26T18:05:00.000Z",
+  },
+  {
+    id: "question-primavera-1",
+    pageId: "page-camp-primavera",
+    authorId: "u4",
+    authorName: "Bianca Torres",
+    authorAvatar: "BT",
+    authorPhoto: "https://i.pravatar.cc/300?img=1",
+    body: "O cupom entra na fala ou só na legenda?",
+    createdAt: "2026-10-29T13:15:00.000Z",
+  },
+  {
+    id: "question-primavera-2",
+    pageId: "page-camp-primavera",
+    authorId: "u1",
+    authorName: "Ana Beatriz Lima",
+    authorAvatar: "AB",
+    authorPhoto: "https://i.pravatar.cc/300?img=47",
+    body: "Na legenda, sempre. Na fala, uma vez, se couber sem cortar a cena.",
+    createdAt: "2026-10-29T14:02:00.000Z",
   },
 ]

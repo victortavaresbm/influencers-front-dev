@@ -4,11 +4,14 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { TopBar } from "@/components/layout/top-bar"
 import { useAuthStore } from "@/lib/stores/auth"
 import { CREATORS } from "@/lib/mock-data/creators"
+import { MEMBERSHIP_ROLE_HELP } from "@/lib/membership"
+import { membershipRoleOf, useMembershipStore } from "@/lib/stores/membership"
 import { CAMPAIGNS } from "@/lib/mock-data/campaigns"
 import { PAYMENT_ORDERS, type PaymentStatus } from "@/lib/mock-data/financial"
 import { useCreatorPayoutStore, type PixType, type PayoutAccount } from "@/lib/stores/creator-payout"
 import { useCreatorSalesStore } from "@/lib/stores/creator-sales"
 import { formatDateBR } from "@/lib/dates"
+import { ALL_PERIOD, anyDateInPeriod, dateInPeriod, type PeriodValue } from "@/lib/period"
 import { useI18n } from "@/lib/i18n"
 import { toast } from "@/components/ui/toast"
 import { Card } from "@/components/ui/card"
@@ -26,6 +29,7 @@ import {
 } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AreaChart, BarChart, DonutChart, type CustomTooltipProps } from "@tremor/react"
 import { Paperclip, Wallet } from "lucide-react"
@@ -133,11 +137,14 @@ export default function CreatorFinancialPage() {
   const { t } = useI18n()
   const user = useAuthStore((state) => state.user)
   const creator = CREATORS.find((item) => item.email === user?.email) ?? CREATORS[0]
+  const roles = useMembershipStore((state) => state.roles)
+  const affiliate = membershipRoleOf(creator.id, roles) === "affiliate"
   const account = useCreatorPayoutStore((state) => state.accounts[creator.id])
   const withdrawals = useCreatorPayoutStore((state) => state.withdrawals)
   const saveAccount = useCreatorPayoutStore((state) => state.saveAccount)
   const requestWithdrawal = useCreatorPayoutStore((state) => state.requestWithdrawal)
 
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
   const [section, setSection] = useState<Section>("overview")
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<PayoutAccount>(() => emptyDraft(creator.name))
@@ -149,6 +156,7 @@ export default function CreatorFinancialPage() {
   const sales = CAMPAIGNS.flatMap((campaign) => {
     const participant = campaign.participants.find((item) => item.creatorId === creator.id)
     if (!participant || ((participant.revenue ?? 0) <= 0 && (participant.orders ?? 0) <= 0)) return []
+    if (affiliate && !participant.couponCode) return []
     const revenue = participant.revenue ?? 0
     return [{
       id: campaign.id,
@@ -174,10 +182,12 @@ export default function CreatorFinancialPage() {
   })
 
   const requests = withdrawals.filter((item) => item.creatorId === creator.id)
+  const visibleRequests = requests.filter((item) => dateInPeriod(item.requestedAt, period))
   const processingIds = new Set(requests.flatMap((item) => item.paymentIds))
   const payments = PAYMENT_ORDERS
     .filter((order) => order.creatorId === creator.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const visiblePayments = payments.filter((order) => anyDateInPeriod([order.dueDate, order.paidAt], period))
   const available = payments.filter(
     (order) => (order.status === "pendente" || order.status === "aprovado") && !processingIds.has(order.id)
   )
@@ -279,7 +289,7 @@ export default function CreatorFinancialPage() {
     <div className="flex flex-1 flex-col">
       <TopBar
         title={t("pages.financial")}
-        subtitle="Vendas, comissão e o PIX para receber"
+        subtitle={affiliate ? MEMBERSHIP_ROLE_HELP.affiliate : "Vendas, comissão e o PIX para receber"}
         actions={
           account ? (
             <Button type="button" size="sm" disabled={available.length === 0} onClick={openWithdraw}>
@@ -303,13 +313,16 @@ export default function CreatorFinancialPage() {
             }
           }}
         >
-          <TabsList>
-            {SECTIONS.map((item) => (
-              <TabsTrigger key={item.id} value={item.id}>
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="flex flex-wrap items-center gap-2">
+            <TabsList>
+              {SECTIONS.map((item) => (
+                <TabsTrigger key={item.id} value={item.id}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <PeriodFilter value={period} onChange={setPeriod} />
+          </div>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -493,7 +506,13 @@ export default function CreatorFinancialPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {requests.map((item) => (
+                      {visibleRequests.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-8 text-center text-sm text-zinc-500">
+                            Nenhum saque neste período.
+                          </TableCell>
+                        </TableRow>
+                      ) : visibleRequests.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>{formatDateBR(item.requestedAt)}</TableCell>
                           <TableCell className="font-medium text-zinc-900">{money(item.amount)}</TableCell>
@@ -521,6 +540,10 @@ export default function CreatorFinancialPage() {
                   <p className="border-t border-zinc-200 px-4 py-8 text-center text-sm text-zinc-600">
                     Nenhum pagamento registrado.
                   </p>
+                ) : visiblePayments.length === 0 ? (
+                  <p className="border-t border-zinc-200 px-4 py-8 text-center text-sm text-zinc-600">
+                    Nenhum pagamento neste período.
+                  </p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -534,7 +557,7 @@ export default function CreatorFinancialPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {payments.map((order) => {
+                      {visiblePayments.map((order) => {
                         const status = processingIds.has(order.id) ? PROCESSING_STATUS : PAYMENT_STATUS[order.status]
                         return (
                           <TableRow key={order.id}>

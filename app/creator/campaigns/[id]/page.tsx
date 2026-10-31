@@ -5,7 +5,6 @@ import { TopBar } from "@/components/layout/top-bar"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
-import { useBriefingStore } from "@/lib/stores/briefings"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
@@ -13,13 +12,18 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Check, X, Calendar, DollarSign, Users, Target, CheckCircle2, AlertTriangle, Clock, Link2, RefreshCw } from "lucide-react"
+import { ArrowLeft, Check, DollarSign, Users, Target } from "lucide-react"
 import Link from "next/link"
 import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
 import { campaignIsVisibleTo, creatorCanApply } from "@/lib/campaign-access"
 import { formatSuccessTarget, readSuccessTargets, successMetricById } from "@/lib/success-metrics"
-import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
+import { formatDateRangeBR } from "@/lib/dates"
 import { ContentCalendar } from "@/components/calendar/content-calendar"
+import { GuidelineLists, cleanGuidelines } from "@/components/campaigns/guideline-list"
+import { CouponTicket } from "@/components/ui/coupon-ticket"
+import { MembershipBadge } from "@/components/members/membership-badge"
+import { MEMBERSHIP_ROLE_HELP } from "@/lib/membership"
+import { membershipRoleOf, trackedSale, useMembershipStore } from "@/lib/stores/membership"
 import { buildSchedule } from "@/lib/schedule"
 
 export default function CreatorCampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,15 +32,16 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
   const { t } = useI18n()
   const user = useAuthStore((s) => s.user)
   const creator = CREATORS.find((c) => c.email === user?.email) ?? CREATORS[0]
+  const roles = useMembershipStore((state) => state.roles)
+  const role = membershipRoleOf(creator.id, roles)
+  const affiliate = role === "affiliate"
   const campaigns = useCampaignStore((s) => s.campaigns)
   const campaign = campaigns.find((c) => c.id === id)
-  const briefing = useBriefingStore((s) => s.briefings.find((b) => b.id === campaign?.briefingId) ?? s.briefings.find((b) => b.campaignId === id))
   const form = useFormStore((s) => s.forms.find((item) => item.id === campaign?.formId && item.status === "publicado"))
   const [applied, setApplied] = useState(false)
-  const [briefingAccepted, setBriefingAccepted] = useState(false)
   const schedule = useMemo(
     () => buildSchedule(campaigns).filter((slot) => slot.campaignId === id && slot.creatorId === creator.id),
-    [campaigns, id, creator.id],
+    [campaigns, id, creator.id, roles],
   )
 
   if (!campaign || !campaignIsVisibleTo(campaign, creator.id, campaigns)) return (
@@ -49,8 +54,8 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
   const participant = campaign.participants.find((p) => p.creatorId === creator.id)
   const isParticipant = !!participant
   const canApply = creatorCanApply(campaign, creator.id, campaigns) && !applied
-  const myAcceptance = briefing?.acceptances?.find((a) => a.creatorId === creator.id)
-  const needsAcceptance = isParticipant && briefing?.status === "publicado" && myAcceptance && myAcceptance.status !== "accepted" && !briefingAccepted
+  const guidelines = cleanGuidelines(campaign.doList)
+  const restrictions = cleanGuidelines(campaign.dontList)
   const successTargets = readSuccessTargets(campaign.successTargets).filter((item) => item.target > 0)
 
   return (
@@ -156,7 +161,11 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold">Você está nesta campanha</p>
-                <p className="text-xs text-zinc-300 mt-0.5">Fee: R$ {participant?.fee.toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-zinc-300 mt-0.5">
+                  {affiliate
+                    ? MEMBERSHIP_ROLE_HELP.affiliate
+                    : `Fee: R$ ${participant?.fee.toLocaleString("pt-BR")}`}
+                </p>
               </div>
               <span className="text-xs bg-white text-zinc-900 px-3 py-1 rounded-full font-semibold capitalize">
                 {participant?.status}
@@ -168,9 +177,10 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
         <Tabs defaultValue="about">
           <TabsList>
             <TabsTrigger value="about">Sobre</TabsTrigger>
-            <TabsTrigger value="briefing">Briefing</TabsTrigger>
-            <TabsTrigger value="deliverables">Entregáveis</TabsTrigger>
-            <TabsTrigger value="calendar">Calendário</TabsTrigger>
+            <TabsTrigger value="guidelines">Orientações</TabsTrigger>
+            {affiliate && <TabsTrigger value="sales">Vendas</TabsTrigger>}
+            {!affiliate && <TabsTrigger value="deliverables">Entregáveis</TabsTrigger>}
+            {!affiliate && <TabsTrigger value="calendar">Calendário</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="about" className="mt-4 space-y-4">
@@ -200,128 +210,63 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
             </Card>
           </TabsContent>
 
-          <TabsContent value="briefing" className="mt-4 space-y-3">
-            {briefing ? (
-              <>
-                {/* Acceptance banner */}
-                {needsAcceptance && (
-                  <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    {myAcceptance?.status === "re_acceptance_required"
-                      ? <RefreshCw size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                      : <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                    }
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-amber-900">
-                        {myAcceptance?.status === "re_acceptance_required"
-                          ? "Briefing atualizado — novo aceite necessário"
-                          : "Leia o briefing e confirme seu aceite"}
-                      </p>
-                      <p className="text-xs text-amber-700 mt-0.5">
-                        Você precisa aceitar antes de publicar qualquer conteúdo desta campanha.
-                      </p>
-                    </div>
-                    <Button size="sm" className="shrink-0 h-8 text-xs" onClick={() => setBriefingAccepted(true)}>
-                      <CheckCircle2 size={12} className="mr-1" /> Aceitar
-                    </Button>
-                  </div>
-                )}
-                {(briefingAccepted || myAcceptance?.status === "accepted") && (
-                  <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                    <CheckCircle2 size={13} />
-                    {briefingAccepted ? "Briefing aceito agora" : `Aceito em ${myAcceptance?.acceptedAt} · v${myAcceptance?.version}`}
-                  </div>
-                )}
-
-                {/* Brand briefing reference */}
-                {briefing.brandBriefingTitle && (
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 text-sm text-zinc-600">
-                    <Link2 size={13} className="text-zinc-400 shrink-0" />
-                    Complementa: <span className="font-medium text-zinc-800">{briefing.brandBriefingTitle}</span>
-                  </div>
-                )}
-
-                <Card className="p-5 space-y-4">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-1.5">Objetivo</h3>
-                    <p className="text-sm text-zinc-700 leading-relaxed">{briefing.objective}</p>
-                  </div>
-                  <Separator />
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-1.5">Público-alvo</h3>
-                    <p className="text-sm text-zinc-700 leading-relaxed">{briefing.targetAudience}</p>
-                  </div>
-                  <Separator />
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-1.5">Tom de voz</h3>
-                    <p className="text-sm text-zinc-700 leading-relaxed">{briefing.toneOfVoice}</p>
-                  </div>
-                  <Separator />
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-1.5">Mensagens-chave</h3>
-                    <ul className="space-y-1">
-                      {briefing.keyMessages.map((m) => (
-                        <li key={m} className="flex items-start gap-1.5 text-sm text-zinc-700">
-                          <span className="text-zinc-400 mt-0.5 shrink-0">›</span> {m}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <Separator />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-emerald-50 rounded-xl p-3">
-                      <h3 className="text-xs font-semibold text-emerald-700 mb-2">✅ Pode fazer</h3>
-                      <ul className="space-y-1.5">
-                        {briefing.doList.map((item) => (
-                          <li key={item} className="text-xs text-emerald-800 leading-snug">{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="bg-red-50 rounded-xl p-3">
-                      <h3 className="text-xs font-semibold text-red-700 mb-2">❌ Não pode fazer</h3>
-                      <ul className="space-y-1.5">
-                        {briefing.dontList.map((item) => (
-                          <li key={item} className="text-xs text-red-800 leading-snug">{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-1.5">Elementos obrigatórios</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {briefing.mandatoryElements.map((e) => (
-                        <Badge key={e} variant="outline" className="text-xs">{e}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              </>
+          <TabsContent value="guidelines" className="mt-4">
+            {guidelines.length > 0 || restrictions.length > 0 ? (
+              <Card className="p-5">
+                <GuidelineLists doList={guidelines} dontList={restrictions} />
+              </Card>
             ) : (
               <Card className="p-8 text-center">
-                <p className="text-sm text-zinc-400">Briefing disponível após seleção.</p>
+                <p className="text-sm text-zinc-400">Esta campanha ainda não tem orientações.</p>
               </Card>
             )}
           </TabsContent>
 
+          {affiliate && (
+            <TabsContent value="sales" className="mt-4">
+              <Card className="space-y-4 p-5">
+                <div className="flex items-center gap-2">
+                  <MembershipBadge role={role} />
+                  <p className="text-sm text-zinc-600">{MEMBERSHIP_ROLE_HELP.affiliate}</p>
+                </div>
+                <Separator />
+                <div>
+                  <p className="text-xs text-zinc-400">Cupom</p>
+                  {participant?.couponCode ? (
+                    <CouponTicket code={participant.couponCode} className="mt-2" />
+                  ) : (
+                    <p className="mt-1 text-sm text-zinc-500">A marca ainda não vinculou um cupom.</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                    <p className="text-xs text-zinc-400">Vendas do cupom</p>
+                    <p className="mt-1 text-base font-semibold text-zinc-900">
+                      R$ {trackedSale(creator.id, participant?.revenue, participant?.couponCode, roles).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                    <p className="text-xs text-zinc-400">Pedidos</p>
+                    <p className="mt-1 text-base font-semibold text-zinc-900">{participant?.couponCode ? participant.orders ?? 0 : "—"}</p>
+                  </div>
+                </div>
+              </Card>
+            </TabsContent>
+          )}
+
+          {!affiliate && <>
           <TabsContent value="deliverables" className="mt-4">
-            {briefing?.deliverables ? (
+            {participant?.deliverables.length ? (
               <div className="space-y-3">
-                {briefing.deliverables.map((d, i) => (
-                  <Card key={i} className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-zinc-900">{d.type} × {d.quantity}</p>
-                      <div className="flex items-center gap-1 text-xs text-zinc-500">
-                        <Calendar size={11} />
-                        Prazo: {formatDateBR(d.deadline)}
-                      </div>
-                    </div>
-                    <p className="text-xs text-zinc-500">{d.notes}</p>
+                {participant.deliverables.map((item, index) => (
+                  <Card key={`${item.type}-${index}`} className="p-4">
+                    <p className="text-sm font-semibold text-zinc-900">{item.type.replaceAll("_", " ")} × {item.quantity}</p>
                   </Card>
                 ))}
               </div>
             ) : (
               <Card className="p-8 text-center">
-                <p className="text-sm text-zinc-400">Entregáveis disponíveis após seleção.</p>
+                <p className="text-sm text-zinc-400">Entregáveis disponíveis após a seleção.</p>
               </Card>
             )}
           </TabsContent>
@@ -329,6 +274,7 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
           <TabsContent value="calendar" className="mt-4">
             <ContentCalendar slots={schedule} audience="creator" campaignId={campaign.id} />
           </TabsContent>
+          </>}
         </Tabs>
       </div>
     </div>

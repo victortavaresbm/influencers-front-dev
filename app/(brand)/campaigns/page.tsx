@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Plus, Search, X } from "lucide-react"
+import { ChevronDown, CircleDot, LayoutGrid, List, Plus, Search, X } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
 import { Badge } from "@/components/ui/badge"
@@ -18,9 +18,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { visibilityLabel } from "@/lib/campaign-access"
+import { campaignRoi, ROI_TOOLTIP } from "@/lib/roi"
 import { formatDateRangeBR } from "@/lib/dates"
+import { ALL_PERIOD, rangeOverlapsPeriod, type PeriodValue } from "@/lib/period"
 import { campaignStatusKey, useI18n } from "@/lib/i18n"
 import type { Campaign, CampaignStatus } from "@/lib/mock-data/campaigns"
 import { useAuthStore } from "@/lib/stores/auth"
@@ -28,6 +37,15 @@ import { useCampaignStore } from "@/lib/stores/campaigns"
 import { cn } from "@/lib/utils"
 
 type CampaignView = "grid" | "list"
+type StatusFilter = "all" | "em_execucao" | "aberta" | "rascunho" | "concluida"
+
+const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "Todas" },
+  { key: "em_execucao", label: "Em execução" },
+  { key: "aberta", label: "Abertas" },
+  { key: "rascunho", label: "Rascunhos" },
+  { key: "concluida", label: "Concluídas" },
+]
 
 const STATUS_VARIANT: Record<CampaignStatus, "default" | "secondary" | "destructive"> = {
   em_execucao: "default",
@@ -62,14 +80,19 @@ export default function CampaignsPage() {
   const orgCampaigns = campaigns.filter((c) => c.organizationId === user?.organizationId)
   const [view, setView] = useState<CampaignView>("grid")
   const [query, setQuery] = useState("")
-
-  const tabs = [
-    { key: "all", label: "Todas", items: orgCampaigns },
-    { key: "em_execucao", label: "Em execução", items: orgCampaigns.filter((c) => c.status === "em_execucao") },
-    { key: "aberta", label: "Abertas", items: orgCampaigns.filter((c) => c.status === "aberta") },
-    { key: "rascunho", label: "Rascunhos", items: orgCampaigns.filter((c) => c.status === "rascunho") },
-    { key: "concluida", label: "Concluídas", items: orgCampaigns.filter((c) => c.status === "concluida") },
-  ]
+  const [status, setStatus] = useState<StatusFilter>("all")
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
+  const datedCampaigns = orgCampaigns.filter((campaign) =>
+    rangeOverlapsPeriod(campaign.startDate, campaign.endDate, period),
+  )
+  const statusOptions = STATUS_OPTIONS.map((option) => ({
+    ...option,
+    count: option.key === "all" ? datedCampaigns.length : datedCampaigns.filter((campaign) => campaign.status === option.key).length,
+  }))
+  const statusLabel = statusOptions.find((option) => option.key === status)?.label ?? "Status"
+  const items = datedCampaigns
+    .filter((campaign) => status === "all" || campaign.status === status)
+    .filter((campaign) => matchesQuery(campaign, query))
 
   return (
     <div className="flex flex-1 flex-col">
@@ -86,16 +109,39 @@ export default function CampaignsPage() {
         }
       />
       <div className="p-6">
-        <Tabs defaultValue="all">
+        <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <TabsList>
-              {tabs.map((tab) => (
-                <TabsTrigger key={tab.key} value={tab.key}>
-                  {tab.label}
-                  <Badge variant="secondary">{tab.items.length}</Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="flex flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      className="px-3 font-normal"
+                      aria-pressed={status !== "all"}
+                      aria-label="Status da campanha"
+                    />
+                  }
+                >
+                  <CircleDot data-icon="inline-start" />
+                  {status === "all" ? "Status" : statusLabel}
+                  <ChevronDown data-icon="inline-end" className="text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-52">
+                  <DropdownMenuRadioGroup value={status} onValueChange={(value) => setStatus(value as StatusFilter)}>
+                    {statusOptions.map((option) => (
+                      <DropdownMenuRadioItem key={option.key} value={option.key}>
+                        <span className="flex w-full items-center justify-between gap-6">
+                          {option.label}
+                          <span className="text-xs tabular-nums text-muted-foreground">{option.count}</span>
+                        </span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <PeriodFilter value={period} onChange={setPeriod} />
+            </div>
             <div className="flex items-center gap-2">
               <InputGroup className="w-full sm:w-60">
                 <InputGroupAddon>
@@ -142,25 +188,18 @@ export default function CampaignsPage() {
             </div>
           </div>
 
-          {tabs.map((tab) => {
-            const items = tab.items.filter((campaign) => matchesQuery(campaign, query))
-            return (
-              <TabsContent key={tab.key} value={tab.key}>
-                {items.length === 0 ? (
-                  <EmptyCampaigns filtered={query.trim().length > 0} />
-                ) : view === "grid" ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {items.map((campaign) => (
-                      <CampaignCard key={campaign.id} campaign={campaign} />
-                    ))}
-                  </div>
-                ) : (
-                  <CampaignTable items={items} />
-                )}
-              </TabsContent>
-            )
-          })}
-        </Tabs>
+          {items.length === 0 ? (
+            <EmptyCampaigns search={query.trim().length > 0} period={period.preset !== "all"} status={status !== "all"} />
+          ) : view === "grid" ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {items.map((campaign) => (
+                <CampaignCard key={campaign.id} campaign={campaign} />
+              ))}
+            </div>
+          ) : (
+            <CampaignTable items={items} />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -188,6 +227,10 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
               {campaign.organizationName.slice(0, 2).toUpperCase()}
             </div>
           )}
+          <CampaignTypeBadge
+            type={campaign.type}
+            className="absolute top-3 left-3 max-w-[calc(100%-8.5rem)] bg-background shadow-sm ring-1 ring-background/70"
+          />
           <Badge variant={STATUS_VARIANT[campaign.status]} className="absolute top-3 right-3 shadow-sm ring-1 ring-background/70">
             {t(campaignStatusKey(campaign.status))}
           </Badge>
@@ -200,13 +243,12 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             {visibilityLabel(campaign.visibility)}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-3 pb-4">
-          <CampaignTypeBadge type={campaign.type} />
+        <CardContent className="flex flex-1 flex-col pb-4">
           <div className="mt-auto space-y-3 border-t border-border pt-3">
             <div className="grid grid-cols-3 gap-2">
               <Metric label="Creators" value={String(campaign.participants.length)} />
               <Metric label="Orçamento" value={`R$ ${fmt(campaign.budget)}`} />
-              <Metric label="ROI" value={<Roi value={campaign.roi} />} />
+              <Metric label="ROI" value={<Roi value={campaignRoi(campaign)} />} />
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
@@ -279,7 +321,7 @@ function CampaignTable({ items }: { items: Campaign[] }) {
                 )}
               </TableCell>
               <TableCell>
-                <Roi value={campaign.roi} />
+                <Roi value={campaignRoi(campaign)} />
               </TableCell>
               <TableCell>
                 <Badge variant={STATUS_VARIANT[campaign.status]}>{t(campaignStatusKey(campaign.status))}</Badge>
@@ -302,20 +344,23 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function Roi({ value }: { value?: number }) {
-  if (value === undefined) return <span className="font-medium text-muted-foreground">—</span>
-  return <span className={cn("font-medium tabular-nums", value < 0 && "text-destructive")}>{value}%</span>
+  if (value === undefined) return <span className="font-medium text-muted-foreground" title={ROI_TOOLTIP}>—</span>
+  return <span className={cn("font-medium tabular-nums", value < 0 && "text-destructive")} title={ROI_TOOLTIP}>{value}%</span>
 }
 
-function EmptyCampaigns({ filtered }: { filtered: boolean }) {
+function EmptyCampaigns({ search, period, status }: { search: boolean; period: boolean; status: boolean }) {
+  const narrowed = search || period || status
   return (
     <div className="rounded-xl bg-card px-6 py-16 text-center ring-1 ring-foreground/10">
       <p className="text-sm font-medium">
-        {filtered ? "Nenhuma campanha encontrada" : "Nenhuma campanha nesta categoria"}
+        {narrowed ? "Nenhuma campanha encontrada" : "Nenhuma campanha nesta categoria"}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        {filtered
-          ? "Tente outro nome ou limpe a busca."
-          : "As campanhas deste status aparecem aqui."}
+        {period && !search
+          ? "Nenhuma campanha cobre este período."
+          : search
+            ? "Tente outro nome ou limpe a busca."
+            : "As campanhas deste status aparecem aqui."}
       </p>
     </div>
   )

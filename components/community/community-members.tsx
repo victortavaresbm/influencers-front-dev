@@ -8,9 +8,12 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MembershipBadge } from "@/components/members/membership-badge"
 import { campaignAudience } from "@/lib/mock-data/community"
 import { SOCIAL_NETWORK_LABEL, type SocialNetwork } from "@/lib/mock-data/campaigns"
 import { CREATORS, type CreatorNetwork, type Network } from "@/lib/mock-data/creators"
+import { type MembershipRole } from "@/lib/membership"
+import { membershipRoleOf, trackedSale, useMembershipStore } from "@/lib/stores/membership"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import type { Locale } from "@/lib/stores/preferences"
@@ -87,11 +90,14 @@ interface MemberRow {
   posts: number
   reach: number
   engagements: number
+  sales: number
   mediaValue: number
+  role?: MembershipRole
 }
 
 function tagsOf(member: MemberRow): Segment[] {
-  const tags: Segment[] = [within(member.lastPost, 90) ? "active" : "quiet"]
+  const active = member.role === "affiliate" ? member.sales > 0 : within(member.lastPost, 90)
+  const tags: Segment[] = [active ? "active" : "quiet"]
   if (within(member.joined, 180)) tags.push("recent")
   if (member.ambassador) tags.push("ambassador")
   return tags
@@ -100,7 +106,9 @@ function tagsOf(member: MemberRow): Segment[] {
 export function CommunityMembers({ organizationId }: { organizationId?: string }) {
   const { t, locale } = useI18n()
   const campaigns = useCampaignStore((state) => state.campaigns)
+  const roles = useMembershipStore((state) => state.roles)
   const [query, setQuery] = useState("")
+  const [role, setRole] = useState("all")
   const [type, setType] = useState("all")
   const [network, setNetwork] = useState("all")
   const [campaignId, setCampaignId] = useState("all")
@@ -135,13 +143,15 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
           posts: (current?.posts ?? 0) + (participant.postsDelivered ?? 0),
           reach: (current?.reach ?? 0) + (participant.totalReach ?? 0),
           engagements: (current?.engagements ?? 0) + (participant.totalEngagement ?? 0),
+          sales: (current?.sales ?? 0) + trackedSale(participant.creatorId, participant.revenue, participant.couponCode, roles),
           mediaValue: profile?.mediaValue ?? current?.mediaValue ?? 0,
+          role: membershipRoleOf(participant.creatorId, roles),
         }
         seen.set(participant.creatorId, next)
       }
     }
-    return [...seen.values()].sort((a, b) => b.reach - a.reach || a.name.localeCompare(b.name, "pt-BR"))
-  }, [campaigns, organizationId])
+    return [...seen.values()].sort((a, b) => b.sales - a.sales || b.reach - a.reach || a.name.localeCompare(b.name, "pt-BR"))
+  }, [campaigns, organizationId, roles])
 
   const networkOptions = NETWORKS.filter((item) => members.some((member) => member.networks.includes(item)))
   const campaignOptions = campaigns
@@ -149,6 +159,7 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
     .map((campaign) => [campaign.id, campaign.name] as const)
     .sort((a, b) => a[1].localeCompare(b[1], "pt-BR"))
   const scoped = members.filter((member) => {
+    if (role !== "all" && member.role !== role) return false
     if (network !== "all" && !member.networks.includes(network as Network)) return false
     if (campaignId !== "all" && !member.campaignIds.includes(campaignId)) return false
     return true
@@ -158,9 +169,10 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
     const text = `${member.name} ${member.handle}`.toLowerCase()
     return text.includes(query.trim().toLowerCase())
   })
-  const filtersActive = type !== "all" || network !== "all" || campaignId !== "all"
+  const filtersActive = role !== "all" || type !== "all" || network !== "all" || campaignId !== "all"
 
   function clearFilters() {
+    setRole("all")
     setType("all")
     setNetwork("all")
     setCampaignId("all")
@@ -175,6 +187,22 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
         aria-label={t("community.membersSearch")}
       />
       <div className="flex flex-wrap items-center gap-2">
+        <Select value={role} onValueChange={(value) => setRole(value ?? "all")}>
+          <SelectTrigger size="sm" className="min-w-36">
+            <SelectValue placeholder={t("community.filterRoleAll")}>
+              {(value) => {
+                if (value === "affiliate") return t("community.affiliate")
+                if (value === "creator") return t("community.creator")
+                return t("community.filterRoleAll")
+              }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("community.filterRoleAll")}</SelectItem>
+            <SelectItem value="affiliate">{t("community.affiliate")}</SelectItem>
+            <SelectItem value="creator">{t("community.creator")}</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={type} onValueChange={(value) => setType(value ?? "all")}>
           <SelectTrigger size="sm" className="min-w-36">
             <SelectValue placeholder={t("community.filterTypeAll")}>
@@ -271,10 +299,12 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
             <TableHeader>
               <TableRow>
                 <TableHead>{t("community.colCreator")}</TableHead>
+                <TableHead>{t("community.colRole")}</TableHead>
                 <TableHead>{t("community.colChannel")}</TableHead>
                 <TableHead className="text-right">{t("community.colPosts")}</TableHead>
                 <TableHead className="text-right">{t("community.colReach")}</TableHead>
                 <TableHead className="text-right">{t("community.colEngagements")}</TableHead>
+                <TableHead className="text-right">{t("community.colSales")}</TableHead>
                 <TableHead className="text-right">{t("community.colValue")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -297,6 +327,9 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
                     </div>
                   </TableCell>
                   <TableCell>
+                    <MembershipBadge role={member.role} />
+                  </TableCell>
+                  <TableCell>
                     {member.channel ? (
                       <div className="flex items-center gap-2">
                         <NetworkMark network={member.channel.network} />
@@ -309,10 +342,19 @@ export function CommunityMembers({ organizationId }: { organizationId?: string }
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{compact(member.posts, locale)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{compact(member.reach, locale)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{compact(member.engagements, locale)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{money(member.mediaValue, locale)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {member.role === "affiliate" ? t("community.notTracked") : compact(member.posts, locale)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {member.role === "affiliate" ? t("community.notTracked") : compact(member.reach, locale)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {member.role === "affiliate" ? t("community.notTracked") : compact(member.engagements, locale)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{money(member.sales, locale)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {member.role === "affiliate" ? t("community.notTracked") : money(member.mediaValue, locale)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

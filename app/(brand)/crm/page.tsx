@@ -9,6 +9,7 @@ import { useListStore } from "@/lib/stores/lists"
 import { SAVED_CREATOR_IDS } from "@/lib/mock-data/saved-creators"
 import { CREATORS, type Creator } from "@/lib/mock-data/creators"
 import { brandCreatorIds } from "@/lib/discovery/scope"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -20,6 +21,9 @@ import { NewListSheet } from "@/components/crm/new-list-sheet"
 import { toast } from "@/components/ui/toast"
 import { ActionsMenu } from "@/components/ui/actions-menu"
 import { ApproveCreatorDialog } from "@/components/crm/approve-creator-dialog"
+import { MembershipBadge, NotTracked } from "@/components/members/membership-badge"
+import { CONTENT_TRACKED_EVENTS, MEMBERSHIP_ROLE_LABEL } from "@/lib/membership"
+import { useMembershipStore } from "@/lib/stores/membership"
 import { CreatorContact } from "@/components/creators/creator-contact"
 import {
   Plus, ListPlus, Send, UserPlus, FileText, Wallet, MessageSquare, StickyNote,
@@ -31,6 +35,9 @@ import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { formatDateBR } from "@/lib/dates"
+import { ALL_PERIOD, dateInPeriod, type PeriodValue } from "@/lib/period"
+import { creatorFeeCost, creatorRoi, creatorSeedingCost, ROI_TOOLTIP } from "@/lib/roi"
+import { useSeedingStore } from "@/lib/stores/seeding"
 
 function fmt(n: number) {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
@@ -108,6 +115,7 @@ function groupHistory(events: RelationshipEvent[]) {
 }
 
 function RelationshipDrawer({ creator, history }: { creator: Creator; history: RelationshipEvent[] }) {
+  const role = useMembershipStore((state) => state.roles[creator.id]) ?? creator.membershipRole
   const [typeFilter, setTypeFilter] = useState("all")
   const [networkFilter, setNetworkFilter] = useState("all")
   const [campaignFilter, setCampaignFilter] = useState("all")
@@ -145,6 +153,7 @@ function RelationshipDrawer({ creator, history }: { creator: Creator; history: R
             </div>
             <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-1">
               <Badge className={approval.className}>{approval.label}</Badge>
+              <MembershipBadge role={role} />
               <CreatorContact email={creator.email} phone={creator.phone} showPhone />
             </div>
           </div>
@@ -362,10 +371,14 @@ function approvalOf(creator: Creator, approvedIds: Set<string>) {
   return APPROVAL_META[approvedIds.has(creator.id) ? "approved" : creator.approvalStatus]
 }
 
+function isApprovedCreator(creator: Creator, approvedIds: Set<string>) {
+  return approvedIds.has(creator.id) || creator.approvalStatus === "approved"
+}
+
 function RoiCell({ roi }: { roi?: number }) {
-  if (roi === undefined || roi === 0) return <span className="text-zinc-300 text-xs">—</span>
+  if (roi === undefined) return <span className="text-zinc-300 text-xs" title={ROI_TOOLTIP}>—</span>
   const color = roi > 50 ? "text-emerald-700" : roi > 0 ? "text-zinc-700" : "text-red-600"
-  return <span className={cn("text-sm font-semibold", color)}>{roi > 0 ? "+" : ""}{roi}%</span>
+  return <span className={cn("text-sm font-semibold", color)} title={ROI_TOOLTIP}>{roi > 0 ? "+" : ""}{roi}%</span>
 }
 
 function listCandidates(campaignCreatorIds: Set<string>) {
@@ -384,17 +397,21 @@ export default function CRMPage() {
   const { t } = useI18n()
   const user = useAuthStore((s) => s.user)
   const campaigns = useCampaignStore((s) => s.campaigns)
+  const seedingCampaigns = useSeedingStore((s) => s.campaigns)
   const allLists = useListStore((s) => s.lists)
   const addList = useListStore((s) => s.createList)
   const lists = allLists.filter((l) => l.organizationId === user?.organizationId)
-  const [tab, setTab] = useState("lists")
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
+  const [tab, setTab] = useState("active")
   const [listId, setListId] = useState(ALL_LISTS)
   const [creating, setCreating] = useState(false)
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const roles = useMembershipStore((state) => state.roles)
+  const assignRole = useMembershipStore((state) => state.assign)
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set())
   const [approveIds, setApproveIds] = useState<string[] | null>(null)
-  const activeTab = tab === "lists" || tab === "approval" || tab === "performance" ? tab : "lists"
+  const activeTab = tab === "active" || tab === "approval" || tab === "excluded" || tab === "performance" ? tab : "active"
   const activeListId = listId === ALL_LISTS || lists.some((list) => list.id === listId) ? listId : ALL_LISTS
 
   const communityIds = useMemo(() => {
@@ -418,13 +435,40 @@ export default function CRMPage() {
   }, [lists, user?.organizationId])
 
   const activeList = lists.find((list) => list.id === activeListId) ?? null
-  const visibleCreators = activeListId === ALL_LISTS
+  const rosterCreators = activeListId === ALL_LISTS
     ? CREATORS.filter((creator) => allCreatorIds.has(creator.id))
     : CREATORS.filter((creator) => activeList?.creatorIds.includes(creator.id))
+  const visibleCreators = rosterCreators.filter((creator) => isApprovedCreator(creator, approvedIds))
+  function interactionDate(creator: Creator) {
+    const memberRole = roles[creator.id] ?? creator.membershipRole
+    const events = RELATIONSHIP_HISTORY.filter((event) => {
+      if (event.creatorId !== creator.id || event.organizationId !== user?.organizationId) return false
+      if (memberRole === "affiliate" && CONTENT_TRACKED_EVENTS.has(event.type)) return false
+      return true
+    })
+    return events.reduce<RelationshipEvent | undefined>((latest, event) => {
+      if (!latest || event.date > latest.date) return event
+      return latest
+    }, undefined)?.date
+  }
+  const shownCreators = visibleCreators.filter((creator) => dateInPeriod(interactionDate(creator), period))
+  const performanceCreators = CREATORS.filter((creator) => lists.some((list) => list.creatorIds.includes(creator.id)))
+    .filter((creator) => {
+      const role = roles[creator.id] ?? creator.membershipRole
+      return dateInPeriod(role === "affiliate" ? undefined : creator.lastPost, period)
+    })
+  const approvedCount = (ids: Iterable<string>) => {
+    let count = 0
+    for (const id of ids) {
+      const creator = CREATORS.find((item) => item.id === id)
+      if (creator && isApprovedCreator(creator, approvedIds)) count += 1
+    }
+    return count
+  }
   const listDescription = activeListId === ALL_LISTS
     ? "Todos os influenciadores da marca"
     : activeList?.description
-  const listSelected = visibleCreators.map((creator) => creator.id).filter((id) => selected.has(id))
+  const listSelected = shownCreators.map((creator) => creator.id).filter((id) => selected.has(id))
 
   function createList(input: { name: string; description: string; creatorIds: string[] }) {
     if (!user?.organizationId) return
@@ -434,7 +478,7 @@ export default function CRMPage() {
       description: input.description,
       creatorIds: input.creatorIds,
     })
-    setTab("lists")
+    setTab("active")
     setListId(list.id)
     setCreating(false)
     toast.add({
@@ -445,16 +489,21 @@ export default function CRMPage() {
   }
 
   const selectedCreator = selectedCreatorId ? CREATORS.find((c) => c.id === selectedCreatorId) : null
+  const selectedRole = selectedCreatorId ? roles[selectedCreatorId] ?? selectedCreator?.membershipRole : undefined
   const history = selectedCreatorId
-    ? RELATIONSHIP_HISTORY.filter((e) => e.creatorId === selectedCreatorId && e.organizationId === user?.organizationId)
+    ? RELATIONSHIP_HISTORY.filter((e) => {
+        if (e.creatorId !== selectedCreatorId || e.organizationId !== user?.organizationId) return false
+        if (selectedRole === "affiliate" && CONTENT_TRACKED_EVENTS.has(e.type)) return false
+        return true
+      })
     : []
 
   // Approval queue: all creators with pending status in this org's lists
   const pendingCreators = CREATORS.filter(
-    (c) => c.approvalStatus === "pending" && !approvedIds.has(c.id) && lists.some((l) => l.creatorIds.includes(c.id))
+    (c) => allCreatorIds.has(c.id) && c.approvalStatus === "pending" && !approvedIds.has(c.id)
   )
   const rejectedCreators = CREATORS.filter(
-    (c) => c.approvalStatus === "rejected" && lists.some((l) => l.creatorIds.includes(c.id))
+    (c) => allCreatorIds.has(c.id) && c.approvalStatus === "rejected" && !approvedIds.has(c.id)
   )
 
   function toggleSelect(id: string) {
@@ -491,8 +540,9 @@ export default function CRMPage() {
 
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="lists">Listas</TabsTrigger>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+          <TabsList>
+            <TabsTrigger value="active">Ativos</TabsTrigger>
             <TabsTrigger value="approval">
               Fila de aprovação
               {pendingCreators.length > 0 && (
@@ -501,10 +551,20 @@ export default function CRMPage() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="excluded">
+              Excluídos
+              {rejectedCreators.length > 0 && (
+                <span className="ml-1.5 text-xs bg-red-50 text-red-700 rounded-full px-1.5 py-0.5">
+                  {rejectedCreators.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
+          <PeriodFilter value={period} onChange={setPeriod} />
+          </div>
 
-          <TabsContent value="lists">
+          <TabsContent value="active">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-3">
                     <Select value={activeListId} onValueChange={(value) => setListId(value ?? ALL_LISTS)}>
@@ -519,12 +579,12 @@ export default function CRMPage() {
                       <SelectContent align="start">
                         <SelectItem value={ALL_LISTS}>
                           Todos os influenciadores
-                          <span className="text-xs text-zinc-400">{allCreatorIds.size}</span>
+                          <span className="text-xs text-zinc-400">{approvedCount(allCreatorIds)}</span>
                         </SelectItem>
                         {lists.map((list) => (
                           <SelectItem key={list.id} value={list.id}>
                             {list.name}
-                            <span className="text-xs text-zinc-400">{list.creatorIds.length}</span>
+                            <span className="text-xs text-zinc-400">{approvedCount(list.creatorIds)}</span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -554,8 +614,8 @@ export default function CRMPage() {
                     <thead>
                       <tr className="bg-zinc-50">
                         <th className="py-2.5 px-3">
-                          <button onClick={() => toggleAll(visibleCreators.map((c) => c.id))}>
-                            {visibleCreators.length > 0 && visibleCreators.every((c) => selected.has(c.id)) ? (
+                          <button onClick={() => toggleAll(shownCreators.map((c) => c.id))}>
+                            {shownCreators.length > 0 && shownCreators.every((c) => selected.has(c.id)) ? (
                               <CheckSquare size={14} className="text-zinc-700" />
                             ) : (
                               <Square size={14} className="text-zinc-400" />
@@ -568,16 +628,21 @@ export default function CRMPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleCreators.length === 0 ? (
+                      {shownCreators.length === 0 ? (
                         <tr>
                           <td colSpan={11} className="py-10 text-center text-sm text-zinc-400">
-                            Nenhum influenciador nesta lista.
+                            {period.preset === "all"
+                              ? "Nenhum influenciador ativo nesta lista."
+                              : "Nenhum influenciador neste período."}
                           </td>
                         </tr>
-                      ) : visibleCreators.map((c) => {
-                        const events = RELATIONSHIP_HISTORY.filter(
-                          (e) => e.creatorId === c.id && e.organizationId === user?.organizationId
-                        )
+                      ) : shownCreators.map((c) => {
+                        const memberRole = roles[c.id] ?? c.membershipRole
+                        const events = RELATIONSHIP_HISTORY.filter((e) => {
+                          if (e.creatorId !== c.id || e.organizationId !== user?.organizationId) return false
+                          if (memberRole === "affiliate" && CONTENT_TRACKED_EVENTS.has(e.type)) return false
+                          return true
+                        })
                         const lastEvent = events.reduce<RelationshipEvent | undefined>((latest, event) => {
                           if (!latest || event.date > latest.date) return event
                           return latest
@@ -627,8 +692,8 @@ export default function CRMPage() {
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-sm text-zinc-700">{c.pastCampaigns}</td>
-                            <td className="py-2.5 px-3 text-xs text-zinc-600 capitalize">
-                              {c.memberType === "ambassador" ? "Embaixador" : c.memberType === "vip" ? "VIP" : "Padrão"}
+                            <td className="py-2.5 px-3">
+                              <MembershipBadge role={memberRole} />
                             </td>
                             <td className="py-2.5 px-3 text-xs text-zinc-500">
                               {lastEvent ? formatDateBR(lastEvent.date) : "—"}
@@ -722,21 +787,28 @@ export default function CRMPage() {
               </div>
             </div>
 
-            {rejectedCreators.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-800 mb-2">Recusados ({rejectedCreators.length})</h3>
-                <div className="rounded-xl border border-zinc-200 overflow-x-auto bg-white">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-zinc-50">
-                        {["Creator", "Contato", "Nicho", "Seguidores", "Score", "Motivo"].map((h) => (
-                          <th key={h} className="py-2.5 px-4 text-xs font-medium text-zinc-500">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rejectedCreators.map((c) => (
-                        <tr key={c.id} className="border-t border-zinc-100">
+          </TabsContent>
+
+          <TabsContent value="excluded">
+            <div className="rounded-xl border border-zinc-200 overflow-x-auto bg-white">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-zinc-50">
+                    {["Creator", "Contato", "Nicho", "Seguidores", "Score", "Motivo"].map((h) => (
+                      <th key={h} className="py-2.5 px-4 text-xs font-medium text-zinc-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rejectedCreators.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-sm text-zinc-400">
+                        Nenhum influenciador excluído.
+                      </td>
+                    </tr>
+                  ) : (
+                    rejectedCreators.map((c) => (
+                      <tr key={c.id} className="border-t border-zinc-100">
                           <td className="py-2.5 px-4">
                             <div className="flex items-center gap-2">
                               {c.photo ? (
@@ -764,18 +836,17 @@ export default function CRMPage() {
                             {c.fraudScore > 4 ? "Score de fraude elevado" : "Não atende requisitos"}
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </TabsContent>
 
           {/* Performance dense table */}
           <TabsContent value="performance">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm text-zinc-500">Desempenho consolidado de todos os creators por campanha</p>
+              <p className="text-sm text-zinc-500">Creators entram com conteúdo e vendas. Afiliados entram só com as vendas do cupom.</p>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs">
                 <Download size={13} /> Exportar CSV
               </Button>
@@ -790,12 +861,22 @@ export default function CRMPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {CREATORS.filter((c) =>
-                    lists.some((l) => l.creatorIds.includes(c.id))
-                  ).map((c) => {
-                    const totalRoi = c.totalSales && c.totalCommission
-                      ? Math.round(((c.totalSales - c.totalCommission) / c.totalCommission) * 100)
-                      : undefined
+                  {performanceCreators.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-10 text-center text-sm text-zinc-400">
+                        Nenhum creator neste período.
+                      </td>
+                    </tr>
+                  ) : performanceCreators.map((c) => {
+                    const role = roles[c.id] ?? c.membershipRole
+                    const affiliate = role === "affiliate"
+                    const organizationId = user?.organizationId
+                    const totalRoi = creatorRoi({
+                      sales: c.totalSales,
+                      commission: c.totalCommission,
+                      fee: organizationId ? creatorFeeCost(campaigns, c.id, organizationId) : 0,
+                      seeding: organizationId ? creatorSeedingCost(seedingCampaigns, c.id, organizationId) : 0,
+                    })
                     return (
                       <tr key={c.id} className="border-t border-zinc-100 hover:bg-zinc-50 cursor-pointer" onClick={() => setSelectedCreatorId(c.id)}>
                         <td className="py-2.5 px-3">
@@ -827,8 +908,8 @@ export default function CRMPage() {
                             : "—"}
                         </td>
                         <td className="py-2.5 px-3"><RoiCell roi={totalRoi} /></td>
-                        <td className="py-2.5 px-3 text-xs text-zinc-700">{c.totalPosts ?? "—"}</td>
-                        <td className="py-2.5 px-3 text-xs text-zinc-500">{c.lastPost ? formatDateBR(c.lastPost) : "—"}</td>
+                        <td className="py-2.5 px-3 text-xs text-zinc-700">{affiliate ? <NotTracked /> : (c.totalPosts ?? "—")}</td>
+                        <td className="py-2.5 px-3 text-xs text-zinc-500">{affiliate ? <NotTracked /> : c.lastPost ? formatDateBR(c.lastPost) : "—"}</td>
                         <td className="py-2.5 px-3">
                           <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium",
                             c.level === "platinum" ? "bg-purple-50 text-purple-700" :
@@ -839,8 +920,8 @@ export default function CRMPage() {
                             {c.level === "platinum" ? "Platina" : c.level === "gold" ? "Ouro" : c.level === "silver" ? "Prata" : "Bronze"}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-xs text-zinc-600 capitalize">
-                          {c.memberType === "ambassador" ? "Embaixador" : c.memberType === "vip" ? "VIP" : "Padrão"}
+                        <td className="py-2.5 px-3">
+                          <MembershipBadge role={role} />
                         </td>
                       </tr>
                     )
@@ -882,7 +963,8 @@ export default function CRMPage() {
         onOpenChange={(open) => {
           if (!open) setApproveIds(null)
         }}
-        onApprove={(ids) => {
+        onApprove={(ids, role) => {
+          assignRole(ids, role)
           setApprovedIds((current) => new Set([...current, ...ids]))
           setSelected((current) => {
             const next = new Set(current)
@@ -893,7 +975,7 @@ export default function CRMPage() {
           const names = CREATORS.filter((creator) => ids.includes(creator.id)).map((creator) => creator.name)
           toast.add({
             type: "success",
-            title: ids.length === 1 ? "Creator aprovado" : "Creators aprovados",
+            title: ids.length === 1 ? `${MEMBERSHIP_ROLE_LABEL[role]} aceito` : `${MEMBERSHIP_ROLE_LABEL[role]}s aceitos`,
             description: names.join(", "),
           })
         }}

@@ -6,6 +6,10 @@ import { useCampaignStore } from "@/lib/stores/campaigns"
 import { creatorCanApply } from "@/lib/campaign-access"
 import { CAMPAIGNS } from "@/lib/mock-data/campaigns"
 import { CREATORS, type Network } from "@/lib/mock-data/creators"
+import { MembershipBadge } from "@/components/members/membership-badge"
+import { MEMBERSHIP_ROLE_HELP } from "@/lib/membership"
+import { CouponTicket } from "@/components/ui/coupon-ticket"
+import { membershipRoleOf, trackedSale, useMembershipStore } from "@/lib/stores/membership"
 import { ORG_LOGOS } from "@/lib/mock-data/users"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -156,6 +160,14 @@ export default function CreatorDashboardPage() {
   const user = useAuthStore((s) => s.user)
   const campaigns = useCampaignStore((s) => s.campaigns)
   const creator = CREATORS.find((c) => c.email === user?.email) ?? CREATORS[0]
+  const roles = useMembershipStore((state) => state.roles)
+  const role = membershipRoleOf(creator.id, roles)
+  const affiliate = role === "affiliate"
+  const couponSales = CAMPAIGNS.reduce((sum, campaign) => {
+    const participant = campaign.participants.find((item) => item.creatorId === creator.id)
+    if (!participant) return sum
+    return sum + trackedSale(creator.id, participant.revenue, participant.couponCode, roles)
+  }, 0)
   const [networkId, setNetworkId] = useState<Network>(creator.networks[0]?.network ?? "instagram")
   const selected = creator.networks.find((n) => n.network === networkId) ?? creator.networks[0]
   const series = selected ? growthSeries(selected.followers, selected.network) : []
@@ -180,6 +192,7 @@ export default function CreatorDashboardPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base font-semibold text-zinc-900">{creator.name}</h2>
                   <span className="text-sm text-zinc-400">{creator.handle}</span>
+                  <MembershipBadge role={role} />
                   <Badge variant="outline" className="text-xs capitalize">{creator.tier}</Badge>
                   <div className="flex items-center gap-1">
                     <Star size={12} className="text-zinc-600 fill-zinc-600" />
@@ -240,7 +253,11 @@ export default function CreatorDashboardPage() {
             { label: "Total seguidores", value: fmt(creator.totalFollowers), icon: Star },
             { label: "Engajamento médio", value: `${creator.avgEngagement.toFixed(1)}%`, icon: TrendingUp },
             { label: "Campanhas ativas", value: activeCampaigns.length, icon: Megaphone },
-            { label: "Valor de mídia", value: `R$ ${creator.mediaValue.toLocaleString("pt-BR")}`, icon: DollarSign },
+            {
+              label: affiliate ? "Vendas do cupom" : "Valor de mídia",
+              value: affiliate ? `R$ ${couponSales.toLocaleString("pt-BR")}` : `R$ ${creator.mediaValue.toLocaleString("pt-BR")}`,
+              icon: DollarSign,
+            },
           ].map(({ label, value, icon: Icon }) => (
             <Card key={label} className="p-4">
               <div className="flex items-center justify-between mb-1">
@@ -338,6 +355,7 @@ export default function CreatorDashboardPage() {
                   const participant = c.participants.find((p) => p.creatorId === creator.id)
                   const delivered = participant?.postsDelivered ?? 0
                   const total = participant?.deliverables.reduce((s, d) => s + d.quantity, 0) ?? 0
+                  const sales = trackedSale(creator.id, participant?.revenue, participant?.couponCode, roles)
                   return (
                     <Link key={c.id} href={`/creator/campaigns/${c.id}`}>
                       <div className="p-3 rounded-lg border border-zinc-100 hover:bg-zinc-50 transition-colors">
@@ -345,11 +363,20 @@ export default function CreatorDashboardPage() {
                           <p className="text-sm font-medium text-zinc-900 line-clamp-1">{c.name}</p>
                           <span className="text-xs text-zinc-400 shrink-0 ml-2">{formatDateBR(c.endDate)}</span>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-zinc-500 mb-1.5">
-                          <span>{delivered}/{total} entregáveis</span>
-                          <span>R$ {participant?.fee.toLocaleString("pt-BR")}</span>
-                        </div>
-                        <Progress value={total > 0 ? (delivered / total) * 100 : 0} className="h-1" />
+                        {affiliate ? (
+                          <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
+                            {participant?.couponCode ? <CouponTicket code={participant.couponCode} /> : <span>{MEMBERSHIP_ROLE_HELP.affiliate}</span>}
+                            <span className="shrink-0 font-medium text-zinc-800">R$ {sales.toLocaleString("pt-BR")}</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between text-xs text-zinc-500 mb-1.5">
+                              <span>{delivered}/{total} entregáveis</span>
+                              <span>R$ {participant?.fee.toLocaleString("pt-BR")}</span>
+                            </div>
+                            <Progress value={total > 0 ? (delivered / total) * 100 : 0} className="h-1" />
+                          </>
+                        )}
                       </div>
                     </Link>
                   )

@@ -14,8 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useI18n } from "@/lib/i18n"
+import { ALL_PERIOD, dateInPeriod, type PeriodValue } from "@/lib/period"
 import { formatBrl, latestTouch, visitorDisplayName, type Visitor, type VisitorStatus } from "@/lib/mock-data/journeys"
 
 const STATUS_CLASS: Record<VisitorStatus, string> = {
@@ -44,6 +46,7 @@ export function VisitorTable({
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<StatusFilter>("all")
   const [view, setView] = useState<VisitorView>("list")
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
   const dateLocale = locale === "en" ? "en-US" : locale === "es" ? "es-ES" : "pt-BR"
 
   const searched = visitors.filter((visitor) => {
@@ -57,7 +60,8 @@ export function VisitorTable({
   }).sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
 
   const filtered = status === "all" ? searched : searched.filter((visitor) => visitor.status === status)
-  const shown = view === "kanban" ? searched : filtered
+  const inPeriod = filtered.filter((visitor) => dateInPeriod(visitor.firstSeenAt, period))
+  const shown = view === "kanban" ? searched : inPeriod
 
   function statusLabel(value: VisitorStatus) {
     if (value === "visitor") return t("journeys.statusVisitor")
@@ -131,16 +135,19 @@ export function VisitorTable({
           </div>
         </div>
         {view === "list" ? (
-          <div className="overflow-x-auto">
-            <Tabs value={status} onValueChange={(value) => setStatus((value as StatusFilter) || "all")}>
-              <TabsList>
-                {filters.map((filter) => (
-                  <TabsTrigger key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="overflow-x-auto">
+              <Tabs value={status} onValueChange={(value) => setStatus((value as StatusFilter) || "all")}>
+                <TabsList>
+                  {filters.map((filter) => (
+                    <TabsTrigger key={filter.value} value={filter.value}>
+                      {filter.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+            <PeriodFilter value={period} onChange={setPeriod} />
           </div>
         ) : null}
       </div>
@@ -167,14 +174,14 @@ export function VisitorTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.length === 0 ? (
+          {inPeriod.length === 0 ? (
             <TableRow>
               <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                 {t("journeys.empty")}
               </TableCell>
             </TableRow>
           ) : (
-            filtered.map((visitor) => {
+            inPeriod.map((visitor) => {
               const latest = latestTouch(visitor)
               const revenue = visitor.orders.reduce((sum, order) => sum + order.value, 0)
               return (

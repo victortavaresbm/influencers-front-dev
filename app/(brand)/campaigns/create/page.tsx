@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useI18n } from "@/lib/i18n"
+import { useI18n, type MessageKey } from "@/lib/i18n"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore, type WizardDraft } from "@/lib/stores/campaigns"
 import { useSeedingStore } from "@/lib/stores/seeding"
@@ -30,9 +30,8 @@ import { formatSuccessTargetList, metricsForNetworks, readSuccessTargets } from 
 import { visibilityLabel } from "@/lib/campaign-access"
 import { SocialPreviewCarousel } from "@/components/campaigns/social-preview-carousel"
 import { WizardFormStep } from "@/components/forms/wizard-form-step"
-import { WizardBriefingStep } from "@/components/forms/wizard-briefing-step"
+import { GuidelineLists, cleanGuidelines } from "@/components/campaigns/guideline-list"
 import { useFormStore } from "@/lib/stores/forms"
-import { useBriefingStore } from "@/lib/stores/briefings"
 import { formatDateBR } from "@/lib/dates"
 import {
   SOCIAL_NETWORK_LABEL,
@@ -74,14 +73,13 @@ const STEP_DEFS = [
   { id: "audience", key: "wizard.audience", hintKey: "wizard.audienceHint" },
   { id: "goals", key: "wizard.goals", hintKey: "wizard.goalsHint" },
   { id: "form", key: "wizard.form", hintKey: "wizard.formHint" },
-  { id: "briefing", key: "wizard.briefing", hintKey: "wizard.briefingHint" },
   { id: "review", key: "wizard.review", hintKey: "wizard.reviewHint" },
 ] as const
 
 type WizardStepId = (typeof STEP_DEFS)[number]["id"] | "seeding"
 
 function campaignSteps(type?: string) {
-  const steps: { id: WizardStepId; key: string; hintKey: string }[] = STEP_DEFS.map((item) => ({ ...item }))
+  const steps: { id: WizardStepId; key: MessageKey; hintKey: MessageKey }[] = STEP_DEFS.map((item) => ({ ...item }))
   if (type === "seeding") {
     const review = steps.findIndex((item) => item.id === "review")
     steps.splice(review, 0, { id: "seeding", key: "wizard.seeding", hintKey: "wizard.seedingHint" })
@@ -228,7 +226,6 @@ export default function CreateCampaignPage() {
   const { wizardStep, setWizardStep, wizardDraft, updateWizardDraft, resetWizard, createCampaign } =
     useCampaignStore()
   const forms = useFormStore((state) => state.forms)
-  const briefings = useBriefingStore((state) => state.briefings)
   const draft = wizardDraft
   const step = wizardStep
   const steps = campaignSteps(draft.type)
@@ -419,17 +416,8 @@ export default function CreateCampaignPage() {
     setCreating(true)
     const today = new Date().toISOString().split("T")[0]
     const campaignId = `camp_${Date.now()}`
-    let briefingId = draft.briefingMode === "existing" ? draft.briefingId : undefined
-    if (draft.briefingMode === "new" && draft.newBriefingTitle?.trim()) {
-      const created = useBriefingStore.getState().addBriefing({
-        organizationId: user?.organizationId ?? "org1",
-        title: draft.newBriefingTitle.trim(),
-        objective: draft.newBriefingObjective?.trim() ?? "",
-        campaignId,
-        campaignName: draft.name?.trim(),
-      })
-      briefingId = created.id
-    }
+    const doList = cleanGuidelines(draft.doList)
+    const dontList = cleanGuidelines(draft.dontList)
     const linkedForm = draft.formId
       ? useFormStore.getState().forms.find((form) => form.id === draft.formId)
       : undefined
@@ -439,7 +427,6 @@ export default function CreateCampaignPage() {
     const campaign: Campaign = {
       id: campaignId,
       formId: linkedForm?.id,
-      briefingId,
       organizationId: user?.organizationId ?? "org1",
       organizationName: user?.organizationName ?? "",
       name: draft.name.trim(),
@@ -462,8 +449,8 @@ export default function CreateCampaignPage() {
       successTargets: readSuccessTargets(draft.successTargets).filter(
         (item) => item.target > 0 && metricsForNetworks((draft.targetNetworks ?? []).filter(isSocialNetwork)).some((metric) => metric.id === item.metric),
       ),
-      recommended: draft.recommended?.trim() || undefined,
-      notRecommended: draft.notRecommended?.trim() || undefined,
+      doList: doList.length ? doList : undefined,
+      dontList: dontList.length ? dontList : undefined,
       participants: [],
       createdAt: today,
       updatedAt: today,
@@ -540,7 +527,7 @@ export default function CreateCampaignPage() {
         <div
           className={cn(
             "mx-auto grid max-w-6xl gap-6 lg:grid-cols-[208px_minmax(0,1fr)]",
-            step !== 1 && currentId !== "format" && currentId !== "goals" && currentId !== "form" && currentId !== "briefing" && currentId !== "seeding" && "xl:grid-cols-[208px_minmax(0,1fr)_280px]"
+            step !== 1 && currentId !== "format" && currentId !== "goals" && currentId !== "form" && currentId !== "seeding" && "xl:grid-cols-[208px_minmax(0,1fr)_280px]"
           )}
         >
           <nav className="lg:sticky lg:top-24 lg:self-start xl:row-span-2" aria-label={t("pages.campaignSteps")}>
@@ -828,24 +815,11 @@ export default function CreateCampaignPage() {
                     <p className="text-right text-[11px] text-zinc-400">{(draft.description ?? "").length}/500</p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <CountedArea
-                      id="recommended"
-                      label="Recomendável"
-                      hint="O que mostrar, falar ou sentir."
-                      placeholder="Ex: ingredientes da Amazônia, luz natural, rotina de manhã."
-                      value={draft.recommended ?? ""}
-                      onChange={(value) => updateWizardDraft({ recommended: value })}
-                    />
-                    <CountedArea
-                      id="not-recommended"
-                      label="Não recomendável"
-                      hint="O que fica de fora."
-                      placeholder="Ex: comparar com concorrente, prometer resultado clínico, filtro pesado."
-                      value={draft.notRecommended ?? ""}
-                      onChange={(value) => updateWizardDraft({ notRecommended: value })}
-                    />
-                  </div>
+                  <GuidelineLists
+                    doList={draft.doList ?? []}
+                    dontList={draft.dontList ?? []}
+                    onChange={updateWizardDraft}
+                  />
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -1213,17 +1187,6 @@ export default function CreateCampaignPage() {
                 />
               )}
 
-              {currentId === "briefing" && (
-                <WizardBriefingStep
-                  organizationId={user?.organizationId ?? "org1"}
-                  mode={draft.briefingMode ?? "skip"}
-                  briefingId={draft.briefingId}
-                  title={draft.newBriefingTitle ?? ""}
-                  objective={draft.newBriefingObjective ?? ""}
-                  onChange={updateWizardDraft}
-                />
-              )}
-
               {currentId === "seeding" && (
                 <SeedingStep
                   products={draft.seedingProducts ?? []}
@@ -1239,10 +1202,9 @@ export default function CreateCampaignPage() {
                   <ReviewBlock title="Campanha" onEdit={() => goTo(1)}>
                     <Fact label="Período" value={periodLabel(draft)} />
                     <Fact label="Orçamento" value={draft.budget ? formatMoney(Number(draft.budget)) : "A definir"} />
-                    {(draft.recommended || draft.notRecommended) && (
-                      <div className="grid gap-3 pt-2 sm:grid-cols-2 sm:col-span-2">
-                        <Quote tone="good" title="Recomendável" text={draft.recommended} />
-                        <Quote tone="avoid" title="Não recomendável" text={draft.notRecommended} />
+                    {(cleanGuidelines(draft.doList).length > 0 || cleanGuidelines(draft.dontList).length > 0) && (
+                      <div className="pt-2 sm:col-span-2">
+                        <GuidelineLists doList={cleanGuidelines(draft.doList)} dontList={cleanGuidelines(draft.dontList)} />
                       </div>
                     )}
                   </ReviewBlock>
@@ -1302,18 +1264,6 @@ export default function CreateCampaignPage() {
                       value={forms.find((form) => form.id === draft.formId)?.title ?? "Sem formulário"}
                     />
                   </ReviewBlock>
-                  <ReviewBlock title="Briefing" onEdit={() => goTo(steps.findIndex((item) => item.id === "briefing"))}>
-                    <Fact
-                      label="Documento"
-                      value={
-                        draft.briefingMode === "new"
-                          ? draft.newBriefingTitle?.trim() || "Rascunho sem título"
-                          : draft.briefingMode === "existing"
-                            ? briefings.find((briefing) => briefing.id === draft.briefingId)?.title ?? "A definir"
-                            : "Não definido"
-                      }
-                    />
-                  </ReviewBlock>
                   {draft.type === "seeding" && (
                     <ReviewBlock
                       title="Seeding"
@@ -1368,7 +1318,7 @@ export default function CreateCampaignPage() {
             {continueHint && <p className="mt-2 text-right text-xs text-zinc-500 sm:hidden">{continueHint}</p>}
           </div>
 
-          {currentId !== "campaign" && currentId !== "format" && currentId !== "goals" && currentId !== "form" && currentId !== "briefing" && currentId !== "seeding" && (
+          {currentId !== "campaign" && currentId !== "format" && currentId !== "goals" && currentId !== "form" && currentId !== "seeding" && (
             <aside className="lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-span-2 xl:row-start-1 xl:sticky xl:top-24 xl:self-start">
               <Preview draft={draft} dirty={dirty} onClear={clearDraft} />
             </aside>
@@ -1576,38 +1526,6 @@ function TypeCard({
         </span>
       )}
     </button>
-  )
-}
-
-function CountedArea({
-  id,
-  label,
-  hint,
-  placeholder,
-  value,
-  onChange,
-}: {
-  id: string
-  label: string
-  hint: string
-  placeholder: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <p className="text-xs text-zinc-400">{hint}</p>
-      <Textarea
-        id={id}
-        className="min-h-24"
-        maxLength={320}
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <p className="text-right text-[11px] text-zinc-400">{value.length}/320</p>
-    </div>
   )
 }
 
@@ -1852,18 +1770,6 @@ function Fact({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs text-zinc-400">{label}</p>
       <p className={cn("mt-0.5 text-sm", empty ? "text-zinc-400" : "font-medium text-zinc-800")}>{value}</p>
-    </div>
-  )
-}
-
-function Quote({ tone, title, text }: { tone: "good" | "avoid"; title: string; text?: string }) {
-  if (!text) return null
-  return (
-    <div className={cn("rounded-xl px-3 py-2.5", tone === "good" ? "bg-emerald-50" : "bg-amber-50")}>
-      <p className={cn("text-[11px] font-semibold uppercase tracking-wide", tone === "good" ? "text-emerald-800" : "text-amber-800")}>
-        {title}
-      </p>
-      <p className="mt-1 text-sm leading-relaxed text-zinc-700">{text}</p>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { TopBar } from "@/components/layout/top-bar"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { CAMPAIGN_METRICS, MONITOR_POSTS, type MonitorPost } from "@/lib/mock-data/metrics"
+import { PeriodFilter } from "@/components/ui/period-filter"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,13 +31,18 @@ import { InviteCreatorsSheet } from "@/components/campaigns/invite-creators-shee
 import { contentFormatByValue } from "@/lib/campaign-types"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
+import { ALL_PERIOD, dateInPeriod, type PeriodValue } from "@/lib/period"
+import { campaignRoi, participantRoi, ROI_TOOLTIP } from "@/lib/roi"
 import { CampaignAnalytics } from "@/components/campaigns/campaign-analytics"
 import { SeedingResults, seedingCampaignFor } from "@/components/seeding/seeding-results"
 import { useSeedingStore } from "@/lib/stores/seeding"
 import { ContentCalendar } from "@/components/calendar/content-calendar"
+import { GuidelineLists, cleanGuidelines } from "@/components/campaigns/guideline-list"
 import { buildSchedule } from "@/lib/schedule"
 import { PostCard, PostDetailSheet } from "@/components/posts/post-card"
 import { CreatorContact } from "@/components/creators/creator-contact"
+import { MembershipBadge, NotTracked } from "@/components/members/membership-badge"
+import { memberTracksContent, useMembershipStore } from "@/lib/stores/membership"
 
 const CREATOR_PHOTOS: Record<string, string> = Object.fromEntries(
   CREATORS.map((c: { id: string; photo: string }) => [c.id, c.photo])
@@ -78,7 +84,7 @@ function RoiCell({ roi }: { roi?: number }) {
   if (roi === undefined) return <span className="text-zinc-300 text-xs">—</span>
   const color = roi > 50 ? "text-emerald-700" : roi > 0 ? "text-zinc-700" : "text-red-600"
   return (
-    <span className={cn("text-sm font-semibold", color)} title="ROI = (Receita – Fee) / Fee × 100">
+    <span className={cn("text-sm font-semibold", color)} title={ROI_TOOLTIP}>
       {roi > 0 ? "+" : ""}{roi}%
     </span>
   )
@@ -96,9 +102,10 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="text-xs text-zinc-400 w-6 text-center">{rank}</span>
 }
 
-function ParticipantsTable({ campaign }: { campaign: Campaign }) {
+function ParticipantsTable({ campaign, period }: { campaign: Campaign; period: PeriodValue }) {
   const { t } = useI18n()
   const participants = campaign.participants
+  const roles = useMembershipStore((state) => state.roles)
   const addParticipant = useCampaignStore((s) => s.addParticipant)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [sortBy, setSortBy] = useState<"reach" | "roi" | "revenue">("reach")
@@ -112,13 +119,16 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
     }
   }
 
-  const sorted = [...participants].sort((a, b) => {
-    const left = sortBy === "reach" ? (a.totalReach ?? 0) : sortBy === "roi" ? (a.roi ?? -999) : (a.revenue ?? 0)
-    const right = sortBy === "reach" ? (b.totalReach ?? 0) : sortBy === "roi" ? (b.roi ?? -999) : (b.revenue ?? 0)
+  const sorted = [...participants]
+    .filter((participant) => dateInPeriod(memberTracksContent(participant.creatorId, roles) ? participant.lastPost : undefined, period))
+    .sort((a, b) => {
+    const reachOf = (creatorId: string, reach?: number) => (memberTracksContent(creatorId, roles) ? reach ?? 0 : 0)
+    const left = sortBy === "reach" ? reachOf(a.creatorId, a.totalReach) : sortBy === "roi" ? (participantRoi(a) ?? -999) : (a.revenue ?? 0)
+    const right = sortBy === "reach" ? reachOf(b.creatorId, b.totalReach) : sortBy === "roi" ? (participantRoi(b) ?? -999) : (b.revenue ?? 0)
     return sortDir === "desc" ? right - left : left - right
   })
 
-  const total = sorted.filter((p) => p.totalReach)
+  const total = sorted.filter((p) => memberTracksContent(p.creatorId, roles) && p.totalReach)
   const active = sorted.filter((p) => p.status !== "recusado" && p.status !== "convidado")
 
   return (
@@ -127,7 +137,7 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
       <div className="flex items-center gap-4 mb-3">
         <div className="flex items-center gap-1.5 text-sm text-zinc-600">
           <Users size={14} className="text-zinc-400" />
-          <span className="font-semibold text-zinc-900">{participants.length}</span> creators na campanha
+          <span className="font-semibold text-zinc-900">{sorted.length}</span> membros na campanha
         </div>
         <div className="h-4 w-px bg-zinc-200" />
         <div className="flex items-center gap-1.5 text-sm text-zinc-600">
@@ -146,6 +156,13 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
         />
       </div>
 
+      {sorted.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-400">
+          {participants.length === 0
+            ? "Nenhum creator adicionado a esta campanha."
+            : "Nenhum creator com post neste período."}
+        </div>
+      ) : (
       <div className="rounded-xl border border-zinc-200 overflow-x-auto bg-white">
         <table className="w-full text-left">
           <thead>
@@ -179,10 +196,11 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
           <tbody>
             {sorted.map((p, i) => {
               const creator = CREATORS.find((item) => item.id === p.creatorId)
+              const content = memberTracksContent(p.creatorId, roles)
               return (
               <tr key={p.creatorId} className="border-t border-zinc-100 hover:bg-zinc-50">
                 <td className="py-2.5 px-3">
-                  {total.length > 0 && p.totalReach ? <RankBadge rank={i + 1} /> : <span className="text-xs text-zinc-300">—</span>}
+                  {content && total.length > 0 && p.totalReach ? <RankBadge rank={i + 1} /> : <span className="text-xs text-zinc-300">—</span>}
                 </td>
                 <td className="py-2.5 px-4">
                   <div className="flex items-center gap-2">
@@ -201,6 +219,7 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
                     <div>
                       <p className="text-sm font-medium text-zinc-900 whitespace-nowrap">{p.creatorName}</p>
                       <p className="text-xs text-zinc-400">{p.creatorHandle}</p>
+                      <div className="mt-1"><MembershipBadge role={roles[p.creatorId] ?? creator?.membershipRole} /></div>
                     </div>
                   </div>
                 </td>
@@ -216,33 +235,29 @@ function ParticipantsTable({ campaign }: { campaign: Campaign }) {
                   {p.tier ? TIER_LABELS[p.tier] : "—"}{p.level ? ` · ${LEVEL_LABELS[p.level]}` : ""}
                 </td>
                 <td className="py-2.5 px-3 text-sm text-zinc-700">R$ {(p.fee || 0).toLocaleString("pt-BR")}</td>
-                <td className="py-2.5 px-3 text-sm text-zinc-700">{p.totalReach ? fmt(p.totalReach) : "—"}</td>
+                <td className="py-2.5 px-3 text-sm text-zinc-700">{content ? (p.totalReach ? fmt(p.totalReach) : "—") : <NotTracked />}</td>
                 <td className="py-2.5 px-3 text-sm text-zinc-700">
-                  {p.postsDelivered !== undefined ? (
-                    <span>{p.postsApproved ?? p.postsDelivered}/{p.postsDelivered}</span>
-                  ) : "—"}
+                  {content ? (
+                    p.postsDelivered !== undefined ? (
+                      <span>{p.postsApproved ?? p.postsDelivered}/{p.postsDelivered}</span>
+                    ) : "—"
+                  ) : <NotTracked />}
                 </td>
                 <td className="py-2.5 px-3 text-sm text-zinc-700">{p.revenue ? `R$ ${fmt(p.revenue)}` : "—"}</td>
-                <td className="py-2.5 px-3"><RoiCell roi={p.roi} /></td>
+                <td className="py-2.5 px-3"><RoiCell roi={participantRoi(p)} /></td>
                 <td className="py-2.5 px-3">
                   {p.couponCode ? (
                     <CouponTicket code={p.couponCode} />
                   ) : <span className="text-zinc-300 text-xs">—</span>}
                 </td>
-                <td className="py-2.5 px-3 text-xs text-zinc-500">{p.lastPost ? formatDateBR(p.lastPost) : "—"}</td>
+                <td className="py-2.5 px-3 text-xs text-zinc-500">{content ? (p.lastPost ? formatDateBR(p.lastPost) : "—") : <NotTracked />}</td>
               </tr>
               )
             })}
-            {participants.length === 0 && (
-              <tr>
-                <td colSpan={12} className="py-10 text-center text-sm text-zinc-400">
-                  Nenhum creator adicionado a esta campanha.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
+      )}
       <InviteCreatorsSheet
         open={inviteOpen}
         organizationId={campaign.organizationId}
@@ -289,12 +304,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const setStatus = useCampaignStore((s) => s.setStatus)
   const campaign = campaigns.find((c) => c.id === id)
   const metrics = CAMPAIGN_METRICS.find((m) => m.campaignId === id)
-  const posts = MONITOR_POSTS.filter((p) => p.campaignId === id)
+  const roles = useMembershipStore((state) => state.roles)
+  const posts = MONITOR_POSTS.filter((p) => p.campaignId === id && memberTracksContent(p.creatorId, roles))
   const schedule = useMemo(
     () => buildSchedule(campaigns).filter((slot) => slot.campaignId === id),
-    [campaigns, id],
+    [campaigns, id, roles],
   )
   const [contentView, setContentView] = useState<"grid" | "list">("grid")
+  const [period, setPeriod] = useState<PeriodValue>(ALL_PERIOD)
   const [tab, setTab] = useState("overview")
   const [aiFilter, setAiFilter] = useState<MonitorPost["aiStatus"] | null>(null)
   const [selectedPost, setSelectedPost] = useState<MonitorPost | null>(null)
@@ -308,11 +325,24 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     )
   }
 
+  const contentReach = campaign.participants.reduce(
+    (sum, participant) => sum + (memberTracksContent(participant.creatorId, roles) ? participant.totalReach ?? 0 : 0),
+    0,
+  )
+  const contentEngagement = campaign.participants.reduce(
+    (sum, participant) => sum + (memberTracksContent(participant.creatorId, roles) ? participant.totalEngagement ?? 0 : 0),
+    0,
+  )
   const isCompleted = campaign.status === "concluida"
-  const approvedPosts = posts.filter((p) => p.aiStatus === "aprovado").length
-  const alertPosts = posts.filter((p) => p.aiStatus === "alerta").length
-  const rejectedPosts = posts.filter((p) => p.aiStatus === "reprovado").length
-  const visiblePosts = aiFilter ? posts.filter((post) => post.aiStatus === aiFilter) : posts
+  const roi = campaignRoi(campaign)
+  const postsInPeriod = posts.filter((post) => dateInPeriod(post.publishedAt, period))
+  const participantsInPeriod = campaign.participants.filter((participant) =>
+    dateInPeriod(memberTracksContent(participant.creatorId, roles) ? participant.lastPost : undefined, period),
+  )
+  const approvedPosts = postsInPeriod.filter((p) => p.aiStatus === "aprovado").length
+  const alertPosts = postsInPeriod.filter((p) => p.aiStatus === "alerta").length
+  const rejectedPosts = postsInPeriod.filter((p) => p.aiStatus === "reprovado").length
+  const visiblePosts = aiFilter ? postsInPeriod.filter((post) => post.aiStatus === aiFilter) : postsInPeriod
 
   return (
     <div className="flex flex-col flex-1">
@@ -355,8 +385,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div className="flex-1">
             <p className="text-sm font-semibold">Campanha concluída com sucesso</p>
             <p className="text-xs text-zinc-400 mt-0.5">
-              ROI final: <span className="text-white font-medium">{campaign.roi}%</span> ·
-              Alcance: <span className="text-white font-medium">{fmt(campaign.totalReach ?? 0)}</span> ·
+              ROI final: <span className="text-white font-medium" title={ROI_TOOLTIP}>{roi !== undefined ? `${roi > 0 ? "+" : ""}${roi}%` : "—"}</span> ·
+              Alcance: <span className="text-white font-medium">{fmt(contentReach || campaign.totalReach || 0)}</span> ·
               Receita: <span className="text-white font-medium">R$ {fmt(campaign.totalRevenue ?? 0)}</span>
             </p>
           </div>
@@ -375,13 +405,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           {[
             { label: "Creators", value: String(campaign.participants.length), icon: Users, tab: "participants" },
             { label: "Orçamento", value: `R$ ${fmt(campaign.budget)}`, icon: DollarSign, tab: "overview" },
-            { label: "Alcance total", value: campaign.totalReach ? fmt(campaign.totalReach) : "—", icon: Eye, tab: "metrics" },
-            { label: "Engajamento", value: campaign.totalEngagement ? fmt(campaign.totalEngagement) : "—", icon: Heart, tab: "metrics" },
-            { label: "ROI", value: campaign.roi !== undefined ? `${campaign.roi > 0 ? "+" : ""}${campaign.roi}%` : "—", icon: TrendingUp, tab: "metrics" },
-          ].map(({ label, value, icon: Icon, tab: target }) => (
+            { label: "Alcance total", value: contentReach ? fmt(contentReach) : "—", icon: Eye, tab: "metrics" },
+            { label: "Engajamento", value: contentEngagement ? fmt(contentEngagement) : "—", icon: Heart, tab: "metrics" },
+            { label: "ROI", value: roi !== undefined ? `${roi > 0 ? "+" : ""}${roi}%` : "—", icon: TrendingUp, tab: "metrics", title: ROI_TOOLTIP },
+          ].map(({ label, value, icon: Icon, tab: target, title }) => (
             <Button
               key={label}
               variant="outline"
+              title={title}
               onClick={() => setTab(target)}
               className="h-auto w-full flex-col items-stretch gap-1 rounded-xl bg-card px-3 py-3 text-left font-normal whitespace-normal shadow-none hover:bg-zinc-50"
             >
@@ -395,16 +426,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         <Tabs value={tab} onValueChange={(value) => setTab(value || "overview")}>
+          <div className="flex flex-wrap items-center gap-2">
           <TabsList>
             <TabsTrigger value="overview">Informações</TabsTrigger>
-            <TabsTrigger value="participants">Creators ({campaign.participants.length})</TabsTrigger>
-            <TabsTrigger value="content">Conteúdos ({posts.length})</TabsTrigger>
+            <TabsTrigger value="participants">Creators ({participantsInPeriod.length})</TabsTrigger>
+            <TabsTrigger value="content">Conteúdos ({postsInPeriod.length})</TabsTrigger>
             <TabsTrigger value="calendar">Calendário</TabsTrigger>
             <TabsTrigger value="metrics">Performance</TabsTrigger>
             {campaign.type === "seeding" && (
               <TabsTrigger value="seeding-results">Resultados</TabsTrigger>
             )}
           </TabsList>
+          <PeriodFilter value={period} onChange={setPeriod} />
+          </div>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
             <Card className="p-4">
@@ -506,29 +540,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               </Card>
             </div>
-            {(campaign.recommended || campaign.notRecommended) && (
-              <div className="grid lg:grid-cols-2 gap-4">
-                {campaign.recommended && (
-                  <Card className="p-4 bg-emerald-50/70">
-                    <h3 className="text-sm font-semibold text-emerald-900 mb-1">Recomendável</h3>
-                    <p className="text-sm text-zinc-700 leading-relaxed">{campaign.recommended}</p>
-                  </Card>
-                )}
-                {campaign.notRecommended && (
-                  <Card className="p-4 bg-amber-50/80">
-                    <h3 className="text-sm font-semibold text-amber-900 mb-1">Não recomendável</h3>
-                    <p className="text-sm text-zinc-700 leading-relaxed">{campaign.notRecommended}</p>
-                  </Card>
-                )}
-              </div>
-            )}
+            {cleanGuidelines(campaign.doList).length > 0 || cleanGuidelines(campaign.dontList).length > 0 ? (
+              <Card className="p-4">
+                <GuidelineLists doList={cleanGuidelines(campaign.doList)} dontList={cleanGuidelines(campaign.dontList)} />
+              </Card>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="participants" className="mt-4">
-            <ParticipantsTable campaign={campaign} />
+            <ParticipantsTable campaign={campaign} period={period} />
           </TabsContent>
 
           <TabsContent value="content" className="mt-4">
+            <p className="mb-3 text-sm text-zinc-500">Só creators. Publicações de afiliados não entram neste rastreio.</p>
             {posts.length > 0 ? (
               <>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -582,10 +606,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
                 {visiblePosts.length === 0 ? (
                   <Card className="p-8 text-center">
-                    <p className="text-sm text-zinc-400">Nenhum conteúdo com esse status.</p>
-                    <Button variant="outline" size="sm" className="mt-3" onClick={() => setAiFilter(null)}>
-                      Ver todos
-                    </Button>
+                    <p className="text-sm text-zinc-400">
+                      {postsInPeriod.length === 0 ? "Nenhum conteúdo neste período." : "Nenhum conteúdo com esse status."}
+                    </p>
+                    {postsInPeriod.length > 0 && (
+                      <Button variant="outline" size="sm" className="mt-3" onClick={() => setAiFilter(null)}>
+                        Ver todos
+                      </Button>
+                    )}
                   </Card>
                 ) : contentView === "grid" ? (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

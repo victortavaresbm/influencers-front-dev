@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Eye, EyeOff, FilePlus, FileText, FolderPlus, Image as ImageIcon, Pencil, Trash2, Video } from "lucide-react"
 import { ContentEditor } from "@/components/content/content-editor"
 import { ContentHtml } from "@/components/content/content-html"
+import { FolderTasks } from "@/components/content/folder-tasks"
+import { PageQuestions, QuestionsButton } from "@/components/content/page-questions"
 import { ActionsMenu } from "@/components/ui/actions-menu"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,8 +45,10 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
   const setPageStatus = useContentStore((state) => state.setPageStatus)
   const movePage = useContentStore((state) => state.movePage)
   const deletePage = useContentStore((state) => state.deletePage)
+  const questions = useContentStore((state) => state.questions)
 
   const editorRef = useRef<HTMLDivElement>(null)
+  const questionRef = useRef<HTMLTextAreaElement>(null)
   const [title, setTitle] = useState("")
   const [titlePageId, setTitlePageId] = useState<string | null>(null)
   const [draftKey, setDraftKey] = useState(0)
@@ -102,9 +106,16 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
     setPickedId(pageId)
   }
 
+  function focusQuestions() {
+    document.getElementById("content-questions")?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    questionRef.current?.focus()
+  }
+
+  const questionCount = selected ? questions.filter((question) => question.pageId === selected.id).length : 0
+
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-background px-6 py-3">
+    <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-6 py-3">
         <Button variant="outline" size="sm" render={<Link href={backHref} />}>
           <ArrowLeft />
           {t("pages.back")}
@@ -135,8 +146,8 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
         )}
       </div>
 
-      <div className="grid flex-1 items-start lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="border-b border-border p-4 lg:border-r lg:border-b-0">
+      <div className={cn("grid min-w-0 flex-1 items-start", selected ? "lg:grid-cols-[16rem_minmax(0,1fr)_18rem]" : "lg:grid-cols-[16rem_minmax(0,1fr)]")}>
+        <aside className="border-b border-border p-4 lg:sticky lg:top-28 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:border-r lg:border-b-0">
           {canManage && (
             <ActionsMenu
               items={[
@@ -261,7 +272,7 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
                   initialHtml={selected.body}
                   label={t("content.pageBody")}
                 >
-                  <div className="border-b border-border px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
                     <Label htmlFor="page-title" className="sr-only">{t("content.titleField")}</Label>
                     <Input
                       id="page-title"
@@ -269,8 +280,9 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
                       aria-label={t("content.titleField")}
                       placeholder={t("content.titleField")}
                       onChange={(event) => setTitle(event.target.value)}
-                      className="h-auto rounded-none border-0 bg-transparent px-0 text-2xl font-semibold shadow-none focus-visible:ring-0 md:text-2xl dark:bg-transparent"
+                      className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 text-2xl font-semibold shadow-none focus-visible:ring-0 md:text-2xl dark:bg-transparent"
                     />
+                    <QuestionsButton count={questionCount} onClick={focusQuestions} />
                   </div>
                 </ContentEditor>
                 <div className="flex justify-end gap-2">
@@ -295,7 +307,10 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
               </div>
             ) : (
               <article className="mx-auto max-w-3xl">
-                <h2 className="text-lg font-semibold text-foreground">{selected.title}</h2>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-foreground">{selected.title}</h2>
+                  <QuestionsButton count={questionCount} onClick={focusQuestions} />
+                </div>
                 <ContentHtml html={selected.body} className="lesson-copy mt-4 text-sm leading-6 text-foreground" />
               </article>
             )
@@ -306,6 +321,18 @@ export function ContentCourse({ courseId, canManage }: { courseId: string; canMa
             </div>
           )}
         </section>
+        {selected && (
+          <div className="flex flex-col gap-4 px-6 pb-6 lg:sticky lg:top-28 lg:py-6 lg:pr-6 lg:pl-0">
+            {selected.folderId && (
+              <FolderTasks
+                folderId={selected.folderId}
+                folderTitle={courseFolders.find((folder) => folder.id === selected.folderId)?.title ?? ""}
+                canManage={canManage}
+              />
+            )}
+            <PageQuestions pageId={selected.id} canManage={canManage} inputRef={questionRef} />
+          </div>
+        )}
       </div>
 
       <Dialog open={folderDialog !== null} onOpenChange={(next) => !next && setFolderDialog(null)}>

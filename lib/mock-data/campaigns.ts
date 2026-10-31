@@ -106,10 +106,9 @@ export interface Campaign {
   mandatoryHashtags: string[]
   mandatoryMentions: CampaignMention[]
   contentFormats?: ContentFormat[]
-  recommended?: string
-  notRecommended?: string
+  doList?: string[]
+  dontList?: string[]
   participants: Participant[]
-  briefingId?: string
   formId?: string
   createdAt: string
   updatedAt: string
@@ -243,7 +242,19 @@ export const CAMPAIGNS: Campaign[] = [
         lastPost: "2026-10-20",
       },
     ],
-    briefingId: "b1",
+    doList: [
+      "Mostrar a textura e a aplicação do produto",
+      "Mencionar o cheiro e a sensação na pele",
+      "Usar os produtos no rosto ou no corpo de forma natural",
+      "Integrar o produto à sua rotina real",
+      "Usar a hashtag #NaturaEkos e mencionar @naturabrasil",
+    ],
+    dontList: [
+      "Não comparar com produtos concorrentes",
+      "Não fazer promessas médicas ou terapêuticas",
+      "Não usar filtros excessivos que alterem a cor do produto",
+      "Não publicar em dias de crise ou tragédias nacionais",
+    ],
     coverImage: "https://picsum.photos/seed/natura-ekos-primavera/1200/400",
     createdAt: "2026-09-15",
     updatedAt: "2026-10-27",
@@ -282,6 +293,16 @@ export const CAMPAIGNS: Campaign[] = [
     mandatoryMentions: [
       { network: "instagram", handle: "@naturabrasil" },
       { network: "youtube", handle: "@NaturaBrasil" },
+    ],
+    doList: [
+      "Mostrar a rotina de skincare completa com Chronos",
+      "Falar sobre benefícios percebidos após o uso",
+      "Transmitir autoconfiança e naturalidade",
+    ],
+    dontList: [
+      "Não fazer promessas de resultado em prazo específico",
+      "Não associar envelhecimento a algo negativo",
+      "Não usar filtros que escondam rugas ou imperfeições",
     ],
     participants: [],
     coverImage: "https://picsum.photos/seed/natura-chronos-skin/1200/400",
@@ -447,7 +468,17 @@ export const CAMPAIGNS: Campaign[] = [
         memberType: "vip",
       },
     ],
-    briefingId: "b2",
+    doList: [
+      "Mostrar o produto desejado de forma empolgante",
+      "Destacar o desconto e o preço",
+      "Direcionar para o app com CTA claro",
+      "Usar o cupom de desconto exclusivo",
+    ],
+    dontList: [
+      "Não mostrar preços incorretos",
+      "Não prometer frete grátis sem confirmar condições",
+      "Não comparar com Amazon ou outros e-commerces",
+    ],
     formId: "form-tech-week",
     coverImage: "https://picsum.photos/seed/magalu-tech-week/1200/400",
     createdAt: "2026-10-10",
@@ -748,7 +779,17 @@ export const CAMPAIGNS: Campaign[] = [
         memberType: "standard",
       },
     ],
-    briefingId: "b3",
+    doList: [
+      "Mostrar o unboxing do pedido de forma apetitosa",
+      "Falar sobre a culinária regional escolhida",
+      "Usar o cupom exclusivo da campanha",
+      "Referenciar o restaurante e sua cozinha",
+    ],
+    dontList: [
+      "Não mostrar comida fria ou com aparência ruim",
+      "Não mencionar Rappi, Uber Eats ou concorrentes",
+      "Não fazer conteúdo em horários de baixo apetite (logo após acordar)",
+    ],
     coverImage: "https://picsum.photos/seed/ifood-sabores-brasil/1200/400",
     createdAt: "2026-09-05",
     updatedAt: "2026-10-20",
