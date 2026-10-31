@@ -136,7 +136,7 @@ export function VisitorTable({
         </div>
         {view === "list" ? (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-hidden">
               <Tabs value={status} onValueChange={(value) => setStatus((value as StatusFilter) || "all")}>
                 <TabsList>
                   {filters.map((filter) => (

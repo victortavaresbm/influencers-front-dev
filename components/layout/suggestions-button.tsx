@@ -15,7 +15,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useI18n } from "@/lib/i18n"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useSuggestionsStore } from "@/lib/stores/suggestions"
@@ -47,22 +47,25 @@ export function SuggestionsButton() {
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={t("suggestions.label")}
-              onClick={() => setOpen(true)}
-            />
-          }
-        >
-          <Lightbulb />
-        </TooltipTrigger>
-        <TooltipContent side="right">{t("suggestions.label")}</TooltipContent>
-      </Tooltip>
+      <TooltipProvider delay={200}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t("suggestions.label")}
+                className="text-zinc-500"
+                onClick={() => setOpen(true)}
+              />
+            }
+          >
+            <Lightbulb />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t("suggestions.label")}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <Dialog
         open={open}
         onOpenChange={(next) => {

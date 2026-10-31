@@ -20,8 +20,6 @@ import {
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarIconLink } from "@/components/layout/sidebar-icon"
-import { SuggestionsButton } from "@/components/layout/suggestions-button"
-import { UserMenu } from "@/components/layout/user-menu"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { DAY_HEALTH_LABEL, buildSchedule, scheduleAttention, todayIso } from "@/lib/schedule"
@@ -74,11 +72,6 @@ export function BrandSidebar() {
             />
           ))}
         </nav>
-
-        <div className="flex flex-col items-center gap-1">
-          <SuggestionsButton />
-          <UserMenu settingsHref="/settings" />
-        </div>
       </aside>
     </TooltipProvider>
   )
