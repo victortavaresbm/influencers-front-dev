@@ -226,6 +226,7 @@ export function DashboardCanvas({ onAdd, editable = true }: { onAdd: () => void;
 
   const active = layout.find((card) => card.id === activeId)
   const placeholder = mode === "drag" && active && colWidth > 0 ? cardBox(active, colWidth) : null
+  const rowCount = Math.max(1, layout.reduce((max, card) => Math.max(max, card.y + card.h), 0))
 
   return (
     <div
@@ -235,9 +236,17 @@ export function DashboardCanvas({ onAdd, editable = true }: { onAdd: () => void;
     >
       <span className="hidden fill-rose-500 fill-emerald-500 fill-sky-500 fill-violet-500 fill-amber-500 text-rose-500 text-emerald-500 text-sky-500 text-violet-500 text-amber-500 stroke-rose-500 stroke-emerald-500 stroke-sky-500 stroke-violet-500 stroke-amber-500" />
       {mode !== "idle" && !stacked ? (
-        <div className="pointer-events-none absolute inset-0 flex" style={{ gap: GRID_GAP }} aria-hidden>
-          {Array.from({ length: GRID_COLS }, (_, index) => (
-            <div key={index} className="h-full flex-1 rounded-lg bg-zinc-200/50" />
+        <div
+          className="pointer-events-none absolute inset-0 grid"
+          style={{
+            gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${rowCount}, ${ROW_HEIGHT}px)`,
+            gap: GRID_GAP,
+          }}
+          aria-hidden
+        >
+          {Array.from({ length: GRID_COLS * rowCount }, (_, index) => (
+            <div key={index} className="rounded-md bg-zinc-200/50" />
           ))}
         </div>
       ) : null}
@@ -255,7 +264,6 @@ export function DashboardCanvas({ onAdd, editable = true }: { onAdd: () => void;
             const dragging = mode === "drag" && card.id === activeId && ghost
             const box = cardBox(card, stacked ? columnWidth(containerWidth) : colWidth)
             const def = widgetById(card.widget)
-            const currentSize = def.sizes.find((size) => size.w === card.w && size.h === card.h)
             return (
               <Card
                 key={card.id}
@@ -355,9 +363,9 @@ export function DashboardCanvas({ onAdd, editable = true }: { onAdd: () => void;
                     >
                       <ResizeGlyph />
                     </Button>
-                    {mode === "resize" && card.id === activeId && currentSize ? (
+                    {mode === "resize" && card.id === activeId ? (
                       <span className="pointer-events-none absolute right-3 bottom-9 z-20 rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white">
-                        {t(currentSize.labelKey)}
+                        {t("dashboard.size.cells", { w: card.w, h: card.h })}
                       </span>
                     ) : null}
                   </>

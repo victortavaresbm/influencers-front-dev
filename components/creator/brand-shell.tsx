@@ -12,6 +12,7 @@ import target from "react-useanimations/lib/target"
 import notification from "react-useanimations/lib/notification"
 import users from "react-useanimations/lib/users"
 import { CreditBalance } from "@/components/credits/credit-balance"
+import { NotificationsButton } from "@/components/layout/notifications-button"
 import { SuggestionsButton } from "@/components/layout/suggestions-button"
 import { UserMenu } from "@/components/layout/user-menu"
 import { PartnerCommunitySwitcher } from "@/components/community/partner-community-switcher"
@@ -78,6 +79,7 @@ export function BrandShell({ children, manage = false }: { children: React.React
             <div className="ml-auto flex shrink-0 items-center gap-2">
               {manage && <CreditBalance />}
               <SuggestionsButton />
+              <NotificationsButton />
               <UserMenu />
             </div>
           </div>

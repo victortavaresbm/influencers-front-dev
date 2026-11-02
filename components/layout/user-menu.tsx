@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { LogOut, Settings } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,22 +27,12 @@ export function UserMenu() {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={user?.name ?? t("nav.settings")}
-          className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-left outline-none hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-ring data-popup-open:bg-zinc-100"
+          className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="flex size-7 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white">
-            {user?.avatar ?? "??"}
-          </span>
-          <span className="hidden sm:block">
-            <span className="block text-xs font-medium leading-none text-zinc-800">{user?.name}</span>
-            {user?.organizationName && (
-              <span className="mt-0.5 block text-xs text-zinc-400">{user.organizationName}</span>
-            )}
-          </span>
-          {user?.plan && (
-            <Badge variant="outline" className="hidden text-xs sm:flex">
-              {user.plan}
-            </Badge>
-          )}
+          <Avatar>
+            {user?.photo ? <AvatarImage src={user.photo} alt="" /> : null}
+            <AvatarFallback>{user?.avatar ?? "??"}</AvatarFallback>
+          </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="end" sideOffset={8} className="min-w-48">
           <DropdownMenuGroup>

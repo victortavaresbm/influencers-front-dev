@@ -43,8 +43,8 @@ export function CreatorSidebar() {
   return (
     <TooltipProvider delay={200}>
       <aside className="fixed left-0 top-0 z-40 flex h-screen w-14 flex-col items-center border-r border-zinc-200 bg-white py-4">
-        <Link href="/creator/dashboard" className="mb-6 flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 text-xs font-bold text-white">
-          WS
+        <Link href="/creator/dashboard" aria-label="WeSell" className="mb-6 flex size-8 items-center justify-center overflow-hidden rounded-full bg-black">
+          <img src="/logos/wesell.png" alt="" className="h-auto w-[22px]" />
         </Link>
 
         <nav className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">

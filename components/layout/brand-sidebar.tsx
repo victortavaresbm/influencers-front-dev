@@ -56,8 +56,8 @@ export function BrandSidebar() {
   return (
     <TooltipProvider delay={200}>
       <aside className="fixed left-0 top-0 h-screen w-14 flex flex-col items-center py-4 bg-white border-r border-zinc-200 z-40">
-        <Link href="/dashboard" className="mb-6 flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 text-white text-xs font-bold">
-          WS
+        <Link href="/dashboard" aria-label="WeSell" className="mb-6 flex size-8 items-center justify-center overflow-hidden rounded-full bg-black">
+          <img src="/logos/wesell.png" alt="" className="h-auto w-[22px]" />
         </Link>
 
         <nav className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">

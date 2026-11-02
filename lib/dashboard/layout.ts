@@ -31,6 +31,13 @@ export const WIDGET_IDS = [
 export type WidgetId = (typeof WIDGET_IDS)[number]
 export type WidgetCategory = "numbers" | "charts" | "lists"
 
+export type SizeBounds = {
+  minW: number
+  maxW: number
+  minH: number
+  maxH: number
+}
+
 export type CardSize = {
   w: number
   h: number
@@ -77,6 +84,12 @@ const LIST_SIZES: CardSize[] = [
   { w: 12, h: 6, labelKey: "dashboard.size.full" },
   { w: 6, h: 8, labelKey: "dashboard.size.halfTall" },
 ]
+
+const SIZE_BOUNDS: Record<WidgetCategory, SizeBounds> = {
+  numbers: { minW: 2, maxW: GRID_COLS, minH: 2, maxH: 8 },
+  charts: { minW: 3, maxW: GRID_COLS, minH: 4, maxH: 18 },
+  lists: { minW: 3, maxW: GRID_COLS, minH: 3, maxH: 18 },
+}
 
 export const WIDGETS: WidgetDef[] = [
   {
@@ -259,12 +272,18 @@ export function widgetById(id: WidgetId) {
   return WIDGET_BY_ID[id]
 }
 
-export function nearestSize(sizes: CardSize[], w: number, h: number) {
-  return sizes.reduce((best, size) => {
-    const bestScore = Math.abs(best.w - w) * 2 + Math.abs(best.h - h)
-    const score = Math.abs(size.w - w) * 2 + Math.abs(size.h - h)
-    return score < bestScore ? size : best
-  })
+function clampInt(value: number, min: number, max: number, fallback: number) {
+  const rounded = Math.round(value)
+  if (!Number.isFinite(rounded)) return fallback
+  return Math.max(min, Math.min(max, rounded))
+}
+
+export function fitSize(category: WidgetCategory, w: number, h: number) {
+  const bounds = SIZE_BOUNDS[category]
+  return {
+    w: clampInt(w, bounds.minW, Math.min(bounds.maxW, GRID_COLS), bounds.minW),
+    h: clampInt(h, bounds.minH, bounds.maxH, bounds.minH),
+  }
 }
 
 function overlaps(
@@ -312,7 +331,7 @@ export function moveCard(cards: DashboardCard[], id: string, x: number, y: numbe
 export function resizeCard(cards: DashboardCard[], id: string, w: number, h: number) {
   const current = cards.find((card) => card.id === id)
   if (!current) return cards
-  const size = nearestSize(widgetById(current.widget).sizes, w, h)
+  const size = fitSize(widgetById(current.widget).category, w, h)
   const nextX = Math.max(0, Math.min(current.x, GRID_COLS - size.w))
   const moved = cards.map((card) =>
     card.id === id ? { ...card, x: nextX, w: size.w, h: size.h } : card,
@@ -395,7 +414,7 @@ export function sanitizeCards(input: unknown): DashboardCard[] {
     const fallback = def.sizes[def.defaultSize] ?? def.sizes[0]
     const w = typeof card.w === "number" ? card.w : fallback.w
     const h = typeof card.h === "number" ? card.h : fallback.h
-    const size = nearestSize(def.sizes, w, h)
+    const size = fitSize(def.category, w, h)
     const x = typeof card.x === "number" ? card.x : 0
     const y = typeof card.y === "number" ? card.y : 0
     cards.push({

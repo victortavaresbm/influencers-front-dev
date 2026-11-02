@@ -1,6 +1,6 @@
 "use client"
-import { Bell } from "lucide-react"
 import { CreditBalance } from "@/components/credits/credit-balance"
+import { NotificationsButton } from "@/components/layout/notifications-button"
 import { SuggestionsButton } from "@/components/layout/suggestions-button"
 import { UserMenu } from "@/components/layout/user-menu"
 
@@ -30,13 +30,7 @@ export function TopBar({ title, subtitle, leading, titleAside, actions }: TopBar
         {actions}
         <div className="flex items-center gap-1">
           <SuggestionsButton />
-          <button
-            type="button"
-            className="relative flex size-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100"
-          >
-            <Bell size={16} />
-            <span className="absolute top-1 right-1 size-2 rounded-full bg-zinc-900" />
-          </button>
+          <NotificationsButton />
         </div>
         <UserMenu />
       </div>
