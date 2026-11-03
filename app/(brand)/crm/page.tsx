@@ -7,7 +7,11 @@ import { RELATIONSHIP_HISTORY, type RelationshipEvent, type RelationshipEventTyp
 import { SOCIAL_NETWORK_LABEL, type SocialNetwork } from "@/lib/mock-data/campaigns"
 import { useListStore } from "@/lib/stores/lists"
 import { SAVED_CREATOR_IDS } from "@/lib/mock-data/saved-creators"
-import { CREATORS, type Creator } from "@/lib/mock-data/creators"
+import { agencyById } from "@/lib/mock-data/agencies"
+import { type Creator, type CreatorNetwork } from "@/lib/mock-data/creators"
+import { answerText } from "@/lib/mock-data/forms"
+import { formPublicPath } from "@/lib/forms/brief-check"
+import { useFormStore } from "@/lib/stores/forms"
 import { brandCreatorIds } from "@/lib/discovery/scope"
 import { PeriodFilter } from "@/components/ui/period-filter"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -15,20 +19,24 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
 import { NewListSheet } from "@/components/crm/new-list-sheet"
 import { toast } from "@/components/ui/toast"
 import { ActionsMenu } from "@/components/ui/actions-menu"
 import { ApproveCreatorDialog } from "@/components/crm/approve-creator-dialog"
+import { useCreatorStore } from "@/lib/stores/creators"
 import { MembershipBadge, NotTracked } from "@/components/members/membership-badge"
 import { CONTENT_TRACKED_EVENTS, MEMBERSHIP_ROLE_LABEL } from "@/lib/membership"
 import { useMembershipStore } from "@/lib/stores/membership"
 import { CreatorContact } from "@/components/creators/creator-contact"
 import {
   Plus, ListPlus, Send, UserPlus, FileText, Wallet, MessageSquare, StickyNote,
-  Check, X, CheckSquare, Square, Download, Image, Clapperboard, Video, Smartphone,
-  CircleDot, Radio, AtSign, MousePointerClick, Ticket,
+  Check, X, CheckSquare, Square, Download, Image, Clapperboard, Video, Smartphone, Pencil, Trash2,
+  CircleDot, Radio, AtSign, MousePointerClick, Ticket, ExternalLink, Inbox, BarChart3,
 } from "lucide-react"
 import { VerifiedBadge } from "@/components/ui/verified-badge"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
@@ -79,6 +87,20 @@ function NetworkGlyph({ network, size = 11 }: { network: SocialNetwork; size?: n
   return <SiYoutube size={size} />
 }
 
+function CreatorNetworks({ networks }: { networks: CreatorNetwork[] }) {
+  const present = NETWORK_ORDER.filter((network) => networks.some((item) => item.network === network))
+  if (present.length === 0) return <span className="text-sm text-zinc-400">—</span>
+  return (
+    <div className="flex items-center gap-2 text-zinc-500">
+      {present.map((network) => (
+        <span key={network} title={SOCIAL_NETWORK_LABEL[network]} aria-label={SOCIAL_NETWORK_LABEL[network]}>
+          <NetworkGlyph network={network} size={14} />
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function eventDetails(event: RelationshipEvent) {
   const parts: string[] = []
   if (event.reach) parts.push(`${fmt(event.reach)} alcance`)
@@ -114,7 +136,222 @@ function groupHistory(events: RelationshipEvent[]) {
   })
 }
 
-function RelationshipDrawer({ creator, history }: { creator: Creator; history: RelationshipEvent[] }) {
+const TIER_LABELS: Record<string, string> = { nano: "Nano", micro: "Micro", mid: "Mid", macro: "Macro", mega: "Mega" }
+
+const ORIGIN_LABEL = {
+  invite: "Convite",
+  brand_page: "Página da marca",
+  organic: "Orgânico",
+} as const
+
+const ORIGIN_SHORT = {
+  invite: "Convite",
+  brand_page: "Pág. marca",
+  organic: "Orgânico",
+} as const
+
+function OriginCell({ creator }: { creator: Creator }) {
+  const organizationId = useAuthStore((state) => state.user?.organizationId)
+  const forms = useFormStore((state) => state.forms)
+  const responses = useFormStore((state) => state.responses)
+  const label = ORIGIN_SHORT[creator.origin]
+  const page = useMemo(() => {
+    if (creator.origin !== "brand_page" || !organizationId) return null
+    const orgForms = forms.filter((form) => form.organizationId === organizationId)
+    const response = responses
+      .filter((item) => item.creatorId === creator.id && orgForms.some((form) => form.id === item.formId))
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0]
+    const fromResponse = response ? orgForms.find((form) => form.id === response.formId) : undefined
+    const brandPage = orgForms.find((form) => form.scope === "brand" && form.status === "publicado")
+    const form = fromResponse ?? brandPage
+    return form ? formPublicPath(form.id) : null
+  }, [creator.id, creator.origin, forms, organizationId, responses])
+
+  if (!page) return <span className="text-xs text-zinc-600">{label}</span>
+
+  return (
+    <a
+      href={page}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      className="inline-flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-900"
+      aria-label={`Abrir ${label}`}
+    >
+      {label}
+      <ExternalLink className="size-3 shrink-0" aria-hidden />
+    </a>
+  )
+}
+
+function ProfilePanel({ creator }: { creator: Creator }) {
+  const fraudLabel = creator.fraudScore <= 2 ? "Baixo" : creator.fraudScore <= 4 ? "Médio" : "Alto"
+  const fraudTone = creator.fraudScore <= 2 ? "text-emerald-600" : creator.fraudScore <= 4 ? "text-yellow-600" : "text-red-600"
+
+  return (
+    <div className="space-y-5 pb-2">
+      <p className="text-sm leading-6 text-zinc-600">{creator.bio}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { label: "Local", value: creator.location },
+          { label: "Tier", value: TIER_LABELS[creator.tier] },
+          { label: "Origem", value: ORIGIN_LABEL[creator.origin] },
+          { label: "Na plataforma desde", value: formatDateBR(creator.joined) },
+          { label: "Última atividade", value: formatDateBR(creator.lastActivity) },
+          { label: "Valor de mídia", value: `R$ ${creator.mediaValue.toLocaleString("pt-BR")}` },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-lg bg-zinc-50 px-3 py-2.5">
+            <p className="text-xs text-zinc-400">{label}</p>
+            <p className="mt-0.5 text-sm font-medium text-zinc-900">{value}</p>
+          </div>
+        ))}
+        <div className="col-span-2 rounded-lg bg-zinc-50 px-3 py-2.5">
+          <p className="text-xs text-zinc-400">Assessoria</p>
+          <p className="mt-0.5 text-sm font-medium text-zinc-900">
+            {agencyById(creator.agencyId)?.name ?? "Não informada no cadastro"}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Nichos</p>
+        <div className="flex flex-wrap gap-1.5">
+          {creator.niche.map((niche) => (
+            <Badge key={niche} variant="outline" className="capitalize">{niche}</Badge>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Tags</p>
+        <div className="flex flex-wrap gap-1.5">
+          {creator.tags.map((tag) => (
+            <Badge key={tag} variant="secondary">{tag}</Badge>
+          ))}
+        </div>
+      </div>
+
+      <Separator />
+
+      <AudienceBars title="Faixa etária" rows={creator.audienceAge.map((item) => ({ label: item.range, pct: item.pct }))} labelWidth="w-12" />
+      <AudienceBars title="Gênero" rows={creator.audienceGender.map((item) => ({ label: item.label, pct: item.pct }))} labelWidth="w-16" />
+      <AudienceBars title="Principais cidades" rows={creator.audienceLocation.map((item) => ({ label: item.city, pct: item.pct }))} labelWidth="w-24" />
+
+      <Separator />
+
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Risco de fraude</p>
+        <div className="flex items-center gap-3">
+          <Progress value={creator.fraudScore * 10} className="h-1.5 min-w-0 flex-1" />
+          <span className={cn("text-xs font-medium", fraudTone)}>{fraudLabel}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AudienceBars({
+  title,
+  rows,
+  labelWidth,
+}: {
+  title: string
+  rows: { label: string; pct: number }[]
+  labelWidth: string
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-zinc-700">{title}</p>
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center gap-3">
+            <span className={cn("shrink-0 text-xs text-zinc-500", labelWidth)}>{row.label}</span>
+            <Progress value={row.pct} className="h-1.5 min-w-0 flex-1" />
+            <span className="w-8 text-right text-xs text-zinc-700">{row.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FormAnswersPanel({ creatorId }: { creatorId: string }) {
+  const { t } = useI18n()
+  const organizationId = useAuthStore((state) => state.user?.organizationId)
+  const forms = useFormStore((state) => state.forms)
+  const responses = useFormStore((state) => state.responses)
+  const labels = { yes: t("forms.yes"), no: t("forms.no"), empty: t("forms.emptyAnswer") }
+  const brandForms = forms.filter((form) => form.organizationId === organizationId && form.scope === "brand")
+  const mine = responses
+    .filter((response) => response.creatorId === creatorId && brandForms.some((form) => form.id === response.formId))
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+
+  if (brandForms.length === 0) {
+    return <p className="py-8 text-center text-sm text-zinc-400">A marca ainda não tem um formulário de participação.</p>
+  }
+  if (mine.length === 0) {
+    return <p className="py-8 text-center text-sm text-zinc-400">Este creator não respondeu o formulário da marca.</p>
+  }
+
+  return (
+    <div className="space-y-6 pb-2">
+      {mine.map((response) => {
+        const form = brandForms.find((item) => item.id === response.formId)
+        if (!form) return null
+        return (
+          <section key={response.id} className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium text-zinc-900">{form.title}</h3>
+                {form.description && <p className="mt-0.5 text-xs text-zinc-400">{form.description}</p>}
+              </div>
+              <time dateTime={response.submittedAt} className="shrink-0 text-xs text-zinc-400">
+                {formatDateBR(response.submittedAt)}
+              </time>
+            </div>
+            <div className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200">
+              {form.questions.map((question) => {
+                const answer = response.answers.find((item) => item.questionId === question.id)
+                const text = answerText(question, answer?.value, labels)
+                const href = question.type === "link" && typeof answer?.value === "string" && answer.value.startsWith("http")
+                  ? answer.value
+                  : null
+                return (
+                  <div key={question.id} className="px-4 py-3">
+                    <p className="text-xs text-zinc-400">{question.title}</p>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1 block text-sm text-zinc-800 underline underline-offset-2">
+                        {text}
+                      </a>
+                    ) : (
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{text}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+function RelationshipDrawer({
+  creator,
+  history,
+  initialTab = "history",
+  onApprove,
+  onEdit,
+  onDelete,
+}: {
+  creator: Creator
+  history: RelationshipEvent[]
+  initialTab?: string
+  onApprove?: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
   const role = useMembershipStore((state) => state.roles[creator.id]) ?? creator.membershipRole
   const [typeFilter, setTypeFilter] = useState("all")
   const [networkFilter, setNetworkFilter] = useState("all")
@@ -140,7 +377,22 @@ function RelationshipDrawer({ creator, history }: { creator: Creator; history: R
 
   return (
     <>
-      <div className="sticky top-0 z-10 border-b border-zinc-100 bg-white px-6 py-5 pr-14">
+      <div className="sticky top-0 z-10 border-b border-zinc-100 bg-white px-6 py-5 pr-36">
+        <div className="absolute top-3 right-12 z-20 flex items-center gap-1">
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Editar" onClick={onEdit}>
+            <Pencil />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="text-destructive hover:text-destructive"
+            aria-label="Excluir creator"
+            onClick={onDelete}
+          >
+            <Trash2 />
+          </Button>
+        </div>
         <SheetHeader className="p-0">
           <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
             <Avatar className="size-12">
@@ -174,11 +426,21 @@ function RelationshipDrawer({ creator, history }: { creator: Creator; history: R
         ))}
       </div>
 
-      <Tabs defaultValue="history" className="border-t border-zinc-100 px-6 py-5">
-        <TabsList className="mb-4 h-auto! w-full flex-nowrap justify-start overflow-x-auto bg-zinc-100">
-          <TabsTrigger value="networks" className="h-7 flex-none px-3">Informações das redes sociais</TabsTrigger>
-          <TabsTrigger value="history" className="h-7 flex-none px-3">Histórico do usuário</TabsTrigger>
+      <Tabs defaultValue={initialTab} className="border-t border-zinc-100 px-6 py-5">
+        <TabsList className="mb-4 h-auto! w-full flex-nowrap justify-start bg-zinc-100">
+          <TabsTrigger value="profile" className="h-7 flex-none px-3">Perfil</TabsTrigger>
+          <TabsTrigger value="form" className="h-7 flex-none px-3">Formulário</TabsTrigger>
+          <TabsTrigger value="networks" className="h-7 flex-none px-3">Redes sociais</TabsTrigger>
+          <TabsTrigger value="history" className="h-7 flex-none px-3">Histórico</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="profile" className="[[hidden]]:hidden">
+          <ProfilePanel creator={creator} />
+        </TabsContent>
+
+        <TabsContent value="form" className="[[hidden]]:hidden">
+          <FormAnswersPanel creatorId={creator.id} />
+        </TabsContent>
 
         <TabsContent value="networks" className="space-y-3 pb-2 [[hidden]]:hidden">
           {creator.networks.length === 0 ? (
@@ -353,11 +615,18 @@ function RelationshipDrawer({ creator, history }: { creator: Creator; history: R
         )}
         </TabsContent>
       </Tabs>
+
+      {creator.approvalStatus === "pending" && onApprove && (
+        <div className="sticky bottom-0 z-10 flex justify-end border-t border-zinc-100 bg-white px-6 py-4">
+          <Button type="button" size="sm" onClick={onApprove}>
+            <Check size={14} />
+            Aprovar
+          </Button>
+        </div>
+      )}
     </>
   )
 }
-
-const TIER_LABELS: Record<string, string> = { nano: "Nano", micro: "Micro", mid: "Mid", macro: "Macro", mega: "Mega" }
 
 const ALL_LISTS = "all"
 
@@ -381,9 +650,9 @@ function RoiCell({ roi }: { roi?: number }) {
   return <span className={cn("text-sm font-semibold", color)} title={ROI_TOOLTIP}>{roi > 0 ? "+" : ""}{roi}%</span>
 }
 
-function listCandidates(campaignCreatorIds: Set<string>) {
+function listCandidates(creators: Creator[], campaignCreatorIds: Set<string>) {
   const saved = new Set(SAVED_CREATOR_IDS)
-  return CREATORS.filter((creator) => saved.has(creator.id) || campaignCreatorIds.has(creator.id))
+  return creators.filter((creator) => saved.has(creator.id) || campaignCreatorIds.has(creator.id))
     .map((creator) => ({
       creator,
       favorite: saved.has(creator.id),
@@ -396,6 +665,13 @@ function listCandidates(campaignCreatorIds: Set<string>) {
 export default function CRMPage() {
   const { t } = useI18n()
   const user = useAuthStore((s) => s.user)
+  const roster = useCreatorStore((state) => state.creators)
+  const updateCreator = useCreatorStore((state) => state.updateCreator)
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+  const creators = useMemo(
+    () => roster.filter((creator) => !removedIds.has(creator.id)),
+    [roster, removedIds],
+  )
   const campaigns = useCampaignStore((s) => s.campaigns)
   const seedingCampaigns = useSeedingStore((s) => s.campaigns)
   const allLists = useListStore((s) => s.lists)
@@ -406,11 +682,13 @@ export default function CRMPage() {
   const [listId, setListId] = useState(ALL_LISTS)
   const [creating, setCreating] = useState(false)
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null)
+  const [profileTab, setProfileTab] = useState("history")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const roles = useMembershipStore((state) => state.roles)
-  const assignRole = useMembershipStore((state) => state.assign)
+  const saveTerms = useMembershipStore((state) => state.saveTerms)
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set())
   const [approveIds, setApproveIds] = useState<string[] | null>(null)
+  const [approveIntent, setApproveIntent] = useState<"accept" | "edit">("accept")
   const activeTab = tab === "active" || tab === "approval" || tab === "excluded" || tab === "performance" ? tab : "active"
   const activeListId = listId === ALL_LISTS || lists.some((list) => list.id === listId) ? listId : ALL_LISTS
 
@@ -436,8 +714,8 @@ export default function CRMPage() {
 
   const activeList = lists.find((list) => list.id === activeListId) ?? null
   const rosterCreators = activeListId === ALL_LISTS
-    ? CREATORS.filter((creator) => allCreatorIds.has(creator.id))
-    : CREATORS.filter((creator) => activeList?.creatorIds.includes(creator.id))
+    ? creators.filter((creator) => allCreatorIds.has(creator.id))
+    : creators.filter((creator) => activeList?.creatorIds.includes(creator.id))
   const visibleCreators = rosterCreators.filter((creator) => isApprovedCreator(creator, approvedIds))
   function interactionDate(creator: Creator) {
     const memberRole = roles[creator.id] ?? creator.membershipRole
@@ -452,7 +730,7 @@ export default function CRMPage() {
     }, undefined)?.date
   }
   const shownCreators = visibleCreators.filter((creator) => dateInPeriod(interactionDate(creator), period))
-  const performanceCreators = CREATORS.filter((creator) => lists.some((list) => list.creatorIds.includes(creator.id)))
+  const performanceCreators = creators.filter((creator) => lists.some((list) => list.creatorIds.includes(creator.id)))
     .filter((creator) => {
       const role = roles[creator.id] ?? creator.membershipRole
       return dateInPeriod(role === "affiliate" ? undefined : creator.lastPost, period)
@@ -460,7 +738,7 @@ export default function CRMPage() {
   const approvedCount = (ids: Iterable<string>) => {
     let count = 0
     for (const id of ids) {
-      const creator = CREATORS.find((item) => item.id === id)
+      const creator = creators.find((item) => item.id === id)
       if (creator && isApprovedCreator(creator, approvedIds)) count += 1
     }
     return count
@@ -488,7 +766,7 @@ export default function CRMPage() {
     })
   }
 
-  const selectedCreator = selectedCreatorId ? CREATORS.find((c) => c.id === selectedCreatorId) : null
+  const selectedCreator = selectedCreatorId ? creators.find((c) => c.id === selectedCreatorId) : null
   const selectedRole = selectedCreatorId ? roles[selectedCreatorId] ?? selectedCreator?.membershipRole : undefined
   const history = selectedCreatorId
     ? RELATIONSHIP_HISTORY.filter((e) => {
@@ -499,12 +777,33 @@ export default function CRMPage() {
     : []
 
   // Approval queue: all creators with pending status in this org's lists
-  const pendingCreators = CREATORS.filter(
+  const pendingCreators = creators.filter(
     (c) => allCreatorIds.has(c.id) && c.approvalStatus === "pending" && !approvedIds.has(c.id)
   )
-  const rejectedCreators = CREATORS.filter(
+  const rejectedCreators = creators.filter(
     (c) => allCreatorIds.has(c.id) && c.approvalStatus === "rejected" && !approvedIds.has(c.id)
   )
+
+  function openProfile(id: string, tab = "history") {
+    setProfileTab(tab)
+    setSelectedCreatorId(id)
+  }
+
+  function openApproval(ids: string[], intent: "accept" | "edit") {
+    setApproveIntent(intent)
+    setApproveIds(ids)
+  }
+
+  function excludeCreator(creator: Creator) {
+    setRemovedIds((current) => new Set([...current, creator.id]))
+    setSelectedCreatorId((current) => (current === creator.id ? null : current))
+    setSelected((current) => {
+      const next = new Set(current)
+      next.delete(creator.id)
+      return next
+    })
+    toast.add({ type: "success", title: "Creator excluído", description: creator.name })
+  }
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -543,14 +842,6 @@ export default function CRMPage() {
           <div className="mb-4 flex flex-wrap items-center gap-2">
           <TabsList>
             <TabsTrigger value="active">Ativos</TabsTrigger>
-            <TabsTrigger value="approval">
-              Fila de aprovação
-              {pendingCreators.length > 0 && (
-                <span className="ml-1.5 text-xs bg-yellow-100 text-yellow-700 rounded-full px-1.5 py-0.5">
-                  {pendingCreators.length}
-                </span>
-              )}
-            </TabsTrigger>
             <TabsTrigger value="excluded">
               Excluídos
               {rejectedCreators.length > 0 && (
@@ -559,9 +850,57 @@ export default function CRMPage() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
+          <div className="flex items-center gap-2">
+          <TooltipProvider delay={200}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={
+                      pendingCreators.length > 0
+                        ? `Fila de aprovação, ${pendingCreators.length} pendentes`
+                        : "Fila de aprovação"
+                    }
+                    aria-pressed={activeTab === "approval"}
+                    className={cn("relative", activeTab === "approval" && "bg-muted text-foreground")}
+                    onClick={() => setTab("approval")}
+                  />
+                }
+              >
+                <Inbox />
+                {pendingCreators.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">
+                    {pendingCreators.length}
+                  </span>
+                )}
+              </TooltipTrigger>
+              <TooltipContent>Fila de aprovação</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Performance"
+                    aria-pressed={activeTab === "performance"}
+                    className={cn(activeTab === "performance" && "bg-muted text-foreground")}
+                    onClick={() => setTab("performance")}
+                  />
+                }
+              >
+                <BarChart3 />
+              </TooltipTrigger>
+              <TooltipContent>Performance</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <PeriodFilter value={period} onChange={setPeriod} />
+          </div>
           </div>
 
           <TabsContent value="active">
@@ -599,7 +938,7 @@ export default function CRMPage() {
                       <ActionsMenu
                         items={[
                           { label: "Convidar para campanha", icon: ListPlus },
-                          { label: "Aprovar todos", icon: Check, onSelect: () => setApproveIds(listSelected) },
+                          { label: "Aprovar todos", icon: Check, onSelect: () => openApproval(listSelected, "accept") },
                           { label: "Exportar selecionados", icon: Download },
                           ...(activeListId === ALL_LISTS
                             ? []
@@ -622,7 +961,7 @@ export default function CRMPage() {
                             )}
                           </button>
                         </th>
-                        {["Creator", "Status", "Nicho", "Seguidores", "Eng.%", "Tier", "Campanhas", "Tipo", "Últ. interação", "Contato"].map((h) => (
+                        {["Creator", "Status", "Nicho", "Seguidores", "Eng.%", "Tier", "Redes", "Tipo", "Últ. interação", "Contato"].map((h) => (
                           <th key={h} className="py-2.5 px-3 text-xs font-medium text-zinc-500">{h}</th>
                         ))}
                       </tr>
@@ -652,7 +991,7 @@ export default function CRMPage() {
                           <tr
                             key={c.id}
                             className={cn("border-t border-zinc-100 hover:bg-zinc-50 cursor-pointer", selected.has(c.id) && "bg-zinc-50")}
-                            onClick={() => setSelectedCreatorId(c.id)}
+                            onClick={() => openProfile(c.id)}
                           >
                             <td className="py-2.5 px-3" onClick={(e) => { e.stopPropagation(); toggleSelect(c.id) }}>
                               {selected.has(c.id) ? (
@@ -691,7 +1030,9 @@ export default function CRMPage() {
                                 {TIER_LABELS[c.tier]}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-sm text-zinc-700">{c.pastCampaigns}</td>
+                            <td className="py-2.5 px-3">
+                              <CreatorNetworks networks={c.networks} />
+                            </td>
                             <td className="py-2.5 px-3">
                               <MembershipBadge role={memberRole} />
                             </td>
@@ -717,7 +1058,7 @@ export default function CRMPage() {
                 {pendingCreators.length > 0 && (
                   <ActionsMenu
                     items={[
-                      { label: "Aprovar todos", icon: Check, onSelect: () => setApproveIds(pendingCreators.map((creator) => creator.id)) },
+                      { label: "Aprovar todos", icon: Check, onSelect: () => openApproval(pendingCreators.map((creator) => creator.id), "accept") },
                       { label: "Recusar todos", icon: X, destructive: true },
                     ]}
                   />
@@ -727,7 +1068,7 @@ export default function CRMPage() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-zinc-50">
-                      {["Creator", "Contato", "Nicho", "Seguidores", "Engaj.%", "Score", "Origem", "Ações"].map((h) => (
+                      {["Creator", "Nicho", "Seguidores", "Engaj.%", "Score", "Contato", "Origem"].map((h) => (
                         <th key={h} className="py-2.5 px-4 text-xs font-medium text-zinc-500">{h}</th>
                       ))}
                     </tr>
@@ -735,13 +1076,17 @@ export default function CRMPage() {
                   <tbody>
                     {pendingCreators.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-10 text-center text-sm text-zinc-400">
+                        <td colSpan={7} className="py-10 text-center text-sm text-zinc-400">
                           Nenhum creator aguardando aprovação.
                         </td>
                       </tr>
                     ) : (
                       pendingCreators.map((c) => (
-                        <tr key={c.id} className="border-t border-zinc-100 hover:bg-zinc-50">
+                        <tr
+                          key={c.id}
+                          className="cursor-pointer border-t border-zinc-100 hover:bg-zinc-50"
+                          onClick={() => openProfile(c.id, "profile")}
+                        >
                           <td className="py-2.5 px-4">
                             <div className="flex items-center gap-2">
                               {c.photo ? (
@@ -756,9 +1101,6 @@ export default function CRMPage() {
                             </div>
                           </td>
                           <td className="py-2.5 px-4">
-                            <CreatorContact email={c.email} phone={c.phone} />
-                          </td>
-                          <td className="py-2.5 px-4">
                             <div className="flex gap-1">
                               {c.niche.slice(0, 2).map((n) => <Badge key={n} variant="outline" className="text-xs capitalize">{n}</Badge>)}
                             </div>
@@ -767,17 +1109,10 @@ export default function CRMPage() {
                           <td className="py-2.5 px-4 text-sm text-zinc-700">{c.avgEngagement.toFixed(1)}%</td>
                           <td className="py-2.5 px-4 text-sm text-zinc-700">{c.score}/100</td>
                           <td className="py-2.5 px-4">
-                            <span className="text-xs text-zinc-600 capitalize">
-                              {c.origin === "invite" ? "Convite" : c.origin === "brand_page" ? "Pág. marca" : "Orgânico"}
-                            </span>
+                            <CreatorContact email={c.email} phone={c.phone} />
                           </td>
                           <td className="py-2.5 px-4">
-                            <ActionsMenu
-                              items={[
-                                { label: "Aprovar", icon: Check, onSelect: () => setApproveIds([c.id]) },
-                                { label: "Recusar", icon: X, destructive: true },
-                              ]}
-                            />
+                            <OriginCell creator={c} />
                           </td>
                         </tr>
                       ))
@@ -878,7 +1213,7 @@ export default function CRMPage() {
                       seeding: organizationId ? creatorSeedingCost(seedingCampaigns, c.id, organizationId) : 0,
                     })
                     return (
-                      <tr key={c.id} className="border-t border-zinc-100 hover:bg-zinc-50 cursor-pointer" onClick={() => setSelectedCreatorId(c.id)}>
+                      <tr key={c.id} className="border-t border-zinc-100 hover:bg-zinc-50 cursor-pointer" onClick={() => openProfile(c.id)}>
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
                             {c.photo ? (
@@ -935,7 +1270,7 @@ export default function CRMPage() {
 
       <NewListSheet
         open={creating}
-        candidates={listCandidates(communityIds)}
+        candidates={listCandidates(creators, communityIds)}
         onOpenChange={setCreating}
         onCreate={createList}
       />
@@ -945,7 +1280,15 @@ export default function CRMPage() {
         <SheetContent className="overflow-y-auto p-0">
           {selectedCreator && (
             <RelationshipDrawer
-              key={selectedCreator.id}
+              key={`${selectedCreator.id}-${profileTab}`}
+              initialTab={profileTab}
+              onApprove={
+                approvedIds.has(selectedCreator.id) || selectedCreator.approvalStatus !== "pending"
+                  ? undefined
+                  : () => openApproval([selectedCreator.id], "accept")
+              }
+              onEdit={() => openApproval([selectedCreator.id], "edit")}
+              onDelete={() => excludeCreator(selectedCreator)}
               creator={{
                 ...selectedCreator,
                 approvalStatus: approvedIds.has(selectedCreator.id) ? "approved" : selectedCreator.approvalStatus,
@@ -958,24 +1301,30 @@ export default function CRMPage() {
 
       <ApproveCreatorDialog
         open={approveIds !== null}
-        creators={CREATORS.filter((creator) => approveIds?.includes(creator.id))}
+        intent={approveIntent}
+        creators={creators.filter((creator) => approveIds?.includes(creator.id))}
         organizationId={user?.organizationId}
         onOpenChange={(open) => {
           if (!open) setApproveIds(null)
         }}
-        onApprove={(ids, role) => {
-          assignRole(ids, role)
-          setApprovedIds((current) => new Set([...current, ...ids]))
-          setSelected((current) => {
-            const next = new Set(current)
-            for (const id of ids) next.delete(id)
-            return next
-          })
+        onApprove={(ids, terms) => {
+          saveTerms(ids, terms)
+          if (approveIntent === "accept") {
+            for (const id of ids) updateCreator(id, { approvalStatus: "approved" })
+            setApprovedIds((current) => new Set([...current, ...ids]))
+            setSelected((current) => {
+              const next = new Set(current)
+              for (const id of ids) next.delete(id)
+              return next
+            })
+          }
           setApproveIds(null)
-          const names = CREATORS.filter((creator) => ids.includes(creator.id)).map((creator) => creator.name)
+          const names = creators.filter((creator) => ids.includes(creator.id)).map((creator) => creator.name)
           toast.add({
             type: "success",
-            title: ids.length === 1 ? `${MEMBERSHIP_ROLE_LABEL[role]} aceito` : `${MEMBERSHIP_ROLE_LABEL[role]}s aceitos`,
+            title: approveIntent === "edit"
+              ? "Condições atualizadas"
+              : ids.length === 1 ? `${MEMBERSHIP_ROLE_LABEL[terms.role]} aceito` : `${MEMBERSHIP_ROLE_LABEL[terms.role]}s aceitos`,
             description: names.join(", "),
           })
         }}

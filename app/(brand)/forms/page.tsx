@@ -1,16 +1,18 @@
 "use client"
 
 import Link from "next/link"
+import { Plus } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
+import { FormCardPreview } from "@/components/forms/form-card-preview"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import type { ApplicationForm, FormStatus } from "@/lib/mock-data/forms"
-import { Plus } from "lucide-react"
 
 const STATUS_KEY: Record<FormStatus, MessageKey> = {
   rascunho: "forms.statusDraft",
@@ -77,7 +79,7 @@ function FormGrid({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {forms.map((form) => {
         const campaign = campaigns.find((item) => item.id === form.campaignId)
         const count = responses.filter((response) => response.formId === form.id).length
@@ -85,20 +87,32 @@ function FormGrid({
           <Link
             key={form.id}
             href={`/forms/${form.id}`}
-            className="rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm"
+            className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <p className="line-clamp-2 text-sm font-semibold text-zinc-900">{form.title}</p>
-              <Badge variant={form.status === "publicado" ? "default" : "secondary"}>{t(STATUS_KEY[form.status])}</Badge>
-            </div>
-            <p className="mb-3 line-clamp-2 text-xs text-zinc-500">
-              {form.scope === "campaign" ? campaign?.name ?? t("forms.scopeCampaign") : t("forms.scopeBrand")}
-            </p>
-            <p className="text-xs text-zinc-400">
-              {t("forms.questionsCount", { count: form.questions.length })}
-              {" · "}
-              {t("forms.responsesCount", { count })}
-            </p>
+            <Card className="h-full gap-0 overflow-hidden py-0 transition-shadow group-hover:shadow-md">
+              <div className="relative">
+                <FormCardPreview form={form} />
+                <Badge
+                  variant={form.status === "publicado" ? "default" : "secondary"}
+                  className="absolute top-3 right-3 shadow-sm ring-1 ring-background/70"
+                >
+                  {t(STATUS_KEY[form.status])}
+                </Badge>
+              </div>
+              <CardHeader className="pt-4">
+                <CardTitle className="line-clamp-2 leading-snug">{form.title}</CardTitle>
+                <CardDescription className="line-clamp-1">
+                  {form.scope === "campaign" ? campaign?.name ?? t("forms.scopeCampaign") : t("forms.scopeBrand")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4 text-xs text-muted-foreground">
+                {t("forms.questionsCount", { count: form.questions.length })}
+                {" · "}
+                {t("forms.pagesCount", { count: form.site?.pages.length ?? 0 })}
+                {" · "}
+                {t("forms.responsesCount", { count })}
+              </CardContent>
+            </Card>
           </Link>
         )
       })}

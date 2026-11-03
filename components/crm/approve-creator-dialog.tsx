@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { CircleHelp, Clock, ExternalLink, Info, RefreshCw } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Check, CircleHelp, Clock, ExternalLink, Info, RefreshCw } from "lucide-react"
 import { ActionsMenu } from "@/components/ui/actions-menu"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { VerifiedBadge } from "@/components/ui/verified-badge"
 import { CreatorContact } from "@/components/creators/creator-contact"
 import { formatDateBR } from "@/lib/dates"
@@ -27,9 +27,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "@/components/ui/toast"
 import type { Creator } from "@/lib/mock-data/creators"
-import { CREATORS } from "@/lib/mock-data/creators"
-import { MEMBERSHIP_ROLE_HELP, type MembershipRole } from "@/lib/membership"
-import { membershipRoleOf, useMembershipStore } from "@/lib/stores/membership"
+import { AGENCIES, agencyById } from "@/lib/mock-data/agencies"
+import { useCreatorStore } from "@/lib/stores/creators"
+import { MEMBERSHIP_ROLE_HELP, MEMBERSHIP_ROLE_LABEL, type MembershipRole } from "@/lib/membership"
+import {
+  membershipRoleOf,
+  useMembershipStore,
+  type CommissionMode,
+  type CouponMode,
+  type MembershipTerms,
+  type NoticeMode,
+} from "@/lib/stores/membership"
 import { MOCK_USERS } from "@/lib/mock-data/users"
 
 const VOUCHER_PRICES = [
@@ -38,27 +46,42 @@ const VOUCHER_PRICES = [
   { id: "trinta", label: "R$ 30 de desconto" },
 ]
 
-type CouponMode = "automatico" | "personalizado" | "vincular" | "nao_criar"
-type CommissionMode = "padrao" | "personalizada" | "nenhuma"
-type NoticeMode = "nao" | "padrao" | "personalizado"
+const NO_AGENCY = "nenhuma"
+
+const STEPS = [
+  { id: "tipo", title: "Tipo", hint: "Creator ou afiliado" },
+  { id: "gestor", title: "Gestor", hint: "Quem acompanha o membro" },
+  { id: "assessoria", title: "Assessoria", hint: "Vínculo do cadastro" },
+  { id: "cupom", title: "Cupom", hint: "Código e comissão" },
+  { id: "boasvindas", title: "Boas-vindas", hint: "Voucher e e-mail" },
+  { id: "revisao", title: "Revisão", hint: "Confira e aceite" },
+] as const
+
+type StepId = (typeof STEPS)[number]["id"]
 
 export function ApproveCreatorDialog({
   open,
+  intent = "accept",
   creators,
   organizationId,
   onOpenChange,
   onApprove,
 }: {
   open: boolean
+  intent?: "accept" | "edit"
   creators: Creator[]
   organizationId?: string
   onOpenChange: (open: boolean) => void
-  onApprove: (ids: string[], role: MembershipRole) => void
+  onApprove: (ids: string[], terms: MembershipTerms) => void
 }) {
   const roles = useMembershipStore((state) => state.roles)
+  const roster = useCreatorStore((state) => state.creators)
+  const updateCreator = useCreatorStore((state) => state.updateCreator)
   const managers = MOCK_USERS.filter((user) => user.role === "brand" && user.organizationId === organizationId)
+  const [step, setStep] = useState(0)
   const [role, setRole] = useState<MembershipRole | "">("")
   const [managerId, setManagerId] = useState("")
+  const [agencyChoice, setAgencyChoice] = useState<Record<string, string>>({})
   const [couponMode, setCouponMode] = useState<CouponMode>("vincular")
   const [couponCode, setCouponCode] = useState("")
   const [commissionMode, setCommissionMode] = useState<CommissionMode>("padrao")
@@ -68,40 +91,107 @@ export function ApproveCreatorDialog({
   const [notice, setNotice] = useState<NoticeMode>("nao")
   const [noticeMessage, setNoticeMessage] = useState("")
   const [summaryId, setSummaryId] = useState("")
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const creatorKey = creators.map((creator) => creator.id).join(",")
 
   useEffect(() => {
     if (!open) return
-    const current = creators.length === 1 ? membershipRoleOf(creators[0].id) ?? "" : ""
-    setRole(current)
-    setManagerId("")
-    setCouponMode("vincular")
-    setCouponCode("")
-    setCommissionMode("padrao")
-    setCommission("")
-    setVoucher("sim")
-    setVoucherPrice("")
-    setNotice("nao")
-    setNoticeMessage("")
+    const saved = intent === "edit" && creators.length === 1
+      ? useMembershipStore.getState().terms[creators[0].id]
+      : undefined
+    setStep(0)
+    setRole(saved?.role ?? (creators.length === 1 ? membershipRoleOf(creators[0].id) ?? "" : ""))
+    setManagerId(saved?.managerId ?? "")
+    setAgencyChoice(saved?.agencyChoice ?? {})
+    setCouponMode(saved?.couponMode ?? "vincular")
+    setCouponCode(saved?.couponCode ?? "")
+    setCommissionMode(saved?.commissionMode ?? "padrao")
+    setCommission(saved?.commission ?? "")
+    setVoucher(saved?.voucher ?? "sim")
+    setVoucherPrice(saved?.voucherPrice ?? "")
+    setNotice(saved?.notice ?? "nao")
+    setNoticeMessage(saved?.noticeMessage ?? "")
     setSummaryId(creators[0]?.id ?? "")
-  }, [open])
+  }, [open, creatorKey, intent])
 
-  const creatorQuota = CREATORS.filter((creator) => (roles[creator.id] ?? creator.membershipRole) === "creator").length
-  const affiliateQuota = CREATORS.filter((creator) => (roles[creator.id] ?? creator.membershipRole) === "affiliate").length
+  useEffect(() => {
+    scrollerRef.current?.scrollTo({ top: 0 })
+  }, [step])
+
+  const creatorQuota = roster.filter((creator) => (roles[creator.id] ?? creator.membershipRole) === "creator").length
+  const affiliateQuota = roster.filter((creator) => (roles[creator.id] ?? creator.membershipRole) === "affiliate").length
   const needsCode = couponMode === "vincular" || couponMode === "personalizado"
-  const ready =
-    creators.length > 0 &&
-    role !== "" &&
-    managerId !== "" &&
+  const couponValid =
     (role !== "affiliate" || couponMode !== "nao_criar") &&
     (!needsCode || couponCode.trim() !== "") &&
-    (couponMode === "nao_criar" || commissionMode !== "personalizada" || commission.trim() !== "") &&
+    (couponMode === "nao_criar" || commissionMode !== "personalizada" || commission.trim() !== "")
+  const welcomeValid =
     (voucher === "nao" || voucherPrice !== "") &&
     (notice !== "personalizado" || noticeMessage.trim() !== "")
+  const agencyValid = creators.every((creator) => Boolean(creator.agencyId) || Boolean(agencyChoice[creator.id]))
+
+  const stepValid = (id: StepId) => {
+    if (id === "tipo") return role !== ""
+    if (id === "gestor") return managerId !== ""
+    if (id === "assessoria") return agencyValid
+    if (id === "cupom") return role !== "" && couponValid
+    if (id === "boasvindas") return welcomeValid
+    return role !== "" && managerId !== "" && agencyValid && couponValid && welcomeValid
+  }
+
+  const current = STEPS[step] ?? STEPS[0]
+  const ready = stepValid("revisao")
+  const canOpen = (index: number) => {
+    if (index <= step) return true
+    for (let cursor = 0; cursor < index; cursor += 1) {
+      if (!stepValid(STEPS[cursor].id)) return false
+    }
+    return true
+  }
+  const continueHint = stepValid(current.id)
+    ? null
+    : current.id === "tipo"
+      ? "Escolha o tipo para continuar"
+      : current.id === "gestor"
+        ? "Escolha um gestor para continuar"
+        : current.id === "assessoria"
+          ? "Escolha a assessoria para continuar"
+          : current.id === "cupom" && needsCode && couponCode.trim() === ""
+            ? "Informe o código do cupom"
+            : current.id === "cupom" && commissionMode === "personalizada" && commission.trim() === ""
+              ? "Informe a comissão"
+              : current.id === "boasvindas" && voucher === "sim" && voucherPrice === ""
+                ? "Escolha a precificação do voucher"
+                : current.id === "boasvindas" && notice === "personalizado" && noticeMessage.trim() === ""
+                  ? "Escreva a mensagem do e-mail"
+                  : "Complete este passo para continuar"
 
   const countLabel =
     creators.length === 1
       ? `${creators[0].name} · ${creators[0].handle}`
       : `${creators.length} creators selecionados`
+
+  const accept = () => {
+    if (step !== STEPS.length - 1 || !ready || role === "" || creators.length === 0) return
+    for (const creator of creators) {
+      if (creator.agencyId) continue
+      const choice = agencyChoice[creator.id]
+      if (choice && choice !== NO_AGENCY) updateCreator(creator.id, { agencyId: choice })
+    }
+    onApprove(creators.map((creator) => creator.id), {
+      role,
+      managerId,
+      couponMode,
+      couponCode,
+      commissionMode,
+      commission,
+      voucher,
+      voucherPrice,
+      notice,
+      noticeMessage,
+      agencyChoice,
+    })
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -110,285 +200,482 @@ export function ApproveCreatorDialog({
           className="flex h-full min-h-0 flex-col"
           onSubmit={(event) => {
             event.preventDefault()
-            if (!ready) return
-            onApprove(creators.map((creator) => creator.id), role)
+            accept()
           }}
         >
           <SheetHeader className="border-b px-5 py-5 pr-14">
-            <SheetTitle className="text-xl">Aceitar membro</SheetTitle>
-            <SheetDescription>{creators.length > 0 ? countLabel : "Nenhum creator selecionado."}</SheetDescription>
+            <SheetTitle className="text-xl">{intent === "edit" ? "Editar condições" : "Aceitar membro"}</SheetTitle>
+            <SheetDescription>
+              {creators.length > 0 ? `${countLabel} · Passo ${step + 1} de ${STEPS.length}` : "Nenhum creator selecionado."}
+            </SheetDescription>
           </SheetHeader>
 
-          <Tabs defaultValue="approval" className="min-h-0 flex-1 gap-0">
-            <div className="px-5 pt-4">
-              <TabsList className="w-full">
-                <TabsTrigger value="approval">Aprovação</TabsTrigger>
-                <TabsTrigger value="summary">Resumo</TabsTrigger>
-              </TabsList>
-            </div>
-            <TabsContent value="approval" className="min-h-0 overflow-y-auto">
-          <TooltipProvider>
-            <div className="flex flex-col gap-5 px-5 py-4">
-              <section className="grid gap-3">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-medium text-zinc-900">Tipo de membro</h3>
-                  <FieldHint text="Afiliados entram sem limite. Creators usam a cota do plano." />
-                  <RequiredMark />
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-700">Afiliados</span>
-                    <span className="text-zinc-500">{affiliateQuota} · ilimitado</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-700">Creators</span>
-                    <span className="text-zinc-500">{creatorQuota}/1000</span>
-                  </div>
-                </div>
-                <RadioGroup
-                  value={role}
-                  onValueChange={(value) => {
-                    const next = value as MembershipRole
-                    setRole(next)
-                    if (next === "affiliate" && couponMode === "nao_criar") setCouponMode("vincular")
-                  }}
-                  className="grid gap-2"
-                >
-                  <RoleOption value="affiliate" title="Afiliado" description={MEMBERSHIP_ROLE_HELP.affiliate} />
-                  <RoleOption value="creator" title="Creator" description={MEMBERSHIP_ROLE_HELP.creator} />
-                </RadioGroup>
-              </section>
+          <>
+              <nav aria-label="Passos da aprovação" className="border-b px-5 py-4">
+                <ol className="flex items-center">
+                  {STEPS.map((item, index) => {
+                    const done = index < step
+                    const active = index === step
+                    return (
+                      <li key={item.id} className="flex min-w-0 flex-1 items-center">
+                        <button
+                          type="button"
+                          disabled={!canOpen(index)}
+                          onClick={() => canOpen(index) && setStep(index)}
+                          aria-current={active ? "step" : undefined}
+                          aria-label={`${item.title}. ${item.hint}`}
+                          className={cn(
+                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                            done && "bg-emerald-600 text-white",
+                            active && "bg-zinc-900 text-white",
+                            !done && !active && "bg-zinc-100 text-zinc-500",
+                            !canOpen(index) && "cursor-not-allowed"
+                          )}
+                        >
+                          {done ? <Check size={12} /> : index + 1}
+                        </button>
+                        {index < STEPS.length - 1 && (
+                          <span className={cn("mx-1 h-px min-w-2 flex-1", done ? "bg-emerald-600" : "bg-zinc-200")} />
+                        )}
+                      </li>
+                    )
+                  })}
+                </ol>
+                <p className="mt-3 text-sm font-medium text-zinc-900">{current.title}</p>
+                <p className="text-sm text-zinc-500">{current.hint}</p>
+              </nav>
 
-              <div className="grid gap-1.5">
-                <Label className="gap-1">
-                  Gestor(es)
-                  <RequiredMark />
-                </Label>
-                <Select value={managerId} onValueChange={(value) => setManagerId(value ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecionar gestores...">
-                      {(value) => {
-                        const manager = managers.find((item) => item.id === value)
-                        if (!manager) return <span className="text-muted-foreground">Selecionar gestores...</span>
-                        return manager.name
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managers.map((manager) => (
-                      <SelectItem key={manager.id} value={manager.id}>
-                        {manager.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto">
+                <TooltipProvider>
+                  <div className="flex flex-col gap-5 px-5 py-4">
+                    {current.id === "tipo" && (
+                      <section className="grid gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-sm font-medium text-zinc-900">Tipo de membro</h3>
+                          <FieldHint text="Afiliados entram sem limite. Creators usam a cota do plano." />
+                          <RequiredMark />
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-zinc-700">Afiliados</span>
+                            <span className="text-zinc-500">{affiliateQuota} · ilimitado</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-zinc-700">Creators</span>
+                            <span className="text-zinc-500">{creatorQuota}/1000</span>
+                          </div>
+                        </div>
+                        <RadioGroup
+                          value={role}
+                          onValueChange={(value) => {
+                            const next = value as MembershipRole
+                            setRole(next)
+                            if (next === "affiliate" && couponMode === "nao_criar") setCouponMode("vincular")
+                          }}
+                          className="grid gap-2"
+                        >
+                          <RoleOption value="affiliate" title="Afiliado" description={MEMBERSHIP_ROLE_HELP.affiliate} />
+                          <RoleOption value="creator" title="Creator" description={MEMBERSHIP_ROLE_HELP.creator} />
+                        </RadioGroup>
+                      </section>
+                    )}
 
-              <section className="grid gap-3">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-medium text-zinc-900">Cupom</h3>
-                  <FieldHint text={role === "affiliate" ? "O afiliado só é rastreado pelas vendas deste cupom." : "O cupom liga as vendas ao membro aceito."} />
-                </div>
-                {role === "affiliate" && (
-                  <p className="text-sm text-zinc-500">Sem cupom não há o que rastrear. Vincule ou crie um código.</p>
-                )}
-                <div className="grid gap-2">
-                  <p className="text-sm text-zinc-600">Como deseja criar cupom para o creator?</p>
-                  <RadioGroup
-                    value={couponMode}
-                    onValueChange={(value) => setCouponMode(value as CouponMode)}
-                    className="grid gap-2"
-                  >
-                    <Choice value="automatico" label="Automático" />
-                    <Choice value="personalizado" label="Personalizado" />
-                    <Choice value="vincular" label="Vincular" />
-                    {role !== "affiliate" && <Choice value="nao_criar" label="Não criar" />}
-                  </RadioGroup>
-                </div>
-
-                {couponMode === "vincular" && (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="coupon-link" className="gap-1">
-                      Qual cupom deseja vincular?
-                      <RequiredMark />
-                    </Label>
-                    <Input
-                      id="coupon-link"
-                      placeholder="Digite o cupom"
-                      value={couponCode}
-                      onChange={(event) => setCouponCode(event.target.value)}
-                    />
-                  </div>
-                )}
-
-                {couponMode === "personalizado" && (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="coupon-custom" className="gap-1">
-                      Qual código deseja criar?
-                      <RequiredMark />
-                    </Label>
-                    <Input
-                      id="coupon-custom"
-                      placeholder="Digite o código"
-                      value={couponCode}
-                      onChange={(event) => setCouponCode(event.target.value)}
-                    />
-                  </div>
-                )}
-
-                {couponMode === "automatico" && (
-                  <p className="text-sm text-zinc-500">O código será gerado automaticamente.</p>
-                )}
-
-                {couponMode !== "nao_criar" && (
-                  <div className="grid gap-2">
-                    <p className="text-sm text-zinc-600">Qual comissão deseja utilizar?</p>
-                    <RadioGroup
-                      value={commissionMode}
-                      onValueChange={(value) => setCommissionMode(value as CommissionMode)}
-                      className="grid gap-2"
-                    >
-                      <Choice value="padrao" label="Padrão" />
-                      <Choice value="personalizada" label="Personalizada" />
-                      <Choice value="nenhuma" label="Nenhuma" />
-                    </RadioGroup>
-                    {commissionMode === "padrao" && <p className="text-sm text-zinc-500">Padrão: 5%</p>}
-                    {commissionMode === "personalizada" && (
+                    {current.id === "gestor" && (
                       <div className="grid gap-1.5">
-                        <Label htmlFor="commission" className="gap-1">
-                          Comissão
+                        <Label className="gap-1">
+                          Gestor
                           <RequiredMark />
                         </Label>
-                        <Input
-                          id="commission"
-                          inputMode="decimal"
-                          placeholder="5%"
-                          value={commission}
-                          onChange={(event) => setCommission(event.target.value)}
-                        />
+                        <p className="text-sm text-zinc-500">Quem da marca acompanha este membro depois da aprovação.</p>
+                        <Select value={managerId} onValueChange={(value) => setManagerId(value ?? "")}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Selecionar gestor">
+                              {(value) => {
+                                const manager = managers.find((item) => item.id === value)
+                                if (!manager) return <span className="text-muted-foreground">Selecionar gestor</span>
+                                return manager.name
+                              }}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {managers.map((manager) => (
+                              <SelectItem key={manager.id} value={manager.id}>
+                                {manager.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
-                  </div>
-                )}
-              </section>
 
-              <section className="grid gap-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-medium text-zinc-900">Voucher de boas-vindas</h3>
-                  <RadioGroup
-                    value={voucher}
-                    onValueChange={(value) => setVoucher(value as "nao" | "sim")}
-                    className="flex gap-4"
-                  >
-                    <Choice value="nao" label="Não" />
-                    <Choice value="sim" label="Sim" />
-                  </RadioGroup>
-                </div>
-                <p className="text-sm leading-relaxed text-zinc-500">
-                  Crie um voucher de boas vindas para os novos creators. O código de uso será gerado aleatoriamente para cada creator.
-                </p>
-                {voucher === "sim" && (
-                  <div className="grid gap-1.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label className="gap-1">
-                        Escolha a precificação atribuída ao voucher
-                        <RequiredMark />
-                      </Label>
-                      <ActionsMenu
-                        trigger="ellipsis"
-                        items={[
-                          {
-                            label: "Abrir precificações",
-                            icon: ExternalLink,
-                            onSelect: () =>
-                              toast.add({
-                                type: "success",
-                                title: "Precificações",
-                                description: "A lista de vouchers está atualizada.",
-                              }),
-                          },
-                          {
-                            label: "Atualizar lista",
-                            icon: RefreshCw,
-                            onSelect: () => toast.add({ type: "success", title: "Lista atualizada" }),
-                          },
-                        ]}
+                    {current.id === "assessoria" && (
+                      <AgencyStep
+                        creators={creators}
+                        agencyChoice={agencyChoice}
+                        onChoice={(creatorId, value) =>
+                          setAgencyChoice((currentChoices) => ({ ...currentChoices, [creatorId]: value }))
+                        }
                       />
-                    </div>
-                    <Select value={voucherPrice} onValueChange={(value) => setVoucherPrice(value ?? "")}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Selecione uma opção">
-                          {(value) => {
-                            const price = VOUCHER_PRICES.find((item) => item.id === value)
-                            if (!price) return <span className="text-muted-foreground">Selecione uma opção</span>
-                            return price.label
-                          }}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VOUCHER_PRICES.map((price) => (
-                          <SelectItem key={price.id} value={price.id}>
-                            {price.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </section>
+                    )}
 
-              <section className="grid gap-3">
-                <div className="grid gap-1">
-                  <h3 className="text-sm font-medium text-zinc-900">Notificação</h3>
-                  <p className="text-sm text-zinc-600">Deseja notificar o(s) creator(s) por email?</p>
+                    {current.id === "cupom" && (
+                      <section className="grid gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-sm font-medium text-zinc-900">Cupom</h3>
+                          <FieldHint text={role === "affiliate" ? "O afiliado só é rastreado pelas vendas deste cupom." : "O cupom liga as vendas ao membro aceito."} />
+                        </div>
+                        {role === "affiliate" && (
+                          <p className="text-sm text-zinc-500">Sem cupom não há o que rastrear. Vincule ou crie um código.</p>
+                        )}
+                        <div className="grid gap-2">
+                          <p className="text-sm text-zinc-600">Como deseja criar cupom para o creator?</p>
+                          <RadioGroup
+                            value={couponMode}
+                            onValueChange={(value) => setCouponMode(value as CouponMode)}
+                            className="grid gap-2"
+                          >
+                            <Choice value="automatico" label="Automático" />
+                            <Choice value="personalizado" label="Personalizado" />
+                            <Choice value="vincular" label="Vincular" />
+                            {role !== "affiliate" && <Choice value="nao_criar" label="Não criar" />}
+                          </RadioGroup>
+                        </div>
+
+                        {couponMode === "vincular" && (
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="coupon-link" className="gap-1">
+                              Qual cupom deseja vincular?
+                              <RequiredMark />
+                            </Label>
+                            <Input
+                              id="coupon-link"
+                              placeholder="Digite o cupom"
+                              value={couponCode}
+                              onChange={(event) => setCouponCode(event.target.value)}
+                            />
+                          </div>
+                        )}
+
+                        {couponMode === "personalizado" && (
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="coupon-custom" className="gap-1">
+                              Qual código deseja criar?
+                              <RequiredMark />
+                            </Label>
+                            <Input
+                              id="coupon-custom"
+                              placeholder="Digite o código"
+                              value={couponCode}
+                              onChange={(event) => setCouponCode(event.target.value)}
+                            />
+                          </div>
+                        )}
+
+                        {couponMode === "automatico" && (
+                          <p className="text-sm text-zinc-500">O código será gerado automaticamente.</p>
+                        )}
+
+                        {couponMode !== "nao_criar" && (
+                          <div className="grid gap-2">
+                            <p className="text-sm text-zinc-600">Qual comissão deseja utilizar?</p>
+                            <RadioGroup
+                              value={commissionMode}
+                              onValueChange={(value) => setCommissionMode(value as CommissionMode)}
+                              className="grid gap-2"
+                            >
+                              <Choice value="padrao" label="Padrão" />
+                              <Choice value="personalizada" label="Personalizada" />
+                              <Choice value="nenhuma" label="Nenhuma" />
+                            </RadioGroup>
+                            {commissionMode === "padrao" && <p className="text-sm text-zinc-500">Padrão: 5%</p>}
+                            {commissionMode === "personalizada" && (
+                              <div className="grid gap-1.5">
+                                <Label htmlFor="commission" className="gap-1">
+                                  Comissão
+                                  <RequiredMark />
+                                </Label>
+                                <Input
+                                  id="commission"
+                                  inputMode="decimal"
+                                  placeholder="5%"
+                                  value={commission}
+                                  onChange={(event) => setCommission(event.target.value)}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </section>
+                    )}
+
+                    {current.id === "boasvindas" && (
+                      <>
+                        <section className="grid gap-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-sm font-medium text-zinc-900">Voucher de boas-vindas</h3>
+                            <RadioGroup
+                              value={voucher}
+                              onValueChange={(value) => setVoucher(value as "nao" | "sim")}
+                              className="flex gap-4"
+                            >
+                              <Choice value="nao" label="Não" />
+                              <Choice value="sim" label="Sim" />
+                            </RadioGroup>
+                          </div>
+                          <p className="text-sm leading-relaxed text-zinc-500">
+                            Crie um voucher de boas vindas para os novos creators. O código de uso será gerado aleatoriamente para cada creator.
+                          </p>
+                          {voucher === "sim" && (
+                            <div className="grid gap-1.5">
+                              <div className="flex items-center justify-between gap-3">
+                                <Label className="gap-1">
+                                  Escolha a precificação atribuída ao voucher
+                                  <RequiredMark />
+                                </Label>
+                                <ActionsMenu
+                                  trigger="ellipsis"
+                                  items={[
+                                    {
+                                      label: "Abrir precificações",
+                                      icon: ExternalLink,
+                                      onSelect: () =>
+                                        toast.add({
+                                          type: "success",
+                                          title: "Precificações",
+                                          description: "A lista de vouchers está atualizada.",
+                                        }),
+                                    },
+                                    {
+                                      label: "Atualizar lista",
+                                      icon: RefreshCw,
+                                      onSelect: () => toast.add({ type: "success", title: "Lista atualizada" }),
+                                    },
+                                  ]}
+                                />
+                              </div>
+                              <Select value={voucherPrice} onValueChange={(value) => setVoucherPrice(value ?? "")}>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Selecione uma opção">
+                                    {(value) => {
+                                      const price = VOUCHER_PRICES.find((item) => item.id === value)
+                                      if (!price) return <span className="text-muted-foreground">Selecione uma opção</span>
+                                      return price.label
+                                    }}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {VOUCHER_PRICES.map((price) => (
+                                    <SelectItem key={price.id} value={price.id}>
+                                      {price.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </section>
+
+                        <Separator />
+
+                        <section className="grid gap-3">
+                          <div className="grid gap-1">
+                            <h3 className="text-sm font-medium text-zinc-900">Notificação</h3>
+                            <p className="text-sm text-zinc-600">Deseja notificar o(s) creator(s) por email?</p>
+                          </div>
+                          <RadioGroup
+                            value={notice}
+                            onValueChange={(value) => setNotice(value as NoticeMode)}
+                            className="grid gap-2"
+                          >
+                            <Choice value="nao" label="Não" />
+                            <Choice value="padrao" label="Padrão" />
+                            <Choice value="personalizado" label="Personalizado" />
+                          </RadioGroup>
+                          {notice === "personalizado" && (
+                            <div className="grid gap-1.5">
+                              <Label htmlFor="notice-message" className="gap-1">
+                                Mensagem do e-mail
+                                <RequiredMark />
+                              </Label>
+                              <Textarea
+                                id="notice-message"
+                                placeholder="Escreva a mensagem do e-mail"
+                                value={noticeMessage}
+                                onChange={(event) => setNoticeMessage(event.target.value)}
+                              />
+                            </div>
+                          )}
+                        </section>
+                      </>
+                    )}
+
+                    {current.id === "revisao" && (
+                      <section className="grid gap-4">
+                        <div className="grid gap-2">
+                          <Fact label="Tipo" value={role ? MEMBERSHIP_ROLE_LABEL[role] : "—"} />
+                          <Fact label="Gestor" value={managers.find((manager) => manager.id === managerId)?.name ?? "—"} />
+                          {creators.map((creator) => (
+                            <Fact
+                              key={creator.id}
+                              label={creators.length > 1 ? `Assessoria de ${creator.name}` : "Assessoria"}
+                              value={agencyDecisionLabel(creator, agencyChoice[creator.id])}
+                              hint={agencyDecisionNote(creator, agencyChoice[creator.id])}
+                            />
+                          ))}
+                          <Fact label="Cupom" value={couponSummary(couponMode, couponCode)} />
+                          {couponMode !== "nao_criar" && (
+                            <Fact label="Comissão" value={commissionSummary(commissionMode, commission)} />
+                          )}
+                          <Fact
+                            label="Voucher"
+                            value={voucher === "nao" ? "Não enviar" : VOUCHER_PRICES.find((price) => price.id === voucherPrice)?.label ?? "—"}
+                          />
+                          <Fact label="E-mail" value={noticeSummary(notice, noticeMessage)} />
+                        </div>
+                        <Separator />
+                        <CreatorSummary
+                          creators={creators}
+                          selectedId={summaryId || creators[0]?.id}
+                          agencyLabel={(creator) => agencyDecisionLabel(creator, agencyChoice[creator.id])}
+                          onSelect={setSummaryId}
+                        />
+                      </section>
+                    )}
+                  </div>
+                </TooltipProvider>
+              </div>
+            </>
+
+          <SheetFooter className="flex-row items-center justify-between gap-3 border-t">
+              <>
+                <Button type="button" variant="outline" size="lg" onClick={() => setStep((currentStep) => currentStep - 1)} disabled={step === 0}>
+                  Voltar
+                </Button>
+                <div className="flex items-center gap-3">
+                  {continueHint && <p className="max-w-40 text-right text-xs text-zinc-500">{continueHint}</p>}
+                  {step < STEPS.length - 1 ? (
+                    <Button type="button" size="lg" onClick={() => setStep((currentStep) => currentStep + 1)} disabled={!stepValid(current.id)}>
+                      Continuar
+                    </Button>
+                  ) : (
+                    <Button type="button" size="lg" disabled={!ready} onClick={accept}>
+                      {intent === "edit" ? "Salvar" : "Aceitar"}
+                    </Button>
+                  )}
                 </div>
-                <RadioGroup
-                  value={notice}
-                  onValueChange={(value) => setNotice(value as NoticeMode)}
-                  className="grid gap-2"
-                >
-                  <Choice value="nao" label="Não" />
-                  <Choice value="padrao" label="Padrão" />
-                  <Choice value="personalizado" label="Personalizado" />
-                </RadioGroup>
-                {notice === "personalizado" && (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="notice-message" className="gap-1">
-                      Mensagem do e-mail
-                      <RequiredMark />
-                    </Label>
-                    <Textarea
-                      id="notice-message"
-                      placeholder="Escreva a mensagem do e-mail"
-                      value={noticeMessage}
-                      onChange={(event) => setNoticeMessage(event.target.value)}
-                    />
-                  </div>
-                )}
-              </section>
-            </div>
-          </TooltipProvider>
-            </TabsContent>
-            <TabsContent value="summary" className="min-h-0 overflow-y-auto">
-              <CreatorSummary
-                creators={creators}
-                selectedId={summaryId || creators[0]?.id}
-                onSelect={setSummaryId}
-              />
-            </TabsContent>
-          </Tabs>
-
-          <SheetFooter className="flex-row justify-end border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={!ready}>
-              Aceitar
-            </Button>
+              </>
           </SheetFooter>
         </form>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function AgencyStep({
+  creators,
+  agencyChoice,
+  onChoice,
+}: {
+  creators: Creator[]
+  agencyChoice: Record<string, string>
+  onChoice: (creatorId: string, value: string) => void
+}) {
+  const missing = creators.filter((creator) => !creator.agencyId)
+
+  return (
+    <section className="grid gap-4">
+      <p className="text-sm leading-relaxed text-zinc-500">
+        Se o influencer já informou a assessoria no cadastro, ela entra preenchida. Se não informou, vincule uma agora.
+      </p>
+      {creators.map((creator) => {
+        const registered = agencyById(creator.agencyId)
+        if (registered) {
+          return (
+            <div key={creator.id} className="rounded-lg border border-zinc-200 px-3 py-3">
+              {creators.length > 1 && <p className="text-sm font-medium text-zinc-900">{creator.name}</p>}
+              <p className="text-xs text-zinc-500">Preenchida no cadastro</p>
+              <p className="mt-1 text-sm font-medium text-zinc-900">{registered.name}</p>
+              <p className="text-sm text-zinc-500">{registered.email}</p>
+            </div>
+          )
+        }
+
+        const selected = agencyChoice[creator.id] ?? ""
+        return (
+          <div key={creator.id} className="grid gap-1.5">
+            <Label className="gap-1">
+              {missing.length > 1 ? `Vincular assessoria de ${creator.name}` : "Vincular assessoria"}
+              <RequiredMark />
+            </Label>
+            <Select value={selected} onValueChange={(value) => onChoice(creator.id, value ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecionar assessoria">
+                  {(value) => agencyOptionLabel(value) ?? <span className="text-muted-foreground">Selecionar assessoria</span>}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_AGENCY}>Sem assessoria</SelectItem>
+                {AGENCIES.map((agency) => (
+                  <SelectItem key={agency.id} value={agency.id}>
+                    {agency.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function agencyOptionLabel(value: string | null) {
+  if (!value) return null
+  if (value === NO_AGENCY) return "Sem assessoria"
+  return agencyById(value)?.name ?? null
+}
+
+function agencyDecisionLabel(creator: Creator, choice: string | undefined) {
+  const registered = agencyById(creator.agencyId)
+  if (registered) return registered.name
+  if (!choice) return "Não informada"
+  if (choice === NO_AGENCY) return "Sem assessoria"
+  return agencyById(choice)?.name ?? "Não informada"
+}
+
+function agencyDecisionNote(creator: Creator, choice: string | undefined) {
+  if (creator.agencyId) return "Preenchida no cadastro"
+  if (choice && choice !== NO_AGENCY) return "Vinculada nesta aprovação"
+  if (choice === NO_AGENCY) return "Sem vínculo"
+  return "Aguardando escolha"
+}
+
+function couponSummary(mode: CouponMode, code: string) {
+  if (mode === "automatico") return "Código gerado automaticamente"
+  if (mode === "nao_criar") return "Sem cupom"
+  if (mode === "personalizado") return code.trim() ? `Criar ${code.trim()}` : "Personalizado"
+  return code.trim() ? `Vincular ${code.trim()}` : "Vincular"
+}
+
+function commissionSummary(mode: CommissionMode, commission: string) {
+  if (mode === "padrao") return "Padrão · 5%"
+  if (mode === "nenhuma") return "Nenhuma"
+  return commission.trim() || "Personalizada"
+}
+
+function noticeSummary(notice: NoticeMode, message: string) {
+  if (notice === "nao") return "Não enviar"
+  if (notice === "padrao") return "E-mail padrão"
+  return message.trim() || "Personalizado"
+}
+
+function Fact({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-lg bg-zinc-50 px-3 py-2.5">
+      <p className="text-xs text-zinc-400">{label}</p>
+      <p className="mt-0.5 text-sm font-medium text-zinc-900">{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
+    </div>
   )
 }
 
@@ -409,15 +696,17 @@ function profileFmt(n: number) {
 function CreatorSummary({
   creators,
   selectedId,
+  agencyLabel,
   onSelect,
 }: {
   creators: Creator[]
   selectedId?: string
+  agencyLabel: (creator: Creator) => string
   onSelect: (id: string) => void
 }) {
   const creator = creators.find((item) => item.id === selectedId) ?? creators[0]
   if (!creator) {
-    return <p className="px-5 py-6 text-sm text-zinc-500">Nenhum perfil selecionado.</p>
+    return <p className="text-sm text-zinc-500">Nenhum perfil selecionado.</p>
   }
 
   const verified = creator.networks.some((network) => network.network === "instagram" && network.verified)
@@ -425,7 +714,7 @@ function CreatorSummary({
   return (
     <div>
       {creators.length > 1 && (
-        <div className="grid gap-1.5 px-5 pt-4">
+        <div className="grid gap-1.5 pt-4">
           <Label>Perfil</Label>
           <Select value={creator.id} onValueChange={(value) => value && onSelect(value)}>
             <SelectTrigger className="w-full">
@@ -444,7 +733,7 @@ function CreatorSummary({
         </div>
       )}
 
-      <div className="flex items-start gap-3 px-5 py-4">
+      <div className="flex items-start gap-3 py-4">
         {creator.photo ? (
           <img src={creator.photo} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />
         ) : (
@@ -491,16 +780,17 @@ function CreatorSummary({
         ))}
       </div>
 
-      <div className="space-y-4 px-5 py-4">
+      <div className="space-y-4 py-4">
         <p className="text-sm text-zinc-600">{creator.bio}</p>
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Tier", value: TIER_LABELS[creator.tier] },
-            { label: "Campanhas realizadas", value: creator.pastCampaigns },
-            { label: "Total posts", value: creator.totalPosts ?? "—" },
+            { label: "Campanhas realizadas", value: String(creator.pastCampaigns) },
+            { label: "Total posts", value: creator.totalPosts === undefined ? "—" : String(creator.totalPosts) },
             { label: "Última atividade", value: formatDateBR(creator.lastActivity) },
+            { label: "Assessoria", value: agencyLabel(creator) },
           ].map(({ label, value }) => (
-            <div key={label} className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+            <div key={label} className={cn("rounded-lg border border-zinc-100 bg-zinc-50 p-3", label === "Assessoria" && "col-span-2")}>
               <p className="text-xs text-zinc-400">{label}</p>
               <p className="mt-0.5 text-base font-semibold text-zinc-900">{value}</p>
             </div>

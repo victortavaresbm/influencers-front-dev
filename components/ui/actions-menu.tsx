@@ -58,12 +58,12 @@ export function ActionsMenu({
           <Button
             type="button"
             variant="outline"
-            size={trigger === "ellipsis" ? "icon-sm" : "sm"}
+            size="icon-sm"
             aria-label={label ?? t("actions.menu")}
           />
         }
       >
-        {trigger === "ellipsis" ? <MoreHorizontal /> : (label ?? t("actions.menu"))}
+        <MoreHorizontal />
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-auto min-w-44">
         <DropdownMenuGroup>

@@ -51,6 +51,10 @@ function StatusDot({ health }: { health?: DayHealth | null }) {
   return <span className={cn("absolute top-1 right-1 size-1.5 rounded-full ring-2 ring-white", HEALTH_DOT[health])} />
 }
 
+function AlertDot() {
+  return <span className={cn("absolute top-1 right-1 size-1.5 rounded-full ring-2 ring-white", HEALTH_DOT.atraso)} />
+}
+
 export function SidebarIconLink({
   href,
   animation,
@@ -58,12 +62,15 @@ export function SidebarIconLink({
   label,
   active,
   health,
+  alert,
 }: {
   href: string
   label: string
   active?: boolean
   health?: DayHealth | null
+  alert?: boolean
 } & ({ animation: Animation; icon?: never } | { icon: LucideIcon; animation?: never })) {
+  const marker = alert ? <AlertDot /> : <StatusDot health={health} />
   if (Icon) {
     return (
       <Tooltip>
@@ -73,7 +80,7 @@ export function SidebarIconLink({
           }
         >
           <Icon className="size-5" strokeWidth={1.75} />
-          <StatusDot health={health} />
+          {marker}
         </TooltipTrigger>
         <TooltipContent side="right">{label}</TooltipContent>
       </Tooltip>
@@ -95,7 +102,7 @@ export function SidebarIconLink({
             }
           >
             <span {...animationProps} />
-            <StatusDot health={health} />
+            {marker}
           </TooltipTrigger>
           <TooltipContent side="right">{label}</TooltipContent>
         </Tooltip>

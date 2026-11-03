@@ -37,8 +37,16 @@ export default function LoginPage() {
       return
     }
     const user = useAuthStore.getState().user
-    if (user?.role === "brand") router.push("/dashboard")
-    else router.push("/creator/dashboard")
+    goAfterLogin(user?.role)
+  }
+
+  const goAfterLogin = (role?: "brand" | "creator") => {
+    const returnTo = new URLSearchParams(window.location.search).get("return")
+    if (returnTo?.startsWith("/")) {
+      router.push(returnTo)
+      return
+    }
+    router.push(role === "brand" ? "/dashboard" : "/creator/dashboard")
   }
 
   const quickLogin = async (qEmail: string) => {
@@ -49,8 +57,7 @@ export default function LoginPage() {
     setLoading(false)
     if (!result.success) return
     const user = useAuthStore.getState().user
-    if (user?.role === "brand") router.push("/dashboard")
-    else router.push("/creator/dashboard")
+    goAfterLogin(user?.role)
   }
 
   return (

@@ -138,7 +138,7 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
                 </p>
               </div>
               {canApply && !applied && form && (
-                <Link href={`/creator/apply/${form.id}?return=/creator/campaigns/${campaign.id}`}>
+                <Link href={form.site ? `/lp/${form.id}` : `/creator/apply/${form.id}?return=/creator/campaigns/${campaign.id}`}>
                   <Button>{t("forms.apply")}</Button>
                 </Link>
               )}

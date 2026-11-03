@@ -4,18 +4,49 @@ import { create } from "zustand"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { tracksContent, type MembershipRole } from "@/lib/membership"
 
+export type CouponMode = "automatico" | "personalizado" | "vincular" | "nao_criar"
+export type CommissionMode = "padrao" | "personalizada" | "nenhuma"
+export type NoticeMode = "nao" | "padrao" | "personalizado"
+
+export interface MembershipTerms {
+  role: MembershipRole
+  managerId: string
+  couponMode: CouponMode
+  couponCode: string
+  commissionMode: CommissionMode
+  commission: string
+  voucher: "nao" | "sim"
+  voucherPrice: string
+  notice: NoticeMode
+  noticeMessage: string
+  agencyChoice: Record<string, string>
+}
+
 interface MembershipState {
   roles: Record<string, MembershipRole>
+  terms: Record<string, MembershipTerms>
   assign: (ids: string[], role: MembershipRole) => void
+  saveTerms: (ids: string[], terms: MembershipTerms) => void
 }
 
 export const useMembershipStore = create<MembershipState>((set) => ({
   roles: {},
+  terms: {},
   assign: (ids, role) =>
     set((state) => {
       const roles = { ...state.roles }
       for (const id of ids) roles[id] = role
       return { roles }
+    }),
+  saveTerms: (ids, terms) =>
+    set((state) => {
+      const roles = { ...state.roles }
+      const next = { ...state.terms }
+      for (const id of ids) {
+        roles[id] = terms.role
+        next[id] = terms
+      }
+      return { roles, terms: next }
     }),
 }))
 

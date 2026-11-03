@@ -7,9 +7,18 @@ export type QuestionType =
   | "number"
   | "link"
 
+import type { FormSite } from "@/lib/mock-data/form-site"
+
 export type FormStatus = "rascunho" | "publicado" | "arquivado"
 export type FormScope = "brand" | "campaign"
 export type FormTemplate = "blank" | "creator" | "affiliate"
+
+export type MatchWeight = 0 | 1 | 2 | 3
+
+export interface QuestionMatch {
+  weight: MatchWeight
+  ideal?: string[]
+}
 
 export interface FormQuestion {
   id: string
@@ -18,6 +27,7 @@ export interface FormQuestion {
   help?: string
   required: boolean
   options?: string[]
+  match?: QuestionMatch
 }
 
 export interface ApplicationForm {
@@ -30,6 +40,8 @@ export interface ApplicationForm {
   description: string
   status: FormStatus
   questions: FormQuestion[]
+  brandSummary?: string
+  site?: FormSite
   createdAt: string
   updatedAt: string
 }
@@ -49,6 +61,7 @@ export interface FormResponse {
   creatorHandle: string
   submittedAt: string
   answers: FormAnswer[]
+  matchScore?: number
 }
 
 export const QUESTION_TYPES: QuestionType[] = [
@@ -206,10 +219,92 @@ export const FORMS: ApplicationForm[] = [
         title: "Seu foco de conteúdo",
         required: true,
         options: ["Decoração", "Lifestyle", "Arquitetura", "DIY"],
+        match: { weight: 3, ideal: ["Decoração", "Arquitetura"] },
       },
       { id: "q-casa-3", type: "long_text", title: "Por que esta campanha combina com o seu conteúdo?", required: true },
-      { id: "q-casa-4", type: "yes_no", title: "Você já mostrou o app Magalu?", required: false },
+      { id: "q-casa-4", type: "yes_no", title: "Você já mostrou o app Magalu?", required: false, match: { weight: 1, ideal: ["yes"] } },
     ],
+    brandSummary:
+      "O Magalu é o maior varejo omnichannel do Brasil. O módulo Casa & Decor ajuda a planejar ambientes com realidade aumentada dentro do app: decoração, móveis, organização e reforma de apartamentos pequenos. Buscamos creators de decoração e arquitetura que mostrem a casa real, com dicas práticas e linguagem próxima.",
+    site: {
+      entryPageId: "pg-casa-home",
+      fallbackPageId: "pg-casa-thanks",
+      rules: [{ id: "rule-casa-1", condition: { kind: "score", min: 70 }, pageId: "pg-casa-match" }],
+      theme: { primary: "#0086FF", background: "#ffffff", font: "sans" },
+      pages: [
+        {
+          id: "pg-casa-home",
+          name: "Início",
+          kind: "landing",
+          blocks: [
+            {
+              id: "blk-casa-banner",
+              type: "banner",
+              title: "Mostre a sua casa com o novo Casa & Decor",
+              subtitle: "Estamos escolhendo creators de decoração para lançar o planejador de ambientes em realidade aumentada do app Magalu.",
+              image: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1600&q=70",
+              background: "#0b1f3a",
+              tone: "light",
+              align: "left",
+              ctaLabel: "Quero me candidatar",
+              action: { kind: "form" },
+            },
+            {
+              id: "blk-casa-stats",
+              type: "stats",
+              items: [
+                { id: "it-casa-s1", title: "R$ 72 mil", text: "em cachês na campanha" },
+                { id: "it-casa-s2", title: "15/10 a 15/11", text: "período de publicação" },
+                { id: "it-casa-s3", title: "48h", text: "para a resposta da marca" },
+              ],
+            },
+            {
+              id: "blk-casa-features",
+              type: "features",
+              title: "O que você vai fazer",
+              items: [
+                { id: "it-casa-f1", title: "Planejar um ambiente", text: "Use o app para montar um cômodo da sua casa em realidade aumentada." },
+                { id: "it-casa-f2", title: "Mostrar o antes e depois", text: "Um Reels ou TikTok com o processo e o resultado real." },
+                { id: "it-casa-f3", title: "Indicar com cupom", text: "Ganhe comissão nas compras feitas com o seu link." },
+              ],
+            },
+            { id: "blk-casa-form", type: "form", title: "Sua candidatura" },
+            {
+              id: "blk-casa-faq",
+              type: "faq",
+              title: "Perguntas frequentes",
+              items: [
+                { id: "it-casa-q1", title: "Preciso ter muitos seguidores?", text: "Não. O Brief Check olha a afinidade do seu conteúdo com a campanha antes do tamanho da audiência." },
+                { id: "it-casa-q2", title: "Recebo os móveis?", text: "As creators selecionadas recebem um voucher para montar o ambiente mostrado no vídeo." },
+              ],
+            },
+          ],
+        },
+        {
+          id: "pg-casa-match",
+          name: "Match alto",
+          kind: "thanks",
+          blocks: [
+            { id: "blk-casa-m1", type: "spacer", size: "lg" },
+            { id: "blk-casa-m2", type: "heading", text: "Seu perfil tem a cara do Casa & Decor", size: "lg", align: "center" },
+            { id: "blk-casa-m3", type: "text", text: "Suas respostas combinam muito com a campanha. Você entrou na fila prioritária e a equipe do Magalu fala com você em até 24 horas.", align: "center" },
+            { id: "blk-casa-m4", type: "button", label: "Conhecer o app", style: "outline", align: "center", action: { kind: "url", url: "https://www.magazineluiza.com.br" } },
+            { id: "blk-casa-m5", type: "spacer", size: "lg" },
+          ],
+        },
+        {
+          id: "pg-casa-thanks",
+          name: "Obrigado",
+          kind: "thanks",
+          blocks: [
+            { id: "blk-casa-t1", type: "spacer", size: "lg" },
+            { id: "blk-casa-t2", type: "heading", text: "Candidatura enviada!", size: "lg", align: "center" },
+            { id: "blk-casa-t3", type: "text", text: "Recebemos as suas respostas. A marca avalia o seu perfil e retorna pela plataforma.", align: "center" },
+            { id: "blk-casa-t4", type: "spacer", size: "lg" },
+          ],
+        },
+      ],
+    },
     createdAt: "2026-10-02",
     updatedAt: "2026-10-20",
   },
@@ -229,6 +324,21 @@ export const FORM_RESPONSES: FormResponse[] = [
       { questionId: "q-nat-3", value: "Lifestyle" },
       { questionId: "q-nat-4", value: "Levo a rotina de cuidado para a estrada e falo de bem-estar sem pose." },
       { questionId: "q-nat-5", value: "yes" },
+    ],
+  },
+  {
+    id: "resp-nat-3",
+    formId: "form-natura",
+    creatorId: "c15",
+    creatorName: "Diego Almeida",
+    creatorHandle: "@diegorun",
+    submittedAt: "2026-10-24T14:20:00.000Z",
+    answers: [
+      { questionId: "q-nat-1", value: "Diego Run" },
+      { questionId: "q-nat-2", value: "https://instagram.com/diegorun" },
+      { questionId: "q-nat-3", value: "Lifestyle" },
+      { questionId: "q-nat-4", value: "Corro trilhas e mostro a rotina de cuidado antes e depois das provas. Quero falar da Natura no pós-treino e nas viagens." },
+      { questionId: "q-nat-5", value: "no" },
     ],
   },
   {
@@ -287,6 +397,34 @@ export const FORM_RESPONSES: FormResponse[] = [
       { questionId: "q-casa-1", value: "Ju Decor" },
       { questionId: "q-casa-2", value: "Decoração" },
       { questionId: "q-casa-3", value: "Meu conteúdo é planejar ambientes pequenos. O app entra como ferramenta, não como anúncio solto." },
+      { questionId: "q-casa-4", value: "no" },
+    ],
+  },
+  {
+    id: "resp-casa-2",
+    formId: "form-casa",
+    creatorId: "c11",
+    creatorName: "Isabela Mendes",
+    creatorHandle: "@isabelasustenta",
+    submittedAt: "2026-10-19T10:05:00.000Z",
+    answers: [
+      { questionId: "q-casa-1", value: "Isa Sustenta" },
+      { questionId: "q-casa-2", value: "DIY" },
+      { questionId: "q-casa-3", value: "Faço reforma barata com móveis reaproveitados. Planejar o ambiente antes de comprar evita desperdício." },
+      { questionId: "q-casa-4", value: "yes" },
+    ],
+  },
+  {
+    id: "resp-casa-3",
+    formId: "form-casa",
+    creatorId: "c3",
+    creatorName: "Carolina Souza",
+    creatorHandle: "@carolsouza",
+    submittedAt: "2026-10-21T17:45:00.000Z",
+    answers: [
+      { questionId: "q-casa-1", value: "Carol Fit" },
+      { questionId: "q-casa-2", value: "Lifestyle" },
+      { questionId: "q-casa-3", value: "Mostro minha rotina de treino e posso falar do app nos stories." },
       { questionId: "q-casa-4", value: "no" },
     ],
   },

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { LogOut, Settings } from "lucide-react"
+import { LogOut, Settings, UserRound } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ export function UserMenu() {
   const { t } = useI18n()
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
+  const profileHref = user?.role === "creator" ? "/creator/account" : "/profile"
   const settingsHref = user?.role === "creator" ? "/creator/settings" : "/settings"
 
   return (
@@ -43,6 +44,10 @@ export function UserMenu() {
               )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push(profileHref)}>
+              <UserRound />
+              {t("nav.profile")}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push(settingsHref)}>
               <Settings />
               {t("nav.settings")}

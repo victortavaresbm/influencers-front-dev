@@ -1,7 +1,5 @@
 "use client"
-import { CreditBalance } from "@/components/credits/credit-balance"
-import { NotificationsButton } from "@/components/layout/notifications-button"
-import { SuggestionsButton } from "@/components/layout/suggestions-button"
+import { HeaderUtilities } from "@/components/layout/header-utilities"
 import { UserMenu } from "@/components/layout/user-menu"
 
 interface TopBarProps {
@@ -26,12 +24,8 @@ export function TopBar({ title, subtitle, leading, titleAside, actions }: TopBar
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <CreditBalance />
         {actions}
-        <div className="flex items-center gap-1">
-          <SuggestionsButton />
-          <NotificationsButton />
-        </div>
+        <HeaderUtilities />
         <UserMenu />
       </div>
     </header>

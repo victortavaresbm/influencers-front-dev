@@ -42,7 +42,7 @@ const HEALTH_DOT: Record<DayHealth, string> = {
 const STATUS_CHIP: Record<SlotStatus, string> = {
   publicado: "bg-emerald-50 text-emerald-800",
   agendado: "bg-zinc-100 text-zinc-700",
-  pendente: "bg-amber-50 text-amber-900",
+  pendente: "bg-amber-50 text-amber-800",
   atrasado: "bg-red-50 text-red-700",
 }
 

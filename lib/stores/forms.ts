@@ -1,6 +1,8 @@
 "use client"
 
 import { create } from "zustand"
+import { scoreApplication } from "@/lib/forms/brief-check"
+import { cloneSite, defaultSite } from "@/lib/mock-data/form-site"
 import {
   FORM_RESPONSES,
   FORMS,
@@ -12,6 +14,7 @@ import {
   type FormStatus,
   type FormTemplate,
 } from "@/lib/mock-data/forms"
+import { ORG_LOGOS } from "@/lib/mock-data/users"
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -78,6 +81,7 @@ export const useFormStore = create<FormState>()((set, get) => ({
       description: input.description ?? "",
       status: "rascunho",
       questions: questionsFromTemplate(input.template),
+      site: defaultSite(ORG_LOGOS[input.organizationId]?.color ?? "#18181b"),
       createdAt: stamp,
       updatedAt: stamp,
     }
@@ -109,10 +113,13 @@ export const useFormStore = create<FormState>()((set, get) => ({
         ...question,
         id: `q_${crypto.randomUUID()}`,
         options: question.options ? [...question.options] : undefined,
+        match: question.match ? { ...question.match, ideal: question.match.ideal ? [...question.match.ideal] : undefined } : undefined,
       })),
       createdAt: stamp,
       updatedAt: stamp,
     }
+    const questionIds = new Map(current.questions.map((question, index) => [question.id, copy.questions[index].id]))
+    copy.site = current.site ? cloneSite(current.site, questionIds) : undefined
     set((state) => ({ forms: [copy, ...state.forms] }))
     return copy
   },
@@ -142,6 +149,7 @@ export const useFormStore = create<FormState>()((set, get) => ({
       creatorHandle: input.creatorHandle,
       submittedAt: new Date().toISOString(),
       answers: input.answers,
+      matchScore: scoreApplication(form, input.answers).score,
     }
     set((state) => ({ responses: [response, ...state.responses] }))
     return response

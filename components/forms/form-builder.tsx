@@ -1,7 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronUp, Trash2 } from "lucide-react"
+import {
+  AlignLeft,
+  ChevronDown,
+  ChevronUp,
+  CircleDot,
+  Hash,
+  Link,
+  ListChecks,
+  ToggleLeft,
+  Trash2,
+  Type,
+  type LucideIcon,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -21,6 +33,7 @@ import {
   isChoiceType,
   type ApplicationForm,
   type FormQuestion,
+  type MatchWeight,
   type QuestionType,
 } from "@/lib/mock-data/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
@@ -34,6 +47,27 @@ const TYPE_KEY: Record<QuestionType, MessageKey> = {
   yes_no: "forms.type.yesNo",
   number: "forms.type.number",
   link: "forms.type.link",
+}
+
+const TYPE_ICON: Record<QuestionType, LucideIcon> = {
+  short_text: Type,
+  long_text: AlignLeft,
+  single_choice: CircleDot,
+  multiple_choice: ListChecks,
+  yes_no: ToggleLeft,
+  number: Hash,
+  link: Link,
+}
+
+function QuestionTypeOption({ type }: { type: QuestionType }) {
+  const { t } = useI18n()
+  const Icon = TYPE_ICON[type]
+  return (
+    <>
+      <Icon className="text-muted-foreground" />
+      {t(TYPE_KEY[type])}
+    </>
+  )
 }
 
 export function FormBuilder({
@@ -93,7 +127,7 @@ export function FormBuilder({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)_320px]">
+    <div className="grid gap-4 xl:grid-cols-[288px_minmax(0,1fr)_320px]">
       <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
         <p className="px-1 text-xs font-medium text-zinc-500">{t("forms.questions")}</p>
         <div className="space-y-1">
@@ -152,7 +186,7 @@ export function FormBuilder({
           <SelectContent>
             {QUESTION_TYPES.map((type) => (
               <SelectItem key={type} value={type}>
-                {t(TYPE_KEY[type])}
+                <QuestionTypeOption type={type} />
               </SelectItem>
             ))}
           </SelectContent>
@@ -226,6 +260,18 @@ export function FormBuilder({
         </div>
         {conflictNote ? <p className="text-sm text-amber-700">{conflictNote}</p> : null}
 
+        <div className="space-y-1.5">
+          <Label htmlFor="brand-summary">{t("forms.brandSummary")}</Label>
+          <Textarea
+            id="brand-summary"
+            value={form.brandSummary ?? ""}
+            rows={4}
+            placeholder={t("forms.brandSummaryHelp")}
+            onChange={(event) => patch({ brandSummary: event.target.value })}
+          />
+          <p className="text-xs text-zinc-400">{t("forms.briefCheckHelp")}</p>
+        </div>
+
         {selected ? (
           <div className="space-y-3 border-t border-zinc-100 pt-4">
             <div className="flex items-center justify-between gap-2">
@@ -239,12 +285,14 @@ export function FormBuilder({
               <Label>{t("forms.questionType")}</Label>
               <Select value={selected.type} onValueChange={(value) => value && changeType(value as QuestionType)}>
                 <SelectTrigger className="w-full">
-                  <SelectValue>{(value) => (value ? t(TYPE_KEY[value as QuestionType]) : null)}</SelectValue>
+                  <SelectValue>
+                    {(value) => (value ? <QuestionTypeOption type={value as QuestionType} /> : null)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {QUESTION_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {t(TYPE_KEY[type])}
+                      <QuestionTypeOption type={type} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -273,6 +321,42 @@ export function FormBuilder({
               />
               {t("forms.required")}
             </label>
+            <div className="space-y-1.5">
+              <Label>{t("forms.matchWeight")}</Label>
+              <Select
+                value={String(selected.match?.weight ?? 0)}
+                onValueChange={(value) => {
+                  if (value == null) return
+                  const weight = Number(value) as MatchWeight
+                  updateQuestion(selected.id, {
+                    match: weight === 0 ? undefined : { weight, ideal: selected.match?.ideal },
+                  })
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(value) =>
+                      value === "3"
+                        ? t("forms.matchHigh")
+                        : value === "2"
+                          ? t("forms.matchMid")
+                          : value === "1"
+                            ? t("forms.matchLow")
+                            : t("forms.matchNone")
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">{t("forms.matchNone")}</SelectItem>
+                  <SelectItem value="1">{t("forms.matchLow")}</SelectItem>
+                  <SelectItem value="2">{t("forms.matchMid")}</SelectItem>
+                  <SelectItem value="3">{t("forms.matchHigh")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(selected.match?.weight ?? 0) > 0 && (
+              <MatchIdeal question={selected} onChange={(ideal) => updateQuestion(selected.id, { match: { weight: selected.match?.weight ?? 1, ideal } })} />
+            )}
             {isChoiceType(selected.type) && (
               <div className="space-y-2">
                 <Label>{t("forms.options")}</Label>
@@ -320,6 +404,71 @@ export function FormBuilder({
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 xl:sticky xl:top-24 xl:self-start">
         <FormRunner key={selected?.id ?? "empty"} form={form} preview embedded focusQuestionId={selected?.id} />
       </div>
+    </div>
+  )
+}
+
+function MatchIdeal({
+  question,
+  onChange,
+}: {
+  question: FormQuestion
+  onChange: (ideal: string[]) => void
+}) {
+  const { t } = useI18n()
+  const ideal = question.match?.ideal ?? []
+  if (question.type === "yes_no") {
+    return (
+      <div className="space-y-2">
+        <Label>{t("forms.matchIdeal")}</Label>
+        {(["yes", "no"] as const).map((value) => (
+          <label key={value} className="flex items-center gap-2 text-sm text-zinc-700">
+            <Checkbox
+              checked={ideal.includes(value)}
+              onCheckedChange={(checked) =>
+                onChange(checked === true ? [...ideal, value] : ideal.filter((item) => item !== value))
+              }
+            />
+            {value === "yes" ? t("forms.yes") : t("forms.no")}
+          </label>
+        ))}
+      </div>
+    )
+  }
+  if (isChoiceType(question.type)) {
+    return (
+      <div className="space-y-2">
+        <Label>{t("forms.matchIdeal")}</Label>
+        <p className="text-xs text-zinc-400">{t("forms.matchIdealHelp")}</p>
+        {(question.options ?? []).filter((option) => option.trim()).map((option) => (
+          <label key={option} className="flex items-center gap-2 text-sm text-zinc-700">
+            <Checkbox
+              checked={ideal.includes(option)}
+              onCheckedChange={(checked) =>
+                onChange(checked === true ? [...ideal, option] : ideal.filter((item) => item !== option))
+              }
+            />
+            {option}
+          </label>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="match-ideal">{t("forms.matchIdealText")}</Label>
+      <Input
+        id="match-ideal"
+        value={ideal.join(", ")}
+        onChange={(event) =>
+          onChange(
+            event.target.value
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          )
+        }
+      />
     </div>
   )
 }

@@ -27,6 +27,7 @@ export function FormRunner({
   focusQuestionId,
   alreadySubmitted = false,
   embedded = false,
+  skipIntro = false,
   onSubmit,
   onDone,
 }: {
@@ -35,6 +36,7 @@ export function FormRunner({
   focusQuestionId?: string
   alreadySubmitted?: boolean
   embedded?: boolean
+  skipIntro?: boolean
   onSubmit?: (answers: FormAnswer[]) => void
   onDone?: () => void
 }) {
@@ -43,6 +45,7 @@ export function FormRunner({
   const [phase, setPhase] = useState<"intro" | "question" | "done">(() => {
     if (wasSubmitted) return "done"
     if (preview && focusQuestionId) return "question"
+    if (skipIntro) return "question"
     return "intro"
   })
   const [index, setIndex] = useState(() => {
@@ -150,9 +153,13 @@ export function FormRunner({
             size="lg"
             onClick={() => {
               setAttempted(false)
-              if (safeIndex === 0) setPhase("intro")
-              else setIndex(safeIndex - 1)
+              if (safeIndex === 0) {
+                if (!skipIntro) setPhase("intro")
+                return
+              }
+              setIndex(safeIndex - 1)
             }}
+            disabled={skipIntro && safeIndex === 0}
           >
             {t("forms.back")}
           </Button>

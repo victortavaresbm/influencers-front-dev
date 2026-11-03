@@ -60,10 +60,10 @@ export default function DashboardPage() {
   return (
     <div
       ref={rootRef}
-      className={presenting ? "fixed inset-0 z-50 flex flex-col overflow-auto bg-zinc-50" : "flex flex-1 flex-col"}
+      className={presenting ? "fixed inset-0 z-50 flex flex-col overflow-auto bg-background" : "flex flex-1 flex-col"}
     >
       {presenting ? (
-        <div className="sticky top-0 z-20 flex justify-end bg-zinc-50/90 px-6 py-3 backdrop-blur-sm">
+        <div className="sticky top-0 z-20 flex justify-end bg-background/90 px-6 py-3 backdrop-blur-sm">
           <Button type="button" variant="outline" size="sm" onClick={stopPresentation}>
             {t("dashboard.exitPresent")}
           </Button>

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { Button } from "@/components/ui/button"
 import { FormRunner } from "@/components/forms/form-runner"
+import { SitePlayer } from "@/components/forms/site-player"
 import { CREATORS } from "@/lib/mock-data/creators"
 import type { FormAnswer } from "@/lib/mock-data/forms"
 import { useAuthStore } from "@/lib/stores/auth"
@@ -93,14 +94,21 @@ function ApplyForm({ params }: { params: Promise<{ formId: string }> }) {
           </Link>
         }
       />
-      <div className="flex flex-1 items-center justify-center p-6">
+      <div className={form.site ? "flex-1" : "flex flex-1 items-center justify-center p-6"}>
         {closed || (alreadyIn && !alreadySubmitted) ? (
-          <div className="max-w-md space-y-3 text-center">
+          <div className="mx-auto max-w-md space-y-3 p-6 text-center">
             <p className="text-sm text-zinc-600">{alreadyIn ? t("forms.alreadyInCampaign") : t("forms.closed")}</p>
             <Link href={returnTo}>
               <Button variant="outline">{t("pages.back")}</Button>
             </Link>
           </div>
+        ) : form.site ? (
+          <SitePlayer
+            form={form}
+            alreadySubmitted={alreadySubmitted}
+            onSubmit={submit}
+            onDone={() => router.push(returnTo)}
+          />
         ) : (
           <FormRunner
             form={form}

@@ -60,6 +60,8 @@ export interface Creator {
   membershipRole?: "affiliate" | "creator"
   level: "bronze" | "silver" | "gold" | "platinum"
   origin: "organic" | "invite" | "brand_page"
+  /** Assessoria que o influencer informou no cadastro. Ausente quando ele não preencheu. */
+  agencyId?: string
 }
 
 export const CREATORS: Creator[] = [
@@ -184,6 +186,7 @@ export const CREATORS: Creator[] = [
     joined: "2023-08-14", lastActivity: "2026-10-27", lastPost: "2026-10-27",
     fraudScore: 2, pastCampaigns: 38, totalSales: 184000, totalCommission: 18400, totalPosts: 412,
     memberType: "ambassador", membershipRole: "creator", level: "platinum", origin: "invite",
+    agencyId: "ag-fenomeno",
   },
   {
     id: "c6",
@@ -232,6 +235,7 @@ export const CREATORS: Creator[] = [
     joined: "2024-05-22", lastActivity: "2026-10-22", lastPost: "2026-10-19",
     fraudScore: 2, pastCampaigns: 4, totalSales: 0, totalCommission: 0, totalPosts: 34,
     memberType: "standard", level: "bronze", origin: "brand_page",
+    agencyId: "ag-mynd",
   },
   {
     id: "c8",

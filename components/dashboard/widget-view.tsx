@@ -144,7 +144,12 @@ function CampaignsBarTooltip({ active, payload, label }: CustomTooltipProps) {
 }
 
 const NUMBER_LOCALE = { pt: "pt-BR", en: "en", es: "es" } as const
-const REACH_COLUMNS = "grid-cols-[minmax(6.5rem,9.25rem)_minmax(0,1fr)]"
+const REACH_GRID =
+  "grid-cols-[minmax(4.5rem,32%)_minmax(0,1fr)] @min-[26rem]/reach:grid-cols-[minmax(6.5rem,9.25rem)_minmax(0,1fr)]"
+const REACH_BAR = "h-[clamp(1.25rem,14cqh,2.5rem)]"
+const REACH_GAP = "gap-[clamp(0.375rem,2.5cqh,1rem)]"
+const REACH_NAME = "text-[clamp(0.6875rem,3.2cqh,0.875rem)]"
+const REACH_VALUE = "text-[clamp(0.6875rem,2.6cqh,0.75rem)]"
 
 function niceCeiling(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 1
@@ -162,41 +167,49 @@ function CreatorReachChart({ items }: { items: { creator: string; reach: number 
   const reachLabel = t("dashboard.reachLabel")
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="relative min-h-0 flex-1">
-        <div className={`pointer-events-none absolute inset-0 grid ${REACH_COLUMNS}`} aria-hidden>
-          <span />
-          <span className="border-l border-zinc-200" />
+    <div className="relative h-full min-h-0 min-w-0">
+      <div
+        className="absolute inset-0 flex min-w-0 flex-col overflow-hidden"
+        style={{ containerType: "size", containerName: "reach" }}
+      >
+        <div className="relative min-h-0 min-w-0 flex-1">
+          <div className={`pointer-events-none absolute inset-0 grid ${REACH_GRID}`} aria-hidden>
+            <span />
+            <span className="border-l border-zinc-200" />
+          </div>
+          <ul className={`relative flex h-full min-h-0 flex-col justify-center-safe overflow-x-hidden overflow-y-auto ${REACH_GAP}`}>
+            {items.map((item, index) => (
+              <CreatorReachRow
+                key={`${item.creator}-${index}`}
+                creator={item.creator}
+                reach={item.reach}
+                max={max}
+                detail={`${item.creator}: ${item.reach.toLocaleString(NUMBER_LOCALE[locale])} ${reachLabel}`}
+              />
+            ))}
+          </ul>
         </div>
-        <ul className="relative flex h-full flex-col justify-center gap-4">
-          {items.map((item, index) => (
-            <CreatorReachRow
-              key={`${item.creator}-${index}`}
-              creator={item.creator}
-              reach={item.reach}
-              max={max}
-              detail={`${item.creator}: ${item.reach.toLocaleString(NUMBER_LOCALE[locale])} ${reachLabel}`}
-            />
-          ))}
-        </ul>
-      </div>
-      <div className={`grid ${REACH_COLUMNS}`}>
-        <span />
-        <div className="relative h-5 border-t border-zinc-200">
-          {ticks.map((tick, index) => {
-            const share = (tick / max) * 100
-            const align =
-              index === 0 ? "translate-x-0" : index === ticks.length - 1 ? "-translate-x-full" : "-translate-x-1/2"
-            return (
-              <span
-                key={`${tick}-${index}`}
-                className={`absolute top-1 text-[11px] tabular-nums text-zinc-400 ${align}`}
-                style={{ left: `${share}%` }}
-              >
-                {fmt(tick)}
-              </span>
-            )
-          })}
+        <div className={`grid shrink-0 ${REACH_GRID}`}>
+          <span />
+          <div className="relative h-5 border-t border-zinc-200">
+            {ticks.map((tick, index) => {
+              const share = (tick / max) * 100
+              const align =
+                index === 0 ? "translate-x-0" : index === ticks.length - 1 ? "-translate-x-full" : "-translate-x-1/2"
+              const minor = index % 2 === 1
+              return (
+                <span
+                  key={`${tick}-${index}`}
+                  className={`absolute top-1 leading-none tabular-nums text-zinc-400 ${REACH_VALUE} ${align} ${
+                    minor ? "@max-[24rem]/reach:hidden" : ""
+                  }`}
+                  style={{ left: `${share}%` }}
+                >
+                  {fmt(tick)}
+                </span>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -238,18 +251,21 @@ function CreatorReachRow({
   }, [visual, label])
 
   return (
-    <li className={`group grid h-10 items-center ${REACH_COLUMNS}`} title={detail}>
-      <p className="truncate pr-3 text-right text-xs text-zinc-500 group-hover:text-zinc-800" title={creator}>
+    <li className={`group grid min-w-0 shrink-0 items-center overflow-hidden ${REACH_GRID} ${REACH_BAR}`} title={detail}>
+      <p
+        className={`min-w-0 truncate pr-2 text-right leading-none text-zinc-500 group-hover:text-zinc-800 ${REACH_NAME}`}
+        title={creator}
+      >
         {creator}
       </p>
-      <div ref={trackRef} className="relative flex h-full items-center">
+      <div ref={trackRef} className="relative flex h-full min-w-0 items-center">
         <div
-          className="h-10 bg-zinc-900 transition-[width] duration-300 ease-out group-hover:bg-zinc-700 dark:bg-zinc-100 dark:group-hover:bg-white"
+          className="h-full max-w-full shrink-0 bg-zinc-900 transition-[width] duration-300 ease-out group-hover:bg-zinc-700 dark:bg-zinc-100 dark:group-hover:bg-white"
           style={{ width: `${visual}%` }}
         />
         <span
           ref={labelRef}
-          className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-xs font-semibold whitespace-nowrap tabular-nums ${
+          className={`pointer-events-none absolute top-1/2 -translate-y-1/2 font-semibold leading-none whitespace-nowrap tabular-nums ${REACH_VALUE} ${
             inside ? "text-white dark:text-zinc-900" : "text-zinc-900 dark:text-zinc-100"
           }`}
           style={inside ? { right: `calc(${100 - visual}% + 10px)` } : { left: `calc(${visual}% + 8px)` }}
@@ -654,15 +670,21 @@ export function WidgetView({ widget }: { widget: WidgetId }) {
         <WidgetShell title={t("dashboard.reachByNetwork")} subtitle={t("dashboard.reachByNetworkSub")}>
           <div className="flex h-full min-h-0 flex-col">
             <NetworkChartPalette />
-            <DonutChart
-              data={NETWORK_DISTRIBUTION.map((network) => ({ name: network.network, value: network.reach }))}
-              category="value"
-              index="name"
-              colors={NETWORK_DISTRIBUTION.map((network) => networkChartColor(network.network)?.tremor ?? "zinc")}
-              valueFormatter={(value) => `${(value / 1_000_000).toFixed(1)}M`}
-              customTooltip={NetworkReachTooltip}
-              className="h-32 shrink-0 [&_.recharts-pie-sector]:!opacity-100 [&_.recharts-pie-sector_path]:!opacity-100"
-            />
+            <div className="relative h-32 shrink-0">
+              <DonutChart
+                data={NETWORK_DISTRIBUTION.map((network) => ({ name: network.network, value: network.reach }))}
+                category="value"
+                index="name"
+                colors={NETWORK_DISTRIBUTION.map((network) => networkChartColor(network.network)?.tremor ?? "zinc")}
+                valueFormatter={(value) => `${(value / 1_000_000).toFixed(1)}M`}
+                showLabel={false}
+                customTooltip={NetworkReachTooltip}
+                className="h-full [&_.recharts-pie-sector]:!opacity-100 [&_.recharts-pie-sector_path]:!opacity-100"
+              />
+              <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-2xl font-semibold tabular-nums text-zinc-900">
+                {(total / 1_000_000).toFixed(1)}M
+              </p>
+            </div>
             <ul className="mt-3 space-y-2 overflow-auto">
               {NETWORK_DISTRIBUTION.map((network) => {
                 const share = total > 0 ? Math.round((network.reach / total) * 100) : 0

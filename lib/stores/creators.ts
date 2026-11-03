@@ -58,6 +58,7 @@ interface CreatorState {
   resetFilters: () => void
   selectCreator: (id: string) => void
   setDrawerOpen: (open: boolean) => void
+  updateCreator: (id: string, patch: Partial<Creator>) => void
   filteredCreators: (organizationId?: string) => Creator[]
 }
 
@@ -77,6 +78,11 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
     set({ selected: creator, drawerOpen: !!creator })
   },
   setDrawerOpen: (open) => set({ drawerOpen: open }),
+  updateCreator: (id, patch) =>
+    set((state) => ({
+      creators: state.creators.map((creator) => (creator.id === id ? { ...creator, ...patch } : creator)),
+      selected: state.selected?.id === id ? { ...state.selected, ...patch } : state.selected,
+    })),
   filteredCreators: (organizationId) => {
     const { creators, filters } = get()
     const reference = filters.similarTo

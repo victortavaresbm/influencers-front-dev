@@ -11,9 +11,7 @@ import image from "react-useanimations/lib/image"
 import target from "react-useanimations/lib/target"
 import notification from "react-useanimations/lib/notification"
 import users from "react-useanimations/lib/users"
-import { CreditBalance } from "@/components/credits/credit-balance"
-import { NotificationsButton } from "@/components/layout/notifications-button"
-import { SuggestionsButton } from "@/components/layout/suggestions-button"
+import { HeaderUtilities } from "@/components/layout/header-utilities"
 import { UserMenu } from "@/components/layout/user-menu"
 import { PartnerCommunitySwitcher } from "@/components/community/partner-community-switcher"
 import { useAuthStore } from "@/lib/stores/auth"
@@ -77,9 +75,7 @@ export function BrandShell({ children, manage = false }: { children: React.React
               <PartnerCommunitySwitcher variant="header" />
             )}
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              {manage && <CreditBalance />}
-              <SuggestionsButton />
-              <NotificationsButton />
+              <HeaderUtilities credits={manage} />
               <UserMenu />
             </div>
           </div>

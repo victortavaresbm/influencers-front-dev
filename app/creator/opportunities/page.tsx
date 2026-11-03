@@ -99,7 +99,7 @@ export default function CreatorOpportunitiesPage() {
                         {form && sent ? (
                           <Badge variant="secondary">{t("forms.sent")}</Badge>
                         ) : form ? (
-                          <Link href={`/creator/apply/${form.id}?return=/creator/opportunities`}>
+                          <Link href={form.site ? `/lp/${form.id}` : `/creator/apply/${form.id}?return=/creator/opportunities`}>
                             <Button size="sm" className="w-full text-xs">{t("forms.apply")}</Button>
                           </Link>
                         ) : (
@@ -151,7 +151,7 @@ function BrandForms({ search, creatorId }: { search: string; creatorId: string }
               {sent ? (
                 <Badge variant="secondary">{t("forms.sent")}</Badge>
               ) : (
-                <Link href={`/creator/apply/${form.id}?return=/creator/opportunities`}>
+                <Link href={form.site ? `/lp/${form.id}` : `/creator/apply/${form.id}?return=/creator/opportunities`}>
                   <Button size="sm">{t("forms.apply")}</Button>
                 </Link>
               )}

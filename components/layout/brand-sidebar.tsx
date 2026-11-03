@@ -20,8 +20,11 @@ import {
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarIconLink } from "@/components/layout/sidebar-icon"
+import { brandCreatorIds } from "@/lib/discovery/scope"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
+import { useCreatorStore } from "@/lib/stores/creators"
+import { useListStore } from "@/lib/stores/lists"
 import { DAY_HEALTH_LABEL, buildSchedule, scheduleAttention, todayIso } from "@/lib/schedule"
 
 const NAV: { href: string; icon: LucideIcon; labelKey: MessageKey }[] = [
@@ -44,7 +47,18 @@ export function BrandSidebar() {
   const { t } = useI18n()
   const user = useAuthStore((s) => s.user)
   const campaigns = useCampaignStore((s) => s.campaigns)
+  const creators = useCreatorStore((s) => s.creators)
+  const lists = useListStore((s) => s.lists)
   const today = todayIso()
+  const pendingApprovals = useMemo(() => {
+    if (!user?.organizationId) return 0
+    const ids = new Set(brandCreatorIds(user.organizationId))
+    for (const list of lists) {
+      if (list.organizationId !== user.organizationId) continue
+      for (const id of list.creatorIds) ids.add(id)
+    }
+    return creators.filter((creator) => ids.has(creator.id) && creator.approvalStatus === "pending").length
+  }, [creators, lists, user?.organizationId])
   const todayHealth = useMemo(() => {
     if (!user) return null
     const slots = buildSchedule(campaigns, today).filter(
@@ -66,9 +80,16 @@ export function BrandSidebar() {
               key={href}
               href={href}
               icon={icon}
-              label={href === "/calendar" && todayHealth ? `${t(labelKey)} · ${DAY_HEALTH_LABEL[todayHealth]}` : t(labelKey)}
+              label={
+                href === "/crm" && pendingApprovals > 0
+                  ? `${t(labelKey)} · ${pendingApprovals} ${pendingApprovals === 1 ? "pendente" : "pendentes"}`
+                  : href === "/calendar" && todayHealth
+                    ? `${t(labelKey)} · ${DAY_HEALTH_LABEL[todayHealth]}`
+                    : t(labelKey)
+              }
               active={pathname === href || pathname.startsWith(href + "/")}
               health={href === "/calendar" ? todayHealth : undefined}
+              alert={href === "/crm" && pendingApprovals > 0}
             />
           ))}
         </nav>

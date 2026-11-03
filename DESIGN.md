@@ -16,7 +16,7 @@ Não crie botão, menu, modal, campo, aba, badge ou tabela com `<button>`, `<div
 
 ## Menu de ações
 
-Duas ou mais operações no mesmo lugar viram um único botão **Ações**. O gatilho é o `Button` outline. O painel é o `DropdownMenu`. A ação destrutiva fica em vermelho, com o ícone na mesma cor.
+Duas ou mais operações no mesmo lugar viram um único botão de ícone com reticências (`MoreHorizontal`). O gatilho é o `Button` outline, tamanho `icon-sm`. O painel é o `DropdownMenu`. A ação destrutiva fica em vermelho, com o ícone na mesma cor.
 
 Uma única operação continua um `Button`. Não envolva uma ação solitária num menu.
 
@@ -32,7 +32,7 @@ Use `ActionsMenu` em `components/ui/actions-menu.tsx`. Não monte outro dropdown
 />
 ```
 
-O gatilho mostra "Ações" (ou "Actions" / "Acciones", conforme o idioma). Sem chevron e sem preenchimento primário. Itens levam ícone e rótulo. `destructive: true` usa a variante destrutiva do menu.
+O gatilho é só o ícone de reticências, com `aria-label` "Ações" (ou "Actions" / "Acciones", conforme o idioma). Sem texto visível, sem chevron e sem preenchimento primário. Itens levam ícone e rótulo. `destructive: true` usa a variante destrutiva do menu.
 
 Isto vale para linha de tabela, seleção em massa, barra de ferramentas e rodapé de ficha. Exemplos: aprovar e recusar, exportar e convidar, gerar relatório e enviar pagamentos.
 

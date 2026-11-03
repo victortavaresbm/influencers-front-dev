@@ -216,7 +216,7 @@ export function JourneyTimeline({ visitor }: { visitor: Visitor }) {
                           key={`${role.creatorId}-${role.role}`}
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_COLOR[role.role]}`}
                         >
-                          <span className="flex size-4 items-center justify-center rounded-full bg-white/60 text-[10px] font-bold">
+                          <span className="flex size-4 items-center justify-center rounded-full bg-background text-[10px] font-bold text-foreground">
                             {role.creatorAvatar}
                           </span>
                           {role.creatorName} · {ROLE_LABEL[role.role]}
