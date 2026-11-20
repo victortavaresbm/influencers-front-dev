@@ -27,21 +27,48 @@ export function SiteAiPanel({
 
   const examples = [t("forms.aiExample1"), t("forms.aiExample2"), t("forms.aiExample3")]
 
-  const run = (text: string) => {
+  const run = async (text: string) => {
     const value = text.trim()
     if (!value || thinking) return
     setThinking(true)
     setMessages((current) => [...current, { role: "user", text: value }])
     setPrompt("")
-    window.setTimeout(() => {
+
+    const blockCount = site.pages.reduce((total, page) => total + page.blocks.length, 0)
+    const createIntent = /\b(cri[ae]|criar|refa[çz]|refazer|do zero|come[cç]|nova\s+p[aá]gina|ger(e|ar)|monte|montar)\b/i.test(value)
+    const mode = createIntent || blockCount <= 2 ? "create" : "edit"
+
+    const applyLocal = () => {
       const result = generateSite(form, value, site)
       onApply(result.site)
-      setMessages((current) => [
-        ...current,
-        { role: "agent", text: result.note === "edit" ? t("forms.aiEditApplied") : t("forms.aiCreateApplied") },
-      ])
+      return result
+    }
+
+    try {
+      const response = await fetch("/api/forms/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form, site, prompt: value, mode }),
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { site?: FormSite; mode?: string }
+        if (data.site) {
+          onApply(data.site)
+          setMessages((current) => [
+            ...current,
+            { role: "agent", text: data.mode === "edit" ? t("forms.aiEditApplied") : t("forms.aiCreateApplied") },
+          ])
+          return
+        }
+      }
+      applyLocal()
+      setMessages((current) => [...current, { role: "agent", text: t("forms.aiFallback") }])
+    } catch {
+      applyLocal()
+      setMessages((current) => [...current, { role: "agent", text: t("forms.aiFallback") }])
+    } finally {
       setThinking(false)
-    }, 900)
+    }
   }
 
   return (
@@ -62,7 +89,7 @@ export function SiteAiPanel({
                 type="button"
                 variant="outline"
                 className="h-auto w-full justify-start whitespace-normal px-3 py-2 text-left text-xs font-normal text-zinc-600"
-                onClick={() => run(example)}
+                onClick={() => void run(example)}
               >
                 {example}
               </Button>
@@ -93,7 +120,7 @@ export function SiteAiPanel({
         className="space-y-2 border-t border-zinc-200 p-3"
         onSubmit={(event) => {
           event.preventDefault()
-          run(prompt)
+          void run(prompt)
         }}
       >
         <Textarea
@@ -104,7 +131,7 @@ export function SiteAiPanel({
           onKeyDown={(event) => {
             if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
               event.preventDefault()
-              run(prompt)
+              void run(prompt)
             }
           }}
         />

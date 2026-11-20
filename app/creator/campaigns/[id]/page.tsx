@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Markdown } from "@/components/ui/markdown"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Check, DollarSign, Users, Target } from "lucide-react"
 import Link from "next/link"
@@ -188,7 +189,7 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
             <Card className="p-4 space-y-3">
               <div>
                 <p className="text-xs text-zinc-400 mb-1">Descrição</p>
-                <p className="text-sm text-zinc-700">{campaign.description}</p>
+                <Markdown value={campaign.description} />
               </div>
               <Separator />
               <div>

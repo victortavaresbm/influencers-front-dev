@@ -7,10 +7,11 @@ export type QuestionType =
   | "number"
   | "link"
 
-import type { FormSite } from "@/lib/mock-data/form-site"
+import { landingOnlySite, type FormSite } from "@/lib/mock-data/form-site"
 
-export type FormStatus = "rascunho" | "publicado" | "arquivado"
+export type FormStatus = "rascunho" | "publicado" | "inativo" | "arquivado"
 export type FormScope = "brand" | "campaign"
+export type FormKind = "form" | "page"
 export type FormTemplate = "blank" | "creator" | "affiliate"
 
 export type MatchWeight = 0 | 1 | 2 | 3
@@ -35,6 +36,7 @@ export interface ApplicationForm {
   organizationId: string
   organizationName: string
   scope: FormScope
+  kind: FormKind
   campaignId?: string
   title: string
   description: string
@@ -122,9 +124,11 @@ export function questionsFromTemplate(template: FormTemplate): FormQuestion[] {
   return seeds.map((seed) => createQuestion(seed.type, seed))
 }
 
-export function canPublish(form: Pick<ApplicationForm, "title" | "scope" | "campaignId" | "questions">) {
+export function canPublish(form: Pick<ApplicationForm, "title" | "scope" | "campaignId" | "questions" | "kind">) {
   if (!form.title.trim()) return false
   if (form.scope === "campaign" && !form.campaignId) return false
+  // A landing page channel has no questions to validate.
+  if (form.kind === "page") return true
   if (form.questions.length === 0) return false
   return form.questions.every((question) => {
     if (!question.title.trim()) return false
@@ -158,6 +162,7 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org1",
     organizationName: "Natura",
     scope: "brand",
+    kind: "form",
     title: "Candidatura Natura",
     description: "Conte como você se conecta com a marca para entrar na comunidade de creators e afiliados.",
     status: "publicado",
@@ -182,6 +187,7 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org2",
     organizationName: "Magazine Luiza",
     scope: "campaign",
+    kind: "form",
     campaignId: "camp2",
     title: "Candidatura Tech Week",
     description: "Formulário para creators e afiliados que querem divulgar a Tech Week Magalu.",
@@ -207,6 +213,7 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org2",
     organizationName: "Magazine Luiza",
     scope: "campaign",
+    kind: "form",
     campaignId: "camp7",
     title: "Candidatura Casa & Decor",
     description: "Para creators de decoração que querem mostrar o novo módulo do app Magalu.",
@@ -268,7 +275,6 @@ export const FORMS: ApplicationForm[] = [
                 { id: "it-casa-f3", title: "Indicar com cupom", text: "Ganhe comissão nas compras feitas com o seu link." },
               ],
             },
-            { id: "blk-casa-form", type: "form", title: "Sua candidatura" },
             {
               id: "blk-casa-faq",
               type: "faq",
@@ -279,6 +285,12 @@ export const FORMS: ApplicationForm[] = [
               ],
             },
           ],
+        },
+        {
+          id: "pg-casa-form",
+          name: "Formulário",
+          kind: "form",
+          blocks: [{ id: "blk-casa-form", type: "form", title: "Sua candidatura" }],
         },
         {
           id: "pg-casa-match",
@@ -307,6 +319,34 @@ export const FORMS: ApplicationForm[] = [
     },
     createdAt: "2026-10-02",
     updatedAt: "2026-10-20",
+  },
+  {
+    id: "page-natura-club",
+    organizationId: "org1",
+    organizationName: "Natura",
+    scope: "brand",
+    kind: "page",
+    title: "Clube de Creators Natura",
+    description: "Página de apresentação do clube de creators para atrair novos talentos.",
+    status: "publicado",
+    questions: [],
+    site: landingOnlySite("#F47920"),
+    createdAt: "2026-10-05",
+    updatedAt: "2026-10-16",
+  },
+  {
+    id: "page-magalu-hub",
+    organizationId: "org2",
+    organizationName: "Magazine Luiza",
+    scope: "brand",
+    kind: "page",
+    title: "Hub de Parcerias Magalu",
+    description: "Landing institucional com os benefícios de ser parceiro Magalu.",
+    status: "rascunho",
+    questions: [],
+    site: landingOnlySite("#0086FF"),
+    createdAt: "2026-10-12",
+    updatedAt: "2026-10-18",
   },
 ]
 

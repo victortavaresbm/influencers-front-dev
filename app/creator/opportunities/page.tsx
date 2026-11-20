@@ -15,6 +15,7 @@ import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
 import { creatorCanApply } from "@/lib/campaign-access"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n } from "@/lib/i18n"
+import { stripMarkdown } from "@/lib/markdown"
 
 function fmt(n: number) {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
@@ -81,7 +82,7 @@ export default function CreatorOpportunitiesPage() {
                             {c.visibility === "privada" ? <Badge variant="secondary">Comunidade</Badge> : null}
                           </span>
                         </div>
-                        <p className="mb-3 line-clamp-2 text-xs text-zinc-500">{c.description}</p>
+                        <p className="mb-3 line-clamp-2 text-xs text-zinc-500">{stripMarkdown(c.description)}</p>
                         <div className="mb-3 grid grid-cols-3 gap-2 border-y border-zinc-100 py-2 text-center">
                           <div>
                             <p className="text-xs font-semibold text-zinc-800">{fmt(c.minFollowers)}+</p>

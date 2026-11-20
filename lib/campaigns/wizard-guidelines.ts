@@ -76,9 +76,9 @@ export const WIZARD_GUIDELINES: WizardGuideline[] = [
   },
   {
     id: "budget",
-    prompt: "Se houver fixo, sugira fixedFeePerPost em reais por post. Se houver comissão, use mode percent ou fixed e um value. budget é o teto da campanha. maxInfluencers é um inteiro. perInfluencerFee é um número ou a string contact quando o valor não deve aparecer. Não invente produtos.",
-    card: "A simulação mostra o teto, o máximo de influencers e o valor por creator.",
-    fields: ["fixedFeePerPost", "commission", "budget", "maxInfluencers", "perInfluencerFee"],
+    prompt: "Se houver comissão, use mode percent ou fixed e um value. budget é o teto da campanha. maxInfluencers é um inteiro. perInfluencerFee é um número (valor do serviço no banner do marketplace) ou a string contact quando deve aparecer Entre em contato. Não invente produtos.",
+    card: "O valor por influencer (ou Entre em contato) aparece no banner da campanha no marketplace.",
+    fields: ["commission", "budget", "maxInfluencers", "perInfluencerFee"],
   },
   {
     id: "brief",

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { ArrowRight, Banknote, Coins, Cpu, Dumbbell, Eye, Gamepad2, Gift, Globe, ImagePlus, Laugh, Link2, Lock, Megaphone, MessageCircle, Percent, Plane, Radio, Shirt, ShoppingBag, Sparkles, Sun, Ticket, Users, UtensilsCrossed, Wallet } from "lucide-react"
+import { ArrowRight, Banknote, Coins, Cpu, Dumbbell, Eye, Gamepad2, Gift, Globe, ImagePlus, Laugh, Link2, Lock, Megaphone, MessageCircle, Percent, Plane, Radio, RotateCcw, Shirt, ShoppingBag, Sparkles, Sun, Ticket, Users, UtensilsCrossed, Wallet, X } from "lucide-react"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import { CampaignSuccessTargets } from "@/components/campaigns/campaign-success-targets"
 import { GuidelineLists } from "@/components/campaigns/guideline-list"
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { MarkdownEditor } from "@/components/ui/markdown-editor"
 import { CONTENT_FORMATS, contentFormatByValue } from "@/lib/campaign-types"
 import { AGE_RANGES, REQUIREMENT_FIELDS, STRATEGIES, TACTICS, communityPath } from "@/lib/campaigns/shape"
 import type { WizardStepId } from "@/lib/campaigns/wizard-steps"
@@ -82,11 +82,11 @@ export function WizardQuestion({
   organizationId,
   organizationName,
   campaigns,
-  forms,
   pulse,
   onChange,
-  onFormId,
   onNext,
+  onClear,
+  canClear,
   filling,
 }: {
   step: WizardStepId
@@ -94,11 +94,11 @@ export function WizardQuestion({
   organizationId: string
   organizationName: string
   campaigns: Campaign[]
-  forms: { id: string; title: string; site?: unknown }[]
   pulse: boolean
   onChange: (patch: WizardDraft) => void
-  onFormId: (formId?: string) => void
   onNext?: () => void
+  onClear?: () => void
+  canClear?: boolean
   filling?: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -109,7 +109,13 @@ export function WizardQuestion({
   if (step === "website") {
     return (
       <div className="space-y-5">
-        <QuestionTitle>Qual é o site da sua marca?</QuestionTitle>
+        <div className="flex items-center justify-between gap-4">
+          <QuestionTitle>Qual é o site da sua marca?</QuestionTitle>
+          <Button type="button" variant="destructive" size="sm" onClick={onClear} disabled={!canClear}>
+            <RotateCcw />
+            Limpar formulário
+          </Button>
+        </div>
         <div className="relative max-w-xl">
           <Input
             type="url"
@@ -488,13 +494,26 @@ export function WizardQuestion({
           <Input data-ai-field="maxInfluencers" className="mx-2 inline-flex h-8 w-20 rounded-full text-center" type="number" min={1} value={draft.maxInfluencers ?? ""} onChange={(event) => onChange({ maxInfluencers: event.target.value === "" ? undefined : Number(event.target.value) })} />
           influencers
         </Sentence>
-        {terms.includes("fixo") ? (
-          <Sentence>O valor fixo por post é R$ <Input data-ai-field="fixedFeePerPost" className="mx-2 inline-flex h-8 w-28 rounded-full text-center" type="number" min={1} value={draft.fixedFeePerPost ?? ""} onChange={(event) => onChange({ fixedFeePerPost: event.target.value === "" ? undefined : Number(event.target.value) })} /></Sentence>
-        ) : null}
         {terms.includes("permuta") ? (
           <div className="space-y-2">
             {(draft.seedingProducts ?? []).map((product) => (
-              <Input key={product.id} placeholder="Produto enviado" value={product.name} onChange={(event) => onChange({ seedingProducts: (draft.seedingProducts ?? []).map((item) => item.id === product.id ? { ...item, name: event.target.value } : item) })} />
+              <div key={product.id} className="flex items-center gap-2">
+                <Input
+                  className="min-w-0 flex-1"
+                  placeholder="Produto enviado"
+                  value={product.name}
+                  onChange={(event) => onChange({ seedingProducts: (draft.seedingProducts ?? []).map((item) => item.id === product.id ? { ...item, name: event.target.value } : item) })}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remover ${product.name.trim() || "produto enviado"}`}
+                  onClick={() => onChange({ seedingProducts: (draft.seedingProducts ?? []).filter((item) => item.id !== product.id) })}
+                >
+                  <X />
+                </Button>
+              </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={() => {
               const product: SeedingProduct = { id: `p-${Date.now()}`, name: "", variants: ["Único"], unitCost: 0, stockForSeeding: 1, stockUsed: 0 }
@@ -522,11 +541,16 @@ export function WizardQuestion({
             ) : null}
           </Sentence>
         ) : null}
-        <div>
-          <Token selected={draft.perInfluencerFee === "contact"} onClick={() => onChange({ perInfluencerFee: draft.perInfluencerFee === "contact" ? undefined : "contact" })}>Entre em contato</Token>
-          {draft.perInfluencerFee !== "contact" ? (
-            <Input data-ai-field="perInfluencerFee" className="ml-2 inline-flex h-8 w-36 rounded-full text-center" type="number" min={0} placeholder="Valor por influencer" value={typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : ""} onChange={(event) => onChange({ perInfluencerFee: event.target.value === "" ? undefined : Number(event.target.value) })} />
-          ) : null}
+        <div className="space-y-2">
+          <div>
+            <Token selected={draft.perInfluencerFee === "contact"} onClick={() => onChange({ perInfluencerFee: draft.perInfluencerFee === "contact" ? undefined : "contact" })}>Entre em contato</Token>
+            {draft.perInfluencerFee !== "contact" ? (
+              <Input data-ai-field="perInfluencerFee" className="ml-2 inline-flex h-8 w-36 rounded-full text-center" type="number" min={0} placeholder="Valor por influencer" value={typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : ""} onChange={(event) => onChange({ perInfluencerFee: event.target.value === "" ? undefined : Number(event.target.value) })} />
+            ) : null}
+          </div>
+          <p className="text-sm text-zinc-500">
+            Esse valor (ou “Entre em contato”) aparece no banner da campanha no marketplace.
+          </p>
         </div>
       </div>
     )
@@ -536,11 +560,13 @@ export function WizardQuestion({
     return (
       <div className="space-y-5">
         <QuestionTitle>O que o creator precisa contar?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          O formulário de candidatura é
-          <Choice value={draft.formId} placeholder="escolher" options={forms.map((form) => ({ id: form.id, label: form.title }))} onPick={(formId) => onFormId(formId)} pulse={pulse} />
-        </Sentence>
-        <Textarea data-ai-field="description" value={draft.description ?? ""} maxLength={500} placeholder="O que o creator precisa contar" onChange={(event) => onChange({ description: event.target.value })} />
+        <MarkdownEditor
+          data-ai-field="description"
+          value={draft.description ?? ""}
+          maxLength={2000}
+          placeholder="O que o creator precisa contar"
+          onChange={(description) => onChange({ description })}
+        />
         <GuidelineLists doList={draft.doList ?? []} dontList={draft.dontList ?? []} pulse={pulse} onChange={onChange} />
         <Input data-ai-field="productCategoriesInput" placeholder="Categoria de produto, Enter para adicionar" value={tag} onChange={(event) => setTag(event.target.value)} onKeyDown={(event) => {
           if (event.key !== "Enter") return

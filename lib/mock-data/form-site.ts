@@ -1,12 +1,17 @@
 export type BlockType =
   | "banner"
+  | "announcement"
   | "heading"
   | "text"
   | "image"
+  | "gallery"
   | "video"
   | "button"
   | "features"
+  | "bento"
+  | "steps"
   | "stats"
+  | "marquee"
   | "faq"
   | "testimonial"
   | "form"
@@ -26,6 +31,12 @@ export interface ListItem {
   id: string
   title: string
   text: string
+}
+
+export interface GalleryImage {
+  id: string
+  src: string
+  caption: string
 }
 
 export interface ListAppearance {
@@ -54,13 +65,26 @@ export type SiteBlock =
       ctaLabel: string
       action: SiteAction
     }
+  | {
+      id: string
+      type: "announcement"
+      text: string
+      ctaLabel: string
+      action: SiteAction
+      background: string
+      tone: "light" | "dark"
+    }
   | { id: string; type: "heading"; text: string; size: "md" | "lg"; align: Align }
   | { id: string; type: "text"; text: string; align: Align }
   | { id: string; type: "image"; src: string; alt: string; caption: string }
+  | { id: string; type: "gallery"; items: GalleryImage[] }
   | { id: string; type: "video"; url: string }
   | { id: string; type: "button"; label: string; style: "solid" | "outline"; align: Align; action: SiteAction }
   | { id: string; type: "features"; title: string; items: ListItem[]; appearance?: ListAppearance }
+  | { id: string; type: "bento"; title: string; items: ListItem[]; appearance?: ListAppearance }
+  | { id: string; type: "steps"; title: string; items: ListItem[] }
   | { id: string; type: "stats"; items: ListItem[] }
+  | { id: string; type: "marquee"; items: ListItem[] }
   | { id: string; type: "faq"; title: string; items: ListItem[] }
   | { id: string; type: "testimonial"; quote: string; author: string; role: string }
   | { id: string; type: "form"; title: string }
@@ -68,7 +92,7 @@ export type SiteBlock =
   | { id: string; type: "divider" }
   | { id: string; type: "spacer"; size: "sm" | "md" | "lg" }
 
-export type PageKind = "landing" | "thanks" | "custom"
+export type PageKind = "landing" | "form" | "thanks" | "custom"
 
 export interface SitePage {
   id: string
@@ -103,9 +127,9 @@ export interface FormSite {
 }
 
 export const BLOCK_GROUPS: { id: "structure" | "content" | "media" | "conversion"; types: BlockType[] }[] = [
-  { id: "structure", types: ["banner", "divider", "spacer"] },
-  { id: "content", types: ["heading", "text", "features", "stats", "faq", "testimonial"] },
-  { id: "media", types: ["image", "video", "html"] },
+  { id: "structure", types: ["announcement", "banner", "divider", "spacer"] },
+  { id: "content", types: ["heading", "text", "features", "bento", "steps", "stats", "marquee", "faq", "testimonial"] },
+  { id: "media", types: ["image", "gallery", "video", "html"] },
   { id: "conversion", types: ["button", "form"] },
 ]
 
@@ -192,6 +216,57 @@ export function createBlock(type: BlockType): SiteBlock {
         code: '<div style="padding:24px;text-align:center;font-family:sans-serif">\n  <strong>Seu HTML aqui</strong>\n</div>',
         height: 160,
       }
+    case "announcement":
+      return {
+        id,
+        type,
+        text: "Inscrições abertas por tempo limitado",
+        ctaLabel: "Participar",
+        action: { kind: "form" },
+        background: "#18181b",
+        tone: "light",
+      }
+    case "gallery":
+      return {
+        id,
+        type,
+        items: [galleryImage(), galleryImage(), galleryImage()],
+      }
+    case "bento":
+      return {
+        id,
+        type,
+        title: "Tudo o que você precisa",
+        items: [
+          item("Comissão por venda", "Ganhe a cada pedido feito com o seu cupom exclusivo."),
+          item("Produtos para testar", "Receba os lançamentos antes de todo mundo."),
+          item("Campanhas pagas", "Entre na lista de convites para campanhas."),
+          item("Comunidade", "Troque ideias com outros creators e com a marca."),
+        ],
+      }
+    case "steps":
+      return {
+        id,
+        type,
+        title: "Como funciona",
+        items: [
+          item("Candidatura", "Conte quem você é e mostre o seu melhor conteúdo."),
+          item("Avaliação", "A marca olha a afinidade do seu perfil com a proposta."),
+          item("Parceria", "Você entra na comunidade e recebe os próximos convites."),
+        ],
+      }
+    case "marquee":
+      return {
+        id,
+        type,
+        items: [
+          item("Creators", ""),
+          item("Comunidade", ""),
+          item("Campanhas pagas", ""),
+          item("Afiliados", ""),
+          item("Produtos", ""),
+        ],
+      }
     case "divider":
       return { id, type }
     case "spacer":
@@ -199,10 +274,16 @@ export function createBlock(type: BlockType): SiteBlock {
   }
 }
 
+function galleryImage(): GalleryImage {
+  return { id: uid("it"), src: "", caption: "" }
+}
+
 export function cloneBlock(block: SiteBlock): SiteBlock {
   const copy = structuredClone(block)
   copy.id = uid("blk")
-  if ("items" in copy) copy.items = copy.items.map((entry) => ({ ...entry, id: uid("it") }))
+  if ("items" in copy) {
+    copy.items = (copy.items as Array<{ id: string }>).map((entry) => ({ ...entry, id: uid("it") })) as typeof copy.items
+  }
   return copy
 }
 
@@ -226,13 +307,30 @@ export function createPage(kind: PageKind, name: string): SitePage {
       ],
     }
   }
+  if (kind === "form") {
+    return { id, name, kind, blocks: [createBlock("form")] }
+  }
   if (kind === "landing") {
-    return { id, name, kind, blocks: [createBlock("banner"), createBlock("features"), createBlock("form")] }
+    return { id, name, kind, blocks: [createBlock("banner"), createBlock("features")] }
   }
   return { id, name, kind, blocks: [createBlock("heading"), createBlock("text")] }
 }
 
 export function defaultSite(primary: string): FormSite {
+  const landing = createPage("landing", "Início")
+  const formPage = createPage("form", "Formulário")
+  const thanks = createPage("thanks", "Obrigado")
+  return {
+    entryPageId: landing.id,
+    fallbackPageId: thanks.id,
+    rules: [],
+    theme: { primary, background: "#ffffff", font: "sans" },
+    pages: [landing, formPage, thanks],
+  }
+}
+
+// A landing page channel without the application form step (kind "page").
+export function landingOnlySite(primary: string): FormSite {
   const landing = createPage("landing", "Início")
   const thanks = createPage("thanks", "Obrigado")
   return {
@@ -249,13 +347,13 @@ export function pageHasForm(page: SitePage) {
 }
 
 export function blockActions(block: SiteBlock): SiteAction | null {
-  if (block.type === "banner") return block.ctaLabel.trim() ? block.action : null
+  if (block.type === "banner" || block.type === "announcement") return block.ctaLabel.trim() ? block.action : null
   if (block.type === "button") return block.action
   return null
 }
 
 export function blockActionLabel(block: SiteBlock) {
-  if (block.type === "banner") return block.ctaLabel
+  if (block.type === "banner" || block.type === "announcement") return block.ctaLabel
   if (block.type === "button") return block.label
   return ""
 }
@@ -298,7 +396,9 @@ export function cloneSite(site: FormSite, questionIds?: Map<string, string>): Fo
       id: pageIds.get(page.id) ?? page.id,
       blocks: page.blocks.map((block) => {
         const copy = cloneBlock(block)
-        if (copy.type === "banner" || copy.type === "button") copy.action = remapAction(copy.action)
+        if (copy.type === "banner" || copy.type === "button" || copy.type === "announcement") {
+          copy.action = remapAction(copy.action)
+        }
         return copy
       }),
     })),
@@ -320,7 +420,9 @@ export function removePage(site: FormSite, pageId: string): FormSite {
     pages: pages.map((page) => ({
       ...page,
       blocks: page.blocks.map((block) =>
-        block.type === "banner" || block.type === "button" ? { ...block, action: clearAction(block.action) } : block,
+        block.type === "banner" || block.type === "button" || block.type === "announcement"
+          ? { ...block, action: clearAction(block.action) }
+          : block,
       ),
     })),
   }

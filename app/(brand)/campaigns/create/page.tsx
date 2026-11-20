@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Coins, FileText, Flag, Mail, RotateCcw, Store } from "lucide-react"
+import { Check, Coins, FileText, Flag, Mail, Store } from "lucide-react"
 import { CampaignPreview } from "@/components/campaigns/wizard/campaign-preview"
 import { AiRationalePanel } from "@/components/campaigns/wizard/ai-rationale"
 import { CompanyBrief } from "@/components/campaigns/wizard/company-brief"
@@ -12,6 +12,7 @@ import { stepRationale } from "@/lib/campaigns/ai-rationale"
 import { WizardQuestion } from "@/components/campaigns/wizard/wizard-question"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/toast"
 import { completeCampaignPlan, websiteKey, type AutofillSuggestion, type CompanyProfile } from "@/lib/campaigns/autofill"
 import { buildPublishedCampaign, communityPath } from "@/lib/campaigns/shape"
@@ -457,23 +458,42 @@ export default function CreateCampaignPage() {
   return (
     <div className="relative min-h-full flex-1 bg-zinc-50">
       {cursor ? <MagicCursor x={cursor.x} y={cursor.y} clicking={clicking} /> : null}
-      <div className={cn("mx-auto grid min-h-full gap-8 px-4 py-8 lg:px-8", showRationale ? "max-w-7xl lg:grid-cols-[220px_minmax(0,1fr)_280px]" : "max-w-6xl lg:grid-cols-[240px_minmax(0,1fr)]")}>
+      <div className={cn("mx-auto grid min-h-full content-center gap-8 px-4 py-8 lg:px-8", showRationale ? "max-w-7xl lg:grid-cols-[220px_minmax(0,1fr)_280px]" : "max-w-6xl lg:grid-cols-[240px_minmax(0,1fr)]")}>
         <aside className="space-y-3">
           {WIZARD_GROUPS.map((group) => {
             const percent = groupPercent(group.id, draft)
+            const complete = percent >= 100
             const open = step.group === group.id
             const Icon = icons[group.id]
             return (
               <div key={group.id} className={cn("rounded-[22px] border bg-white p-3 shadow-sm", open ? "border-zinc-900" : "border-zinc-200")}>
                 <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => goTo(stepIndex(WIZARD_STEPS.find((item) => item.group === group.id)?.id ?? "website"))}>
-                  <span className={cn("flex size-8 items-center justify-center rounded-full", open ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500")}>
-                    <Icon className="size-4" />
+                  <span
+                    key={complete ? "done" : "todo"}
+                    className={cn(
+                      "flex size-8 items-center justify-center rounded-full transition-colors",
+                      complete ? "animate-in zoom-in-95 bg-emerald-500 text-white duration-300" : open ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500",
+                    )}
+                  >
+                    {complete ? <Check className="size-4" /> : <Icon className="size-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-zinc-900">{group.label}</span>
-                    <span className="block text-xs text-zinc-400">{percent}% completo</span>
+                    <span className={cn("block text-xs", complete ? "font-medium text-emerald-600" : "text-zinc-400")}>
+                      {complete ? "Completo" : `${percent}% completo`}
+                    </span>
                   </span>
                 </button>
+                <Progress
+                  key={complete ? `${group.id}-done` : group.id}
+                  value={percent}
+                  aria-label={`${group.label}: ${percent}% completo`}
+                  className={cn(
+                    "mt-2.5 gap-0",
+                    complete &&
+                      "animate-in zoom-in-95 duration-500 [&_[data-slot=progress-indicator]]:bg-emerald-500 [&_[data-slot=progress-track]]:bg-emerald-100",
+                  )}
+                />
                 {open ? (
                   <div className="mt-3 space-y-1 border-t border-zinc-100 pt-2">
                     {WIZARD_STEPS.filter((item) => item.group === group.id).map((item) => (
@@ -494,13 +514,7 @@ export default function CreateCampaignPage() {
           })}
         </aside>
 
-        <div className="relative mx-auto w-full max-w-2xl pt-6">
-          <div className="mb-4 flex justify-end">
-            <Button type="button" variant="destructive" size="sm" onClick={resetForm} disabled={!hasDraft || filling || reading}>
-              <RotateCcw />
-              Limpar formulário
-            </Button>
-          </div>
+        <div className="relative mx-auto w-full max-w-2xl">
           <div key={step.id} className="animate-in fade-in duration-300">
             {step.id === "preview" ? (
               <CampaignPreview draft={draft} form={linkedForm} />
@@ -511,11 +525,11 @@ export default function CreateCampaignPage() {
                 organizationId={organizationId}
                 organizationName={user?.organizationName ?? ""}
                 campaigns={campaigns}
-                forms={forms.filter((form) => form.organizationId === organizationId)}
                 pulse={pulse}
                 onChange={updateWizardDraft}
-                onFormId={(formId) => updateWizardDraft({ formId })}
                 onNext={advance}
+                onClear={resetForm}
+                canClear={hasDraft && !filling && !reading}
                 filling={reading || filling}
               />
             )}

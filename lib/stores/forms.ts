@@ -2,13 +2,14 @@
 
 import { create } from "zustand"
 import { scoreApplication } from "@/lib/forms/brief-check"
-import { cloneSite, defaultSite } from "@/lib/mock-data/form-site"
+import { cloneSite, defaultSite, landingOnlySite, type FormSite } from "@/lib/mock-data/form-site"
 import {
   FORM_RESPONSES,
   FORMS,
   questionsFromTemplate,
   type ApplicationForm,
   type FormAnswer,
+  type FormKind,
   type FormResponse,
   type FormScope,
   type FormStatus,
@@ -44,6 +45,8 @@ interface CreateFormInput {
   title: string
   description?: string
   scope?: FormScope
+  kind?: FormKind
+  site?: FormSite
   campaignId?: string
 }
 
@@ -71,17 +74,20 @@ export const useFormStore = create<FormState>()((set, get) => ({
   responses: FORM_RESPONSES,
   createForm: (input) => {
     const stamp = today()
+    const kind = input.kind ?? "form"
+    const color = ORG_LOGOS[input.organizationId]?.color ?? "#18181b"
     const form: ApplicationForm = {
       id: `form_${crypto.randomUUID()}`,
       organizationId: input.organizationId,
       organizationName: input.organizationName,
       scope: input.scope ?? "brand",
+      kind,
       campaignId: input.campaignId,
       title: input.title,
       description: input.description ?? "",
       status: "rascunho",
-      questions: questionsFromTemplate(input.template),
-      site: defaultSite(ORG_LOGOS[input.organizationId]?.color ?? "#18181b"),
+      questions: kind === "page" ? [] : questionsFromTemplate(input.template),
+      site: input.site ?? (kind === "page" ? landingOnlySite(color) : defaultSite(color)),
       createdAt: stamp,
       updatedAt: stamp,
     }

@@ -17,7 +17,6 @@ function namedProducts(draft: WizardDraft) {
 
 export function budgetReady(draft: WizardDraft) {
   const terms = draft.commercialTerms ?? []
-  if (terms.includes("fixo") && !(Number(draft.fixedFeePerPost) > 0)) return false
   if (terms.includes("permuta") && namedProducts(draft).length === 0) return false
   if (terms.includes("comissao")) {
     const mode = draft.commission?.mode
@@ -78,7 +77,7 @@ export function stepDone(id: WizardStepId, draft: WizardDraft) {
   if (id === "community") return Boolean(draft.communityLink) || skipped(draft, id)
   if (id === "terms") return Boolean(draft.commercialTerms?.length)
   if (id === "budget") return Boolean(draft.budget || draft.fixedFeePerPost || draft.maxInfluencers || draft.commission)
-  if (id === "brief") return Boolean(draft.description?.trim() || draft.productCategories?.length || draft.formId)
+  if (id === "brief") return Boolean(draft.description?.trim() || draft.productCategories?.length)
   if (id === "scope") return Boolean(draft.formatQuantities?.length || draft.contentFormats?.length || draft.targetNetworks?.length)
   if (id === "metrics") return Boolean(draft.successTargets?.length || draft.mandatoryHashtags?.length)
   if (id === "invites") return Boolean(draft.inviteIds?.length)

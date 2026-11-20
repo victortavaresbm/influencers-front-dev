@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Markdown } from "@/components/ui/markdown"
 import { Separator } from "@/components/ui/separator"
 import { visibilityLabel } from "@/lib/campaign-access"
 import { contentFormatByValue } from "@/lib/campaign-types"
@@ -103,8 +104,7 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
         {[
           { label: "Orçamento", value: money(draft.budget) },
           { label: "Creators", value: draft.maxInfluencers ? String(draft.maxInfluencers) : "A definir" },
-          { label: "Por post", value: money(draft.fixedFeePerPost) },
-          { label: "Por influencer", value: draft.perInfluencerFee === "contact" ? "Sob consulta" : money(typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : undefined) },
+          { label: "No banner", value: draft.perInfluencerFee === "contact" ? "Entre em contato" : money(typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : undefined) },
         ].map((item) => (
           <Card key={item.label} size="sm" className="gap-1 px-3 py-3">
             <p className="text-xs text-zinc-400">{item.label}</p>
@@ -207,7 +207,7 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
         <Separator />
 
         <Section title="Briefing">
-          {draft.description ? <p className="text-sm leading-relaxed text-zinc-700">{draft.description}</p> : <Empty>Sem texto de briefing.</Empty>}
+          {draft.description ? <Markdown value={draft.description} /> : <Empty>Sem texto de briefing.</Empty>}
           {(draft.productCategories ?? []).length > 0 ? <Chips items={draft.productCategories ?? []} /> : null}
           {(draft.doList?.length || draft.dontList?.length) ? <GuidelineLists doList={draft.doList ?? []} dontList={draft.dontList ?? []} /> : null}
         </Section>

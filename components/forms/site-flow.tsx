@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { isChoiceType, type ApplicationForm } from "@/lib/mock-data/forms"
-import { siteFlow, uid, type FlowCondition, type FormSite } from "@/lib/mock-data/form-site"
+import { firstFormPageId, siteFlow, uid, type FlowCondition, type FormSite } from "@/lib/mock-data/form-site"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -33,6 +33,7 @@ export function SiteFlow({
   const { t } = useI18n()
   const graph = siteFlow(site)
   const outgoing = (from: string) => graph.edges.filter((edge) => edge.from === from)
+  const formPageId = firstFormPageId(site)
 
   return (
     <div className="space-y-6">
@@ -61,7 +62,13 @@ export function SiteFlow({
         ))}
         {graph.nodes.some((node) => node.kind === "form") ? (
           <>
-            <NodeCard label={t("forms.flowFormNode")} badges={[t("forms.briefCheck")]} accent />
+            <NodeCard
+              label={t("forms.flowFormNode")}
+              badges={[t("forms.briefCheck")]}
+              accent
+              active={Boolean(formPageId) && selectedPageId === formPageId}
+              onClick={formPageId ? () => onSelectPage(formPageId) : undefined}
+            />
             {outgoing("form").map((edge) => (
               <div key={edge.id} className="flex w-full max-w-sm flex-col items-center">
                 <EdgeLabel label={edge.label} />

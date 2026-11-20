@@ -96,8 +96,6 @@ function landingBlocks(form: ApplicationForm, prompt: string, color: string): Si
       ],
     })
   }
-  const formBlock = createBlock("form")
-  if (formBlock.type === "form") blocks.push({ ...formBlock, title: "Sua candidatura" })
   if (/faq|perguntas/i.test(prompt) || prompt.length < 8) {
     const faq = createBlock("faq")
     if (faq.type === "faq") {
@@ -127,6 +125,7 @@ function landingBlocks(form: ApplicationForm, prompt: string, color: string): Si
       })
     }
   }
+  blocks.push(createBlock("button"))
   return blocks
 }
 
@@ -227,12 +226,13 @@ export function generateSite(form: ApplicationForm, prompt: string, current?: Fo
     kind: "landing",
     blocks: landingBlocks(form, prompt, color),
   }
+  const formStep = createPage("form", "Formulário")
   const thanks = createPage("thanks", "Obrigado")
-  const pages = [landing, thanks]
+  const pages = [landing, formStep, thanks]
   const rules: FormSite["rules"] = []
   if (/match|brief check|priorit/i.test(prompt) || (form.brandSummary && form.questions.some((question) => question.match))) {
     const match = highMatchPage(form)
-    pages.splice(1, 0, match)
+    pages.splice(pages.length - 1, 0, match)
     rules.push({ id: uid("rule"), condition: { kind: "score", min: 70 }, pageId: match.id })
   }
 

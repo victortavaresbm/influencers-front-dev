@@ -3,6 +3,7 @@ import { contentFormatByValue } from "@/lib/campaign-types"
 import { COMMERCIAL_TERMS, STRATEGIES, TACTICS } from "@/lib/campaigns/shape"
 import type { WizardStepId } from "@/lib/campaigns/wizard-steps"
 import { SOCIAL_NETWORK_LABEL } from "@/lib/mock-data/campaigns"
+import { stripMarkdown } from "@/lib/markdown"
 import type { WizardDraft } from "@/lib/stores/campaigns"
 
 function money(value?: number) {
@@ -83,22 +84,31 @@ export function stepSummary(id: WizardStepId, draft: WizardDraft): string | null
     return `A campanha paga com ${list(terms)}. Cada condição escolhida pede o valor dela no próximo passo.`
   }
   if (id === "budget") {
+    const feeAmount = money(typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : undefined)
+    const fee =
+      draft.perInfluencerFee === "contact"
+        ? "Entre em contato no banner do marketplace"
+        : feeAmount
+          ? `${feeAmount} no banner do marketplace`
+          : ""
     const bits = [
       money(draft.budget) ? `teto de ${money(draft.budget)}` : "",
       draft.maxInfluencers ? `até ${draft.maxInfluencers} influencers` : "",
-      money(draft.fixedFeePerPost) ? `${money(draft.fixedFeePerPost)} por post` : "",
       draft.commission?.mode === "percent" && draft.commission.value ? `comissão de ${draft.commission.value}%` : "",
       draft.commission?.mode === "fixed" && draft.commission.value ? `comissão de ${money(draft.commission.value)}` : "",
       draft.commission?.mode === "contract" ? "comissão em contrato" : "",
-      draft.perInfluencerFee === "contact" ? "valor por influencer sob consulta" : "",
+      fee,
     ].filter(Boolean)
-    if (!bits.length) return "O orçamento mostra o teto, quantos creators cabem e quanto cada um recebe."
+    if (!bits.length) {
+      return "O orçamento define o teto, quantos creators cabem e o valor do serviço no banner do marketplace."
+    }
     return `A simulação fica com ${list(bits)}.`
   }
   if (id === "brief") {
     if (!draft.description?.trim() && !draft.productCategories?.length) return "O briefing é o texto que o creator lê antes de se candidatar."
     const categories = draft.productCategories?.length ? ` Categorias: ${list(draft.productCategories)}.` : ""
-    return `${draft.description?.trim() || "O creator segue as categorias da marca."}${categories}`
+    const story = stripMarkdown(draft.description ?? "") || "O creator segue as categorias da marca."
+    return `${story}${categories}`
   }
   if (id === "scope") {
     const formats = (draft.formatQuantities ?? []).map((item) => {

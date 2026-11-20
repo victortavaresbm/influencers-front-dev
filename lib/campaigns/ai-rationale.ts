@@ -3,6 +3,7 @@ import { strategyLabel, tacticLabel } from "@/lib/campaigns/shape"
 import type { WizardStepId } from "@/lib/campaigns/wizard-steps"
 import { SOCIAL_NETWORK_LABEL, isSocialNetwork } from "@/lib/mock-data/campaigns"
 import { TIERS } from "@/lib/audience-tiers"
+import { stripMarkdown } from "@/lib/markdown"
 import type { WizardDraft } from "@/lib/stores/campaigns"
 
 export interface RationalePoint {
@@ -161,7 +162,7 @@ export function stepRationale(
       lead: lead || `A remuneração acompanha a estratégia de ${brand}.`,
       points: terms.map((term) => ({
         label: term === "fixo" ? "Fixo" : term === "comissao" ? "Comissão" : "Permuta",
-        value: term === "fixo" ? money(suggestion.fixedFeePerPost || draft.fixedFeePerPost) || "Fixo" : term === "comissao" ? `${suggestion.commission?.value ?? draft.commission?.value ?? ""}%` : "Permuta",
+        value: term === "fixo" ? "Fixo" : term === "comissao" ? `${suggestion.commission?.value ?? draft.commission?.value ?? ""}%` : "Permuta",
         why: term === "comissao" ? `${brand} vende e pode rastrear resultado.` : term === "fixo" ? "Garante entrega mesmo sem conversão imediata." : "Troca produto por conteúdo.",
       })),
       source: company?.source,
@@ -169,13 +170,15 @@ export function stepRationale(
   }
 
   if (id === "budget") {
+    const fee = suggestion.perInfluencerFee ?? draft.perInfluencerFee
+    const feeValue = fee === "contact" ? "Entre em contato" : money(typeof fee === "number" ? fee : undefined) || "—"
     return {
       title: "Por que este orçamento",
       lead: lead || "O teto reparte o valor entre os creators escolhidos.",
       points: [
-        { label: "Teto", value: money(suggestion.budget || draft.budget) || "—", why: "Parte do valor por post e do número de creators." },
+        { label: "Teto", value: money(suggestion.budget || draft.budget) || "—", why: "Limite total para contratar os creators da campanha." },
         { label: "Creators", value: String(suggestion.maxInfluencers || draft.maxInfluencers || "—"), why: "Volume suficiente para testar a campanha sem diluir o orçamento." },
-        { label: "Por post", value: money(suggestion.fixedFeePerPost || draft.fixedFeePerPost) || "—", why: "Referência de cachê alinhada ao porte sugerido." },
+        { label: "No banner", value: feeValue, why: "Esse valor aparece no banner da campanha no marketplace." },
       ],
     }
   }
@@ -185,7 +188,7 @@ export function stepRationale(
       title: "Por que este briefing",
       lead: lead || company?.summary || `O texto conta o que ${brand} precisa ver no conteúdo.`,
       points: [
-        { label: "História", value: (suggestion.description || draft.description || "").slice(0, 120) || "—", why: `Parte do posicionamento publicado por ${brand}.` },
+        { label: "História", value: stripMarkdown(suggestion.description || draft.description || "").slice(0, 120) || "—", why: `Parte do posicionamento publicado por ${brand}.` },
         { label: "Produtos", value: productLine, why: "Só entram categorias citadas ou inferidas do site." },
       ],
       source: company?.source,

@@ -166,7 +166,7 @@ export function sanitizeSuggestion(raw: unknown): AutofillSuggestion {
   suggestion.maxInfluencers = number(source.maxInfluencers, 100000)
   if (source.perInfluencerFee === "contact") suggestion.perInfluencerFee = "contact"
   else suggestion.perInfluencerFee = number(source.perInfluencerFee)
-  suggestion.description = text(source.description, 500)
+  suggestion.description = text(source.description, 2000)
   suggestion.doList = strings(source.doList, undefined, 6)
   suggestion.dontList = strings(source.dontList, undefined, 6)
   suggestion.productCategories = strings(source.productCategories, undefined, 8)

@@ -110,12 +110,12 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
       />
 
       <div className="flex min-h-0 flex-1 flex-col px-6 pt-6">
-        <Tabs defaultValue="editor" className="min-h-0 flex-1">
+        <Tabs defaultValue={draft.kind === "page" ? "pages" : "editor"} className="min-h-0 flex-1">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <TabsList>
-              <TabsTrigger value="editor">{t("forms.questionsTab")}</TabsTrigger>
+              {draft.kind === "form" ? <TabsTrigger value="editor">{t("forms.questionsTab")}</TabsTrigger> : null}
               <TabsTrigger value="pages">{t("forms.pagesTab")}</TabsTrigger>
-              <TabsTrigger value="responses">{t("forms.responses")}</TabsTrigger>
+              {draft.kind === "form" ? <TabsTrigger value="responses">{t("forms.responses")}</TabsTrigger> : null}
             </TabsList>
             <div className="flex flex-wrap items-center gap-2">
               <Button

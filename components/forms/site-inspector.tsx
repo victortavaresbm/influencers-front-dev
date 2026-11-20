@@ -13,7 +13,15 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { defaultListAppearance, uid, type FormSite, type ListItem, type SiteAction, type SiteBlock } from "@/lib/mock-data/form-site"
+import {
+  defaultListAppearance,
+  uid,
+  type FormSite,
+  type GalleryImage,
+  type ListItem,
+  type SiteAction,
+  type SiteBlock,
+} from "@/lib/mock-data/form-site"
 import { useI18n } from "@/lib/i18n"
 import { MediaField } from "@/components/forms/media-field"
 import { BLOCK_ICON, BLOCK_KEY } from "@/components/forms/site-canvas"
@@ -155,7 +163,21 @@ function contentFields(
     )
   }
 
-  if (block.type === "features" || block.type === "faq") {
+  if (block.type === "announcement") {
+    return (
+      <>
+        <Field label={t("forms.blockText")}>
+          <Textarea rows={2} value={block.text} onChange={(event) => onChange({ ...block, text: event.target.value })} />
+        </Field>
+        <Field label={t("forms.ctaLabel")}>
+          <Input value={block.ctaLabel} onChange={(event) => onChange({ ...block, ctaLabel: event.target.value })} />
+        </Field>
+        <ActionFields site={site} action={block.action} onChange={(action) => onChange({ ...block, action })} />
+      </>
+    )
+  }
+
+  if (block.type === "features" || block.type === "faq" || block.type === "bento" || block.type === "steps") {
     return (
       <>
         <Field label={t("forms.blockTitle")}>
@@ -166,8 +188,12 @@ function contentFields(
     )
   }
 
-  if (block.type === "stats") {
+  if (block.type === "stats" || block.type === "marquee") {
     return <ItemsEditor items={block.items} onChange={(items) => onChange({ ...block, items })} />
+  }
+
+  if (block.type === "gallery") {
+    return <GalleryEditor images={block.items} onChange={(items) => onChange({ ...block, items })} />
   }
 
   if (block.type === "testimonial") {
@@ -276,7 +302,28 @@ function styleFields(
     )
   }
 
-  if (block.type === "features") {
+  if (block.type === "announcement") {
+    return (
+      <>
+        <ColorField
+          label={t("forms.blockBackground")}
+          value={block.background}
+          onChange={(background) => onChange({ ...block, background })}
+        />
+        <SelectField
+          label={t("forms.blockTone")}
+          value={block.tone}
+          onChange={(tone) => onChange({ ...block, tone: tone as "light" | "dark" })}
+          options={[
+            { value: "light", label: t("forms.toneLight") },
+            { value: "dark", label: t("forms.toneDark") },
+          ]}
+        />
+      </>
+    )
+  }
+
+  if (block.type === "features" || block.type === "bento") {
     const appearance = block.appearance ?? defaultListAppearance(site.theme.background)
     const setAppearance = (patch: Partial<typeof appearance>) => onChange({ ...block, appearance: { ...appearance, ...patch } })
     return (
@@ -416,6 +463,50 @@ function ItemsEditor({ items, onChange }: { items: ListItem[]; onChange: (items:
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...items, { id: uid("it"), title: "", text: "" }])}>
         {t("forms.addItem")}
+      </Button>
+    </div>
+  )
+}
+
+function GalleryEditor({ images, onChange }: { images: GalleryImage[]; onChange: (images: GalleryImage[]) => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="space-y-2">
+      {images.map((img, index) => (
+        <div key={img.id} className="space-y-2 rounded-lg border border-zinc-200 p-3">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <MediaField
+                label={`${t("forms.blockImage")} ${index + 1}`}
+                value={img.src}
+                accept="image"
+                onChange={(src) => onChange(images.map((entry) => (entry.id === img.id ? { ...entry, src } : entry)))}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("forms.removeItem")}
+              onClick={() => onChange(images.filter((entry) => entry.id !== img.id))}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+          <Input
+            value={img.caption}
+            placeholder={t("forms.blockCaption")}
+            onChange={(event) => onChange(images.map((entry) => (entry.id === img.id ? { ...entry, caption: event.target.value } : entry)))}
+          />
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...images, { id: uid("it"), src: "", caption: "" }])}
+      >
+        {t("forms.addImage")}
       </Button>
     </div>
   )

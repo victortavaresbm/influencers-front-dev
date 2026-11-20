@@ -377,3 +377,127 @@
 .live-dot {
   animation: pulseDot 1.5s ease-in-out infinite;
 }
+
+/* ── Landing page (forms) animations ────────────────────────── */
+@property --site-beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes siteShine {
+  0% { transform: translateX(-130%) skewX(-12deg); }
+  60%, 100% { transform: translateX(130%) skewX(-12deg); }
+}
+
+@keyframes siteBeam {
+  to { --site-beam-angle: 360deg; }
+}
+
+@keyframes siteFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -16px, 0) scale(1.08); }
+}
+
+@keyframes siteMarquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.site-marquee {
+  animation: siteMarquee 24s linear infinite;
+}
+
+/* BlurFade: reveal on scroll */
+.site-reveal {
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s ease,
+    filter 0.7s ease,
+    transform 0.7s cubic-bezier(0.22, 0.6, 0.36, 1);
+  transition-delay: var(--site-reveal-delay, 0ms);
+  will-change: opacity, transform, filter;
+}
+.site-reveal[data-shown="true"] {
+  opacity: 1;
+  filter: blur(0);
+  transform: none;
+}
+
+/* ShimmerButton: sweeping highlight */
+.site-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.site-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+  transform: translateX(-130%) skewX(-12deg);
+  animation: siteShine 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* BorderBeam: light traveling around the border */
+.site-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.25px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--site-beam-angle),
+    transparent 0deg,
+    var(--site-beam-color, currentColor) 60deg,
+    transparent 120deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: siteBeam var(--site-beam-duration, 5s) linear infinite;
+  opacity: 0.6;
+}
+
+/* Hover lift for cards */
+.site-lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 0.6, 0.36, 1),
+    box-shadow 0.35s ease;
+}
+.site-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.45);
+}
+
+/* Floating aurora glow behind hero */
+.site-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  pointer-events: none;
+  animation: siteFloat var(--site-aurora-duration, 9s) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-reveal {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
+  }
+  .site-shine::after {
+    display: none;
+  }
+  .site-beam,
+  .site-aurora,
+  .site-marquee {
+    animation: none;
+  }
+}

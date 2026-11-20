@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
+  ClipboardList,
   Copy,
   Eye,
   GripVertical,
@@ -21,6 +22,8 @@ import { FontPicker } from "@/components/forms/font-picker"
 import { SiteAiPanel } from "@/components/forms/site-ai-panel"
 import { BLOCK_ICON, BLOCK_KEY, SiteCanvas } from "@/components/forms/site-canvas"
 import { SiteFlow } from "@/components/forms/site-flow"
+import { SiteComponentsButton } from "@/components/forms/site-components"
+import { SiteTemplatesButton } from "@/components/forms/site-templates"
 import { ColorField, SiteInspector } from "@/components/forms/site-inspector"
 import { SitePlayer } from "@/components/forms/site-player"
 import { ActionsMenu } from "@/components/ui/actions-menu"
@@ -68,6 +71,7 @@ const GROUP_KEY: Record<(typeof BLOCK_GROUPS)[number]["id"], MessageKey> = {
 
 const KIND_KEY: Record<PageKind, MessageKey> = {
   landing: "forms.kindLanding",
+  form: "forms.kindForm",
   thanks: "forms.kindThanks",
   custom: "forms.kindCustom",
 }
@@ -79,11 +83,14 @@ function blockPreview(block: SiteBlock) {
   switch (block.type) {
     case "banner":
     case "features":
+    case "bento":
+    case "steps":
     case "faq":
     case "form":
       return block.title
     case "heading":
     case "text":
+    case "announcement":
       return block.text
     case "button":
       return block.label
@@ -94,7 +101,9 @@ function blockPreview(block: SiteBlock) {
     case "video":
       return block.url
     case "stats":
+    case "marquee":
       return block.items.map((item) => item.title).filter(Boolean).join(" · ")
+    case "gallery":
     case "html":
     case "divider":
     case "spacer":
@@ -157,7 +166,13 @@ export function SiteBuilder({
   const addPage = (kind: PageKind) => {
     const created = createPage(
       kind,
-      kind === "landing" ? t("forms.pageLanding") : kind === "thanks" ? t("forms.pageThanks") : t("forms.pageCustom"),
+      kind === "landing"
+        ? t("forms.pageLanding")
+        : kind === "form"
+          ? t("forms.pageForm")
+          : kind === "thanks"
+            ? t("forms.pageThanks")
+            : t("forms.pageCustom"),
     )
     patchSite({
       ...site,
@@ -175,6 +190,26 @@ export function SiteBuilder({
     const block = createBlock(type)
     patchSite(insertBlock(site, page.id, block, blockId ?? undefined))
     setBlockId(block.id)
+    setView("visual")
+  }
+
+  const applyTemplate = (next: FormSite) => {
+    patchSite(next)
+    setPageId(next.entryPageId)
+    setBlockId(null)
+    setView("visual")
+  }
+
+  const insertComponent = (blocks: SiteBlock[]) => {
+    if (!page || blocks.length === 0) return
+    let next = site
+    let afterId = blockId ?? undefined
+    for (const block of blocks) {
+      next = insertBlock(next, page.id, block, afterId)
+      afterId = block.id
+    }
+    patchSite(next)
+    setBlockId(blocks[blocks.length - 1].id)
     setView("visual")
   }
 
@@ -212,6 +247,7 @@ export function SiteBuilder({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => addPage("landing")}>{t("forms.pageLanding")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addPage("form")}>{t("forms.pageForm")}</DropdownMenuItem>
               <DropdownMenuItem onClick={() => addPage("thanks")}>{t("forms.pageThanks")}</DropdownMenuItem>
               <DropdownMenuItem onClick={() => addPage("custom")}>{t("forms.pageCustom")}</DropdownMenuItem>
             </DropdownMenuContent>
@@ -236,7 +272,11 @@ export function SiteBuilder({
                 >
                   <span className="min-w-0">
                     <span className="flex items-center gap-1">
-                      {item.id === site.entryPageId ? <Home className="size-3 text-zinc-400" /> : null}
+                      {item.id === site.entryPageId ? (
+                        <Home className="size-3 text-zinc-400" />
+                      ) : item.kind === "form" ? (
+                        <ClipboardList className="size-3 text-zinc-400" />
+                      ) : null}
                       <span className="block truncate text-sm font-medium text-zinc-900">{item.name}</span>
                     </span>
                     <span className="block text-[11px] font-normal text-zinc-400">{t(KIND_KEY[item.kind])}</span>
@@ -421,6 +461,7 @@ export function SiteBuilder({
                 </Button>
               </>
             )}
+            <SiteTemplatesButton form={{ ...form, site }} onApply={applyTemplate} />
             <Button type="button" variant={chat ? "secondary" : "outline"} size="sm" onClick={() => setChat((current) => !current)}>
               <Sparkles />
               {t("forms.ai")}
@@ -552,6 +593,7 @@ export function SiteBuilder({
         ) : (
           <ScrollArea className="min-h-0 flex-1 overflow-hidden">
             <div className="space-y-4 p-3">
+              <SiteComponentsButton form={{ ...form, site }} site={site} onInsert={insertComponent} />
               <p className="px-1 text-xs font-medium text-zinc-500">{t("forms.elements")}</p>
               {palette}
             </div>

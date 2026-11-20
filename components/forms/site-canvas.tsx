@@ -4,10 +4,15 @@ import {
   ClipboardList,
   Code,
   Columns3,
+  GalleryHorizontal,
   Heading,
   Image,
+  Images,
+  LayoutGrid,
   LayoutTemplate,
   List,
+  ListOrdered,
+  Megaphone,
   Minus,
   MousePointerClick,
   Quote,
@@ -20,6 +25,7 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { FormRunner } from "@/components/forms/form-runner"
 import { MediaCover } from "@/components/forms/media-field"
+import { BorderBeam, NumberTicker, Reveal } from "@/components/forms/site-animations"
 import {
   blockActions,
   videoEmbed,
@@ -35,13 +41,18 @@ import { cn } from "@/lib/utils"
 
 const BLOCK_ICON: Record<SiteBlock["type"], typeof LayoutTemplate> = {
   banner: LayoutTemplate,
+  announcement: Megaphone,
   heading: Heading,
   text: Type,
   image: Image,
+  gallery: Images,
   video: Video,
   button: MousePointerClick,
   features: SquareStack,
+  bento: LayoutGrid,
+  steps: ListOrdered,
   stats: Columns3,
+  marquee: GalleryHorizontal,
   faq: List,
   testimonial: Quote,
   form: ClipboardList,
@@ -52,13 +63,18 @@ const BLOCK_ICON: Record<SiteBlock["type"], typeof LayoutTemplate> = {
 
 const BLOCK_KEY: Record<SiteBlock["type"], MessageKey> = {
   banner: "forms.block.banner",
+  announcement: "forms.block.announcement",
   heading: "forms.block.heading",
   text: "forms.block.text",
   image: "forms.block.image",
+  gallery: "forms.block.gallery",
   video: "forms.block.video",
   button: "forms.block.button",
   features: "forms.block.features",
+  bento: "forms.block.bento",
+  steps: "forms.block.steps",
   stats: "forms.block.stats",
+  marquee: "forms.block.marquee",
   faq: "forms.block.faq",
   testimonial: "forms.block.testimonial",
   form: "forms.block.form",
@@ -303,38 +319,57 @@ function BlockView({
     const action = blockActions(block)
     return (
       <section
-        className={cn("relative overflow-hidden", isFirst ? "min-h-[340px]" : "min-h-[240px]")}
+        className={cn("relative overflow-hidden", isFirst ? "min-h-[280px] sm:min-h-[340px]" : "min-h-[220px] sm:min-h-[240px]")}
         style={{ background: block.background }}
       >
         {block.image ? (
           <MediaCover src={block.image} playing className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-50" />
         ) : null}
+        {live && light ? (
+          <>
+            <span
+              className="site-aurora -top-24 -left-16 size-72"
+              style={{ background: primary, opacity: 0.28 }}
+            />
+            <span
+              className="site-aurora -right-20 -bottom-28 size-80"
+              style={{ background: primary, opacity: 0.2, "--site-aurora-duration": "11s" } as React.CSSProperties}
+            />
+          </>
+        ) : null}
         <div
           className={cn(
-            "relative mx-auto flex max-w-3xl flex-col gap-4 px-6 py-16",
+            "relative mx-auto flex max-w-3xl flex-col gap-4 px-5 py-12 sm:px-6 sm:py-16",
             block.align === "center" ? "items-center text-center" : "items-start text-left",
             light ? "text-white" : "text-zinc-900",
           )}
         >
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{block.title}</h2>
+          <Reveal active={live}>
+            <h2 className="text-[1.65rem] leading-tight font-semibold tracking-tight sm:text-4xl">{block.title}</h2>
+          </Reveal>
           {block.subtitle ? (
-            <p className={cn("max-w-xl text-sm leading-relaxed sm:text-base", light ? "text-white/80" : "text-zinc-600")}>
-              {block.subtitle}
-            </p>
+            <Reveal active={live} delay={120}>
+              <p className={cn("max-w-xl text-[0.95rem] leading-relaxed sm:text-base", light ? "text-white/80" : "text-zinc-600")}>
+                {block.subtitle}
+              </p>
+            </Reveal>
           ) : null}
           {block.ctaLabel.trim() ? (
-            <Button
-              type="button"
-              size="lg"
-              style={{ background: primary, borderColor: primary, color: "#fff" }}
-              onClick={(event) => {
-                if (!live) return
-                event.stopPropagation()
-                if (action) onAction(action)
-              }}
-            >
-              {block.ctaLabel}
-            </Button>
+            <Reveal active={live} delay={240} className="w-full sm:w-auto">
+              <Button
+                type="button"
+                size="lg"
+                className={cn("w-full sm:w-auto", live && "site-shine")}
+                style={{ background: primary, borderColor: primary, color: "#fff" }}
+                onClick={(event) => {
+                  if (!live) return
+                  event.stopPropagation()
+                  if (action) onAction(action)
+                }}
+              >
+                {block.ctaLabel}
+              </Button>
+            </Reveal>
           ) : null}
         </div>
       </section>
@@ -343,100 +378,128 @@ function BlockView({
 
   if (block.type === "heading") {
     return (
-      <div className={cn("mx-auto max-w-3xl px-6 pt-10", block.align === "center" && "text-center")}>
-        <h2 className={cn("font-semibold tracking-tight", block.size === "lg" ? "text-2xl sm:text-3xl" : "text-xl")}>
-          {block.text}
-        </h2>
-      </div>
+      <Reveal active={live}>
+        <div className={cn("mx-auto max-w-3xl px-5 pt-8 sm:px-6 sm:pt-10", block.align === "center" && "text-center")}>
+          <h2 className={cn("font-semibold tracking-tight", block.size === "lg" ? "text-xl sm:text-3xl" : "text-lg sm:text-xl")}>
+            {block.text}
+          </h2>
+        </div>
+      </Reveal>
     )
   }
 
   if (block.type === "text") {
     return (
-      <div className={cn("mx-auto max-w-3xl px-6 py-3", block.align === "center" && "text-center")}>
-        <p className={cn("text-sm leading-relaxed", muted)}>{block.text}</p>
-      </div>
+      <Reveal active={live}>
+        <div className={cn("mx-auto max-w-3xl px-5 py-3 sm:px-6", block.align === "center" && "text-center")}>
+          <p className={cn("text-sm leading-relaxed sm:text-[0.95rem]", muted)}>{block.text}</p>
+        </div>
+      </Reveal>
     )
   }
 
   if (block.type === "image") {
     return (
-      <figure className="mx-auto max-w-3xl px-6 py-6">
-        {block.src ? (
-          <img src={block.src} alt={block.alt} draggable={false} className="w-full rounded-xl object-cover" />
-        ) : (
-          <div className={cn("flex h-48 items-center justify-center rounded-xl border border-dashed text-sm", border, muted)}>
-            {t("forms.imagePlaceholder")}
-          </div>
-        )}
-        {block.caption ? <figcaption className={cn("mt-2 text-center text-xs", muted)}>{block.caption}</figcaption> : null}
-      </figure>
+      <Reveal active={live}>
+        <figure className="mx-auto max-w-3xl px-5 py-5 sm:px-6 sm:py-6">
+          {block.src ? (
+            <img src={block.src} alt={block.alt} draggable={false} className="w-full rounded-2xl object-cover" />
+          ) : (
+            <div className={cn("flex h-48 items-center justify-center rounded-2xl border border-dashed text-sm", border, muted)}>
+              {t("forms.imagePlaceholder")}
+            </div>
+          )}
+          {block.caption ? <figcaption className={cn("mt-2 text-center text-xs", muted)}>{block.caption}</figcaption> : null}
+        </figure>
+      </Reveal>
     )
   }
 
   if (block.type === "video") {
     const embed = videoEmbed(block.url)
     return (
-      <div className="mx-auto max-w-3xl px-6 py-6">
-        {embed?.kind === "iframe" ? (
-          <iframe title={t("forms.block.video")} src={embed.src} className="aspect-video w-full rounded-xl border-0" allowFullScreen />
-        ) : embed?.kind === "file" ? (
-          <video src={embed.src} controls className="w-full rounded-xl" />
-        ) : (
-          <div className={cn("flex aspect-video items-center justify-center rounded-xl border border-dashed text-sm", border, muted)}>
-            {t("forms.videoPlaceholder")}
-          </div>
-        )}
-      </div>
+      <Reveal active={live}>
+        <div className="mx-auto max-w-3xl px-5 py-5 sm:px-6 sm:py-6">
+          {embed?.kind === "iframe" ? (
+            <iframe title={t("forms.block.video")} src={embed.src} className="aspect-video w-full rounded-2xl border-0" allowFullScreen />
+          ) : embed?.kind === "file" ? (
+            <video src={embed.src} controls className="w-full rounded-2xl" />
+          ) : (
+            <div className={cn("flex aspect-video items-center justify-center rounded-2xl border border-dashed text-sm", border, muted)}>
+              {t("forms.videoPlaceholder")}
+            </div>
+          )}
+        </div>
+      </Reveal>
     )
   }
 
   if (block.type === "button") {
     const action = block.action
     return (
-      <div className={cn("px-6 py-6", block.align === "center" ? "flex justify-center" : "flex justify-start")}>
-        <Button
-          type="button"
-          variant={block.style === "outline" ? "outline" : "default"}
-          size="lg"
-          style={
-            block.style === "outline"
-              ? { borderColor: primary, color: primary }
-              : { background: primary, borderColor: primary, color: "#fff" }
-          }
-          onClick={(event) => {
-            if (!live) return
-            event.stopPropagation()
-            onAction(action)
-          }}
-        >
-          {block.label}
-        </Button>
-      </div>
+      <Reveal active={live}>
+        <div className={cn("px-5 py-5 sm:px-6 sm:py-6", block.align === "center" ? "flex justify-center" : "flex justify-start")}>
+          <Button
+            type="button"
+            variant={block.style === "outline" ? "outline" : "default"}
+            size="lg"
+            className={cn("w-full sm:w-auto", live && block.style !== "outline" && "site-shine")}
+            style={
+              block.style === "outline"
+                ? { borderColor: primary, color: primary }
+                : { background: primary, borderColor: primary, color: "#fff" }
+            }
+            onClick={(event) => {
+              if (!live) return
+              event.stopPropagation()
+              onAction(action)
+            }}
+          >
+            {block.label}
+          </Button>
+        </div>
+      </Reveal>
     )
   }
 
   if (block.type === "features") {
     const appearance = block.appearance
     return (
-      <section className="mx-auto max-w-3xl px-6 py-8">
-        {block.title ? <h3 className="mb-4 text-lg font-semibold tracking-tight">{block.title}</h3> : null}
-        <div className="grid gap-3 sm:grid-cols-3">
-          {block.items.map((entry) => (
-            <div
-              key={entry.id}
-              className={cn("rounded-xl border p-4", !appearance && border, !appearance && card)}
-              style={
-                appearance
-                  ? { background: appearance.background, color: appearance.color, borderColor: appearance.border }
-                  : undefined
-              }
-            >
-              <p className="text-sm font-medium">{entry.title}</p>
-              <p className={cn("mt-1 text-xs leading-relaxed", !appearance && muted)} style={appearance ? { opacity: 0.72 } : undefined}>
-                {entry.text}
-              </p>
-            </div>
+      <section className="mx-auto max-w-3xl px-5 py-7 sm:px-6 sm:py-8">
+        {block.title ? (
+          <Reveal active={live}>
+            <h3 className="mb-5 text-lg font-semibold tracking-tight sm:mb-6 sm:text-xl">{block.title}</h3>
+          </Reveal>
+        ) : null}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+          {block.items.map((entry, index) => (
+            <Reveal key={entry.id} active={live} delay={index * 110} className="h-full">
+              <div
+                className={cn(
+                  "relative flex h-full flex-col gap-2 overflow-hidden rounded-2xl border p-5 sm:p-5",
+                  !appearance && border,
+                  !appearance && card,
+                  live && "site-lift",
+                )}
+                style={
+                  appearance
+                    ? { background: appearance.background, color: appearance.color, borderColor: appearance.border }
+                    : undefined
+                }
+              >
+                {live ? <BorderBeam color={primary} duration={6 + index} /> : null}
+                <span
+                  className="flex size-8 items-center justify-center rounded-full text-xs font-semibold text-white"
+                  style={{ background: primary }}
+                >
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <p className="text-base font-semibold tracking-tight">{entry.title}</p>
+                <p className={cn("text-sm leading-relaxed", !appearance && muted)} style={appearance ? { opacity: 0.72 } : undefined}>
+                  {entry.text}
+                </p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -445,14 +508,16 @@ function BlockView({
 
   if (block.type === "stats") {
     return (
-      <section className="mx-auto grid max-w-3xl grid-cols-3 gap-3 px-6 py-8">
-        {block.items.map((entry) => (
-          <div key={entry.id} className="text-center">
-            <p className="text-xl font-semibold tracking-tight sm:text-2xl" style={{ color: primary }}>
-              {entry.title}
-            </p>
-            <p className={cn("mt-1 text-xs", muted)}>{entry.text}</p>
-          </div>
+      <section className="mx-auto grid max-w-3xl grid-cols-3 gap-2 px-5 py-7 sm:gap-4 sm:px-6 sm:py-8">
+        {block.items.map((entry, index) => (
+          <Reveal key={entry.id} active={live} delay={index * 110}>
+            <div className={cn("rounded-2xl border px-2 py-4 text-center sm:px-3 sm:py-5", border, card)}>
+              <p className="text-lg font-semibold tracking-tight break-words sm:text-2xl" style={{ color: primary }}>
+                <NumberTicker value={entry.title} animate={live} />
+              </p>
+              <p className={cn("mt-1.5 text-[11px] leading-snug sm:text-xs", muted)}>{entry.text}</p>
+            </div>
+          </Reveal>
         ))}
       </section>
     )
@@ -460,14 +525,20 @@ function BlockView({
 
   if (block.type === "faq") {
     return (
-      <section className="mx-auto max-w-3xl px-6 py-8">
-        {block.title ? <h3 className="mb-4 text-lg font-semibold tracking-tight">{block.title}</h3> : null}
+      <section className="mx-auto max-w-3xl px-5 py-7 sm:px-6 sm:py-8">
+        {block.title ? (
+          <Reveal active={live}>
+            <h3 className="mb-5 text-lg font-semibold tracking-tight sm:text-xl">{block.title}</h3>
+          </Reveal>
+        ) : null}
         <div className="space-y-3">
-          {block.items.map((entry) => (
-            <div key={entry.id} className={cn("rounded-xl border p-4", border, card)}>
-              <p className="text-sm font-medium">{entry.title}</p>
-              <p className={cn("mt-1 text-sm leading-relaxed", muted)}>{entry.text}</p>
-            </div>
+          {block.items.map((entry, index) => (
+            <Reveal key={entry.id} active={live} delay={index * 90}>
+              <div className={cn("rounded-2xl border p-4 sm:p-5", border, card)}>
+                <p className="text-sm font-semibold tracking-tight sm:text-base">{entry.title}</p>
+                <p className={cn("mt-2 text-sm leading-relaxed", muted)}>{entry.text}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -476,20 +547,26 @@ function BlockView({
 
   if (block.type === "testimonial") {
     return (
-      <figure className="mx-auto max-w-2xl px-6 py-10 text-center">
-        <blockquote className="text-lg font-medium tracking-tight">“{block.quote}”</blockquote>
-        <figcaption className={cn("mt-3 text-sm", muted)}>
-          {block.author}
-          {block.role ? ` · ${block.role}` : ""}
-        </figcaption>
-      </figure>
+      <Reveal active={live}>
+        <figure className="mx-auto max-w-2xl px-5 py-8 text-center sm:px-6 sm:py-10">
+          <blockquote className="text-base leading-relaxed font-medium tracking-tight sm:text-lg">“{block.quote}”</blockquote>
+          <figcaption className={cn("mt-4 text-sm", muted)}>
+            {block.author}
+            {block.role ? ` · ${block.role}` : ""}
+          </figcaption>
+        </figure>
+      </Reveal>
     )
   }
 
   if (block.type === "form") {
     return (
-      <section className="mx-auto max-w-xl px-6 py-10" id="site-form">
-        {block.title ? <h3 className="mb-4 text-lg font-semibold tracking-tight">{block.title}</h3> : null}
+      <section className="mx-auto max-w-xl px-5 py-8 sm:px-6 sm:py-10" id="site-form">
+        {block.title ? (
+          <Reveal active={live}>
+            <h3 className="mb-4 text-lg font-semibold tracking-tight sm:text-xl">{block.title}</h3>
+          </Reveal>
+        ) : null}
         {formSlot ? (
           formSlot
         ) : live ? (
@@ -501,10 +578,156 @@ function BlockView({
             onDone={onFormDone}
           />
         ) : (
-          <div className={cn("rounded-xl border border-dashed px-4 py-8 text-center text-sm", border, muted)}>
+          <div className={cn("rounded-2xl border border-dashed px-4 py-8 text-center text-sm", border, muted)}>
             {t("forms.formPlaceholder")}
           </div>
         )}
+      </section>
+    )
+  }
+
+  if (block.type === "announcement") {
+    const action = blockActions(block)
+    const light = block.tone === "light"
+    return (
+      <div
+        className="flex w-full flex-col items-center justify-center gap-1 px-4 py-3 text-center text-sm sm:flex-row sm:flex-wrap sm:gap-x-2 sm:gap-y-1 sm:py-2.5"
+        style={{ background: block.background, color: light ? "#fafafa" : "#18181b" }}
+      >
+        <span className="leading-snug">{block.text}</span>
+        {block.ctaLabel.trim() ? (
+          <button
+            type="button"
+            className="font-semibold underline underline-offset-2"
+            style={{ color: light ? "#fafafa" : primary }}
+            onClick={(event) => {
+              if (!live) return
+              event.stopPropagation()
+              if (action) onAction(action)
+            }}
+          >
+            {block.ctaLabel}
+          </button>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (block.type === "marquee") {
+    const labels = block.items.map((entry) => entry.title).filter(Boolean)
+    if (labels.length === 0) {
+      return (
+        <div className={cn("mx-auto max-w-3xl px-5 py-6 text-center text-sm sm:px-6 sm:py-7", muted)}>{t("forms.marqueeEmpty")}</div>
+      )
+    }
+    const row = [...labels, ...labels]
+    return (
+      <Reveal active={live}>
+        <div className="overflow-hidden py-5 sm:py-7 [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]">
+          <div className={cn("flex w-max items-center gap-8 sm:gap-12", live && "site-marquee")}>
+            {row.map((label, index) => (
+              <span key={index} className={cn("text-base font-semibold tracking-tight whitespace-nowrap sm:text-lg", muted)}>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Reveal>
+    )
+  }
+
+  if (block.type === "bento") {
+    const appearance = block.appearance
+    const spans = ["sm:col-span-2 sm:row-span-2", "", "", "sm:col-span-2", "", ""]
+    return (
+      <section className="mx-auto max-w-3xl px-5 py-7 sm:px-6 sm:py-8">
+        {block.title ? (
+          <Reveal active={live}>
+            <h3 className="mb-5 text-lg font-semibold tracking-tight sm:mb-6 sm:text-xl">{block.title}</h3>
+          </Reveal>
+        ) : null}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3 sm:[grid-auto-rows:minmax(120px,1fr)]">
+          {block.items.map((entry, index) => (
+            <div key={entry.id} className={cn("min-h-[112px] sm:min-h-[120px]", spans[index] ?? "")}>
+              <Reveal active={live} delay={index * 90} className="h-full">
+                <div
+                  className={cn(
+                    "relative flex h-full flex-col justify-end gap-1.5 overflow-hidden rounded-2xl border p-5",
+                    !appearance && border,
+                    !appearance && card,
+                    live && "site-lift",
+                  )}
+                  style={
+                    appearance
+                      ? { background: appearance.background, color: appearance.color, borderColor: appearance.border }
+                      : undefined
+                  }
+                >
+                  {live ? <BorderBeam color={primary} duration={6 + index} /> : null}
+                  <p className="text-base font-semibold tracking-tight">{entry.title}</p>
+                  <p
+                    className={cn("text-sm leading-relaxed", !appearance && muted)}
+                    style={appearance ? { opacity: 0.72 } : undefined}
+                  >
+                    {entry.text}
+                  </p>
+                </div>
+              </Reveal>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (block.type === "steps") {
+    return (
+      <section className="mx-auto max-w-3xl px-5 py-7 sm:px-6 sm:py-8">
+        {block.title ? (
+          <Reveal active={live}>
+            <h3 className="mb-5 text-lg font-semibold tracking-tight sm:mb-6 sm:text-xl">{block.title}</h3>
+          </Reveal>
+        ) : null}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+          {block.items.map((entry, index) => (
+            <Reveal key={entry.id} active={live} delay={index * 110}>
+              <div className="flex gap-3 sm:flex-col sm:gap-0">
+                <div
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white sm:mb-3"
+                  style={{ background: primary }}
+                >
+                  {String(index + 1).padStart(2, "0")}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-semibold tracking-tight">{entry.title}</p>
+                  <p className={cn("mt-1 text-sm leading-relaxed", muted)}>{entry.text}</p>
+                </div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (block.type === "gallery") {
+    return (
+      <section className="mx-auto max-w-3xl px-5 py-7 sm:px-6 sm:py-8">
+        <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3">
+          {block.items.map((img, index) => (
+            <Reveal key={img.id} active={live} delay={index * 80}>
+              <figure className={cn("overflow-hidden rounded-2xl border", border, card)}>
+                {img.src ? (
+                  <img src={img.src} alt={img.caption} draggable={false} className="aspect-[4/3] w-full object-cover sm:aspect-square" />
+                ) : (
+                  <div className={cn("flex aspect-[4/3] items-center justify-center text-xs sm:aspect-square", muted)}>
+                    {t("forms.imagePlaceholder")}
+                  </div>
+                )}
+              </figure>
+            </Reveal>
+          ))}
+        </div>
       </section>
     )
   }
