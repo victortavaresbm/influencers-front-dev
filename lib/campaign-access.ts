@@ -1,5 +1,7 @@
+import { applicationCount, creatorBlockedByRequirements } from "@/lib/campaigns/shape"
 import { campaignAudience } from "@/lib/mock-data/community"
 import type { Campaign, CampaignVisibility } from "@/lib/mock-data/campaigns"
+import { CREATORS } from "@/lib/mock-data/creators"
 
 export const CAMPAIGN_VISIBILITY_META: {
   value: CampaignVisibility
@@ -9,17 +11,17 @@ export const CAMPAIGN_VISIBILITY_META: {
   {
     value: "publica",
     label: "Pública",
-    description: "Aparece para os creators na aba de oportunidades.",
+    description: "Recrutamento visível na vitrine do marketplace.",
   },
   {
     value: "privada",
     label: "Privada",
-    description: "Só quem já está na sua comunidade pode ver e se candidatar.",
+    description: "Somente os creators que já estão na comunidade podem ver.",
   },
   {
     value: "secreta",
-    label: "Exclusiva",
-    description: "Só aparece para quem você convidar.",
+    label: "Secreta",
+    description: "Somente quem receber o convite tem acesso.",
   },
 ]
 
@@ -35,24 +37,37 @@ export function isCommunityMember(campaigns: Campaign[], organizationId: string,
   )
 }
 
+function marketplaceOpen(campaign: Campaign) {
+  if (!campaign.applicationCap || campaign.applicationCap < 1) return true
+  return applicationCount(campaign) < campaign.applicationCap
+}
+
 /** A creator who is not in the campaign only sees it when it is open to them. */
 export function campaignIsVisibleTo(campaign: Campaign, creatorId: string, campaigns: Campaign[]) {
   if (campaign.participants.some((participant) => participant.creatorId === creatorId)) return true
   if (campaign.status !== "aberta") return false
-  if (campaign.visibility === "publica") return true
+  if (campaign.visibility === "publica") return marketplaceOpen(campaign)
   if (campaign.visibility === "privada") return isCommunityMember(campaigns, campaign.organizationId, creatorId)
   return false
 }
 
+export function creatorRequirementBlock(campaign: Campaign, creatorId: string) {
+  const creator = CREATORS.find((item) => item.id === creatorId)
+  if (!creator) return null
+  return creatorBlockedByRequirements(campaign, creator)
+}
+
 export function creatorCanApply(campaign: Campaign, creatorId: string, campaigns: Campaign[]) {
   if (campaign.participants.some((participant) => participant.creatorId === creatorId)) return false
-  return campaignIsVisibleTo(campaign, creatorId, campaigns)
+  if (!campaignIsVisibleTo(campaign, creatorId, campaigns)) return false
+  return !creatorRequirementBlock(campaign, creatorId)
 }
 
 /** Whether this creator may send an application, even if they are already in the campaign. */
 export function campaignAcceptsApplication(campaign: Campaign, creatorId: string, campaigns: Campaign[]) {
   if (campaign.status !== "aberta") return false
-  if (campaign.visibility === "publica") return true
+  if (creatorRequirementBlock(campaign, creatorId)) return false
+  if (campaign.visibility === "publica") return marketplaceOpen(campaign)
   if (campaign.visibility === "privada") return isCommunityMember(campaigns, campaign.organizationId, creatorId)
   return false
 }

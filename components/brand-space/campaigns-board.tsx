@@ -115,7 +115,7 @@ function CampaignCard({
           </CardDescription>
         </CardHeader>
         <CardContent className="mt-auto flex items-center justify-between gap-3 pb-4">
-          <CampaignTypeBadge type={campaign.type} />
+          <CampaignTypeBadge type={campaign.type} strategy={campaign.strategy} tactics={campaign.tactics} />
           {manage ? (
             <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
               <Users className="size-3.5" />

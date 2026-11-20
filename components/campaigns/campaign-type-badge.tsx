@@ -1,8 +1,29 @@
 import { Badge } from "@/components/ui/badge"
+import { strategyLabel, tacticLabel } from "@/lib/campaigns/shape"
 import { campaignTypeByValue } from "@/lib/campaign-types"
+import type { CampaignStrategy, CampaignTactic } from "@/lib/mock-data/campaigns"
 import { cn } from "@/lib/utils"
 
-export function CampaignTypeBadge({ type, className }: { type?: string; className?: string }) {
+export function CampaignTypeBadge({
+  type,
+  strategy,
+  tactics,
+  className,
+}: {
+  type?: string
+  strategy?: CampaignStrategy
+  tactics?: CampaignTactic[]
+  className?: string
+}) {
+  if (strategy) {
+    const tacticsLabel = (tactics ?? []).map((item) => tacticLabel(item)).filter(Boolean).join(" · ")
+    return (
+      <Badge variant="outline" className={cn("gap-1", className)}>
+        {strategyLabel(strategy)}
+        {tacticsLabel ? ` · ${tacticsLabel}` : ""}
+      </Badge>
+    )
+  }
   const meta = campaignTypeByValue(type)
   if (!meta) {
     return (

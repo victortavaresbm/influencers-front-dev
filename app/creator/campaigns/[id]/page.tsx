@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Check, DollarSign, Users, Target } from "lucide-react"
 import Link from "next/link"
 import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
-import { campaignIsVisibleTo, creatorCanApply } from "@/lib/campaign-access"
+import { campaignIsVisibleTo, creatorCanApply, creatorRequirementBlock } from "@/lib/campaign-access"
 import { formatSuccessTarget, readSuccessTargets, successMetricById } from "@/lib/success-metrics"
 import { formatDateRangeBR } from "@/lib/dates"
 import { ContentCalendar } from "@/components/calendar/content-calendar"
@@ -54,6 +54,7 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
   const participant = campaign.participants.find((p) => p.creatorId === creator.id)
   const isParticipant = !!participant
   const canApply = creatorCanApply(campaign, creator.id, campaigns) && !applied
+  const requirementBlock = creatorRequirementBlock(campaign, creator.id)
   const guidelines = cleanGuidelines(campaign.doList)
   const restrictions = cleanGuidelines(campaign.dontList)
   const successTargets = readSuccessTargets(campaign.successTargets).filter((item) => item.target > 0)
@@ -82,7 +83,7 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
               </div>
               <div>
                 <p className="text-xs text-zinc-400">{campaign.organizationName}</p>
-                <CampaignTypeBadge type={campaign.type} className="mt-1" />
+                <CampaignTypeBadge type={campaign.type} strategy={campaign.strategy} tactics={campaign.tactics} className="mt-1" />
               </div>
             </div>
             <div className="text-right">
@@ -131,10 +132,10 @@ export default function CreatorCampaignDetailPage({ params }: { params: Promise<
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-zinc-900">
-                  {applied ? "Candidatura enviada!" : canApply ? "Interessado nesta campanha?" : "Campanha não disponível para candidatura"}
+                  {applied ? "Candidatura enviada!" : canApply ? "Interessado nesta campanha?" : requirementBlock ? "Perfil fora dos requisitos" : "Campanha não disponível para candidatura"}
                 </p>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  {applied ? "A marca receberá seu perfil em breve." : canApply ? "Envie sua candidatura e aguarde o contato da marca." : "Esta campanha não está aceitando candidaturas no momento."}
+                  {applied ? "A marca receberá seu perfil em breve." : canApply ? "Envie sua candidatura e aguarde o contato da marca." : requirementBlock ? `Esta campanha exige ${requirementBlock} compatível para receber candidatura.` : "Esta campanha não está aceitando candidaturas no momento."}
                 </p>
               </div>
               {canApply && !applied && form && (

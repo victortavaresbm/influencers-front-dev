@@ -22,6 +22,34 @@ export type ContentFormat = "reels" | "stories" | "feed" | "tiktok" | "youtube" 
 
 export type SocialNetwork = "instagram" | "tiktok" | "youtube"
 
+export type CampaignStrategy = "alcance" | "engajamento" | "vendas"
+
+export type CampaignTactic = "publipost" | "live" | "link" | "cupom"
+
+export type CommercialTerm = "fixo" | "permuta" | "comissao"
+
+export type CommissionMode = "percent" | "fixed" | "contract"
+
+export type CreatorRequirementKey =
+  | "niches"
+  | "followers"
+  | "engagement"
+  | "location"
+  | "audience"
+  | "language"
+  | "networks"
+
+export interface FormatQuantity {
+  format: ContentFormat
+  quantity: number
+}
+
+export interface CampaignCommission {
+  mode: CommissionMode
+  value?: number
+  notes?: string
+}
+
 export interface CampaignMention {
   network: SocialNetwork
   handle: string
@@ -120,6 +148,29 @@ export interface Campaign {
   roi?: number
   visibility: CampaignVisibility
   successTargets?: { metric: string; target: number }[]
+  brandWebsite?: string
+  niche?: string
+  applicationStart?: string
+  applicationEnd?: string
+  recommendToMatching?: boolean
+  applicationCap?: number
+  communityLink?: string
+  strategy?: CampaignStrategy
+  tactics?: CampaignTactic[]
+  productCategories?: string[]
+  formatQuantities?: FormatQuantity[]
+  creatorLocation?: string
+  creatorLanguage?: string
+  audienceNotes?: string
+  audienceCountry?: string
+  audienceAges?: string[]
+  requiredCreatorFields?: CreatorRequirementKey[]
+  commercialTerms?: CommercialTerm[]
+  fixedFeePerPost?: number
+  commission?: CampaignCommission
+  maxInfluencers?: number
+  perInfluencerFee?: number | "contact"
+  termsAccepted?: boolean
 }
 
 export const CAMPAIGNS: Campaign[] = [

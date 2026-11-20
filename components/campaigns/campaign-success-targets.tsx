@@ -120,12 +120,14 @@ export function CampaignSuccessTargets({
   value,
   onChange,
   showHeading = true,
+  groups,
 }: {
   networks: SocialNetwork[]
   type?: CampaignType
   value?: { metric: string; target: number }[]
   onChange: (value: CampaignSuccessTarget[]) => void
   showHeading?: boolean
+  groups?: SuccessMetricGroup[]
 }) {
   const selected = new Map(readSuccessTargets(value).map((item) => [item.metric, item.target]))
   const visible = metricsForNetworks(networks)
@@ -185,7 +187,7 @@ export function CampaignSuccessTargets({
         </p>
       )}
       <div className="space-y-5">
-        {SUCCESS_METRIC_GROUPS.map((group) => {
+        {SUCCESS_METRIC_GROUPS.filter((group) => !groups || groups.includes(group.id)).map((group) => {
           const metrics = visible.filter((metric) => metric.group === group.id)
           if (metrics.length === 0) return null
           const GroupIcon = GROUP_ICONS[group.id]

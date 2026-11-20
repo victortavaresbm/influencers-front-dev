@@ -19,10 +19,14 @@ export function GuidelineList({
   tone,
   items,
   onChange,
+  pulse,
+  field,
 }: {
   tone: "do" | "dont"
   items: string[]
   onChange?: (items: string[]) => void
+  pulse?: boolean
+  field?: string
 }) {
   const editable = Boolean(onChange)
   const [adding, setAdding] = useState(false)
@@ -42,7 +46,7 @@ export function GuidelineList({
   if (!editable && items.length === 0) return null
 
   return (
-    <div className="space-y-2">
+    <div data-ai-field={field} className="space-y-2">
       <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900">
         <span aria-hidden>{copy.emoji}</span>
         {copy.title}
@@ -55,6 +59,7 @@ export function GuidelineList({
               className={cn(
                 "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2",
                 good ? "border-zinc-200 bg-zinc-50" : "border-red-100 bg-red-50",
+                pulse && index === items.length - 1 && "animate-in fade-in slide-in-from-left-2 duration-300",
               )}
             >
               {good ? (
@@ -144,15 +149,17 @@ export function GuidelineLists({
   doList,
   dontList,
   onChange,
+  pulse,
 }: {
   doList: string[]
   dontList: string[]
   onChange?: (next: { doList?: string[]; dontList?: string[] }) => void
+  pulse?: boolean
 }) {
   return (
     <div className="space-y-5">
-      <GuidelineList tone="do" items={doList} onChange={onChange ? (next) => onChange({ doList: next }) : undefined} />
-      <GuidelineList tone="dont" items={dontList} onChange={onChange ? (next) => onChange({ dontList: next }) : undefined} />
+      <GuidelineList tone="do" field="doList" items={doList} pulse={pulse} onChange={onChange ? (next) => onChange({ doList: next }) : undefined} />
+      <GuidelineList tone="dont" field="dontList" items={dontList} pulse={pulse} onChange={onChange ? (next) => onChange({ dontList: next }) : undefined} />
     </div>
   )
 }

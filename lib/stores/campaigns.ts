@@ -9,6 +9,7 @@ import {
   type CampaignVisibility,
   type Participant,
 } from "@/lib/mock-data/campaigns"
+import type { CompanyResearch } from "@/lib/campaigns/autofill"
 import type { SeedingMode, SeedingProduct } from "@/lib/mock-data/seeding"
 
 export type WizardDraft = Partial<Campaign> & {
@@ -16,6 +17,11 @@ export type WizardDraft = Partial<Campaign> & {
   seedingMode?: SeedingMode
   daysToPost?: number
   seedingProducts?: SeedingProduct[]
+  skippedSteps?: string[]
+  inviteIds?: string[]
+  reservedId?: string
+  research?: CompanyResearch
+  aiAccompaniment?: boolean
 }
 
 interface CampaignState {
@@ -104,7 +110,7 @@ export const useCampaignStore = create<CampaignState>()(
     }),
     {
       name: "wesell-campaign-wizard",
-      version: 5,
+      version: 6,
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as {
           wizardStep?: number
@@ -129,6 +135,7 @@ export const useCampaignStore = create<CampaignState>()(
         if (version < 3 && (state.wizardStep ?? 0) >= 2) state.wizardStep = (state.wizardStep ?? 0) + 1
         if (version < 4 && (state.wizardStep ?? 0) >= 4) state.wizardStep = (state.wizardStep ?? 0) + 1
         if (version < 5 && (state.wizardStep ?? 0) > 6) state.wizardStep = (state.wizardStep ?? 0) - 1
+        if (version < 6) state.wizardStep = 0
         return {
           wizardStep: state.wizardStep ?? 0,
           wizardDraft: draft ?? {},

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { CampaignVisibilityPicker } from "@/components/campaigns/campaign-visibility-picker"
 import { GuidelineLists, cleanGuidelines } from "@/components/campaigns/guideline-list"
 import { campaignTypeLabel } from "@/lib/campaign-types"
+import { fieldsFromLegacyType } from "@/lib/campaigns/shape"
 import {
   buildPlan,
   rankCreators,
@@ -227,6 +228,7 @@ export function CampaignAgent() {
       level: item.creator.level,
       memberType: item.creator.memberType,
     }))
+    const legacy = fieldsFromLegacyType(current.draft.type)
     const campaign: Campaign = {
       id,
       organizationId,
@@ -235,6 +237,10 @@ export function CampaignAgent() {
       description: current.draft.description.trim(),
       objective: current.draft.objective.trim(),
       type: current.draft.type,
+      strategy: legacy.strategy,
+      tactics: legacy.tactics,
+      commercialTerms: legacy.commercialTerms,
+      formatQuantities: current.draft.contentFormats.map((format) => ({ format, quantity: 1 })),
       status: "rascunho",
       startDate: current.draft.startDate,
       endDate: current.draft.endDate,

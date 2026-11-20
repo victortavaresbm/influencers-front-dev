@@ -229,6 +229,8 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
           )}
           <CampaignTypeBadge
             type={campaign.type}
+            strategy={campaign.strategy}
+            tactics={campaign.tactics}
             className="absolute top-3 left-3 max-w-[calc(100%-8.5rem)] bg-background shadow-sm ring-1 ring-background/70"
           />
           <Badge variant={STATUS_VARIANT[campaign.status]} className="absolute top-3 right-3 shadow-sm ring-1 ring-background/70">
@@ -310,7 +312,7 @@ function CampaignTable({ items }: { items: Campaign[] }) {
                 </Link>
               </TableCell>
               <TableCell>
-                <CampaignTypeBadge type={campaign.type} />
+                <CampaignTypeBadge type={campaign.type} strategy={campaign.strategy} tactics={campaign.tactics} />
               </TableCell>
               <TableCell className="tabular-nums">{campaign.participants.length}</TableCell>
               <TableCell className="tabular-nums">R$ {fmt(campaign.budget)}</TableCell>

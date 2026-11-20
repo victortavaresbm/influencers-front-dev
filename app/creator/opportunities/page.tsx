@@ -77,7 +77,7 @@ export default function CreatorOpportunitiesPage() {
                             {c.name}
                           </Link>
                           <span className="flex shrink-0 flex-col items-end gap-1">
-                            <CampaignTypeBadge type={c.type} />
+                            <CampaignTypeBadge type={c.type} strategy={c.strategy} tactics={c.tactics} />
                             {c.visibility === "privada" ? <Badge variant="secondary">Comunidade</Badge> : null}
                           </span>
                         </div>

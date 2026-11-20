@@ -1,4 +1,5 @@
 export const PUSH_CREDIT_COST = 5
+export const AI_ACCOMPANIMENT_CREDIT_COST = 50
 export const DEFAULT_BRAND_CREDITS = 20
 
 export const CREDIT_PACKS = [

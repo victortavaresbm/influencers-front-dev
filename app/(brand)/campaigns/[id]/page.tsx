@@ -465,7 +465,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <div className="space-y-2.5 text-sm">
                   <div className="flex items-center gap-3">
                     <span className="w-28 text-zinc-400 shrink-0">Tipo</span>
-                    <CampaignTypeBadge type={campaign.type} />
+                    <CampaignTypeBadge type={campaign.type} strategy={campaign.strategy} tactics={campaign.tactics} />
                   </div>
                   {[
                     { label: "Objetivo", value: campaign.objective },

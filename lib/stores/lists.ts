@@ -12,6 +12,8 @@ interface CreateListInput {
 interface ListState {
   lists: CRMList[]
   createList: (input: CreateListInput) => CRMList
+  addCreatorsToList: (listId: string, creatorIds: string[]) => void
+  toggleCreatorInList: (listId: string, creatorId: string) => void
 }
 
 export const useListStore = create<ListState>()((set) => ({
@@ -29,4 +31,25 @@ export const useListStore = create<ListState>()((set) => ({
     set((state) => ({ lists: [...state.lists, list] }))
     return list
   },
+  addCreatorsToList: (listId, creatorIds) =>
+    set((state) => ({
+      lists: state.lists.map((list) =>
+        list.id === listId
+          ? { ...list, creatorIds: [...new Set([...list.creatorIds, ...creatorIds])] }
+          : list
+      ),
+    })),
+  toggleCreatorInList: (listId, creatorId) =>
+    set((state) => ({
+      lists: state.lists.map((list) => {
+        if (list.id !== listId) return list
+        const has = list.creatorIds.includes(creatorId)
+        return {
+          ...list,
+          creatorIds: has
+            ? list.creatorIds.filter((id) => id !== creatorId)
+            : [...list.creatorIds, creatorId],
+        }
+      }),
+    })),
 }))
