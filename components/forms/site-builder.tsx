@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -59,6 +59,7 @@ import {
   type SiteBlock,
 } from "@/lib/mock-data/form-site"
 import { ORG_LOGOS } from "@/lib/mock-data/users"
+import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -121,6 +122,14 @@ export function SiteBuilder({
   const { t } = useI18n()
   const primary = ORG_LOGOS[form.organizationId]?.color ?? "#18181b"
   const site = form.site ?? defaultSite(primary)
+  const allForms = useFormStore((state) => state.forms)
+  const formOptions = useMemo(
+    () =>
+      allForms
+        .filter((item) => item.organizationId === form.organizationId && item.kind === "form" && item.status !== "arquivado")
+        .map((item) => ({ id: item.id, title: item.title })),
+    [allForms, form.organizationId],
+  )
   const [pageId, setPageId] = useState(site.entryPageId)
   const [blockId, setBlockId] = useState<string | null>(null)
   const [view, setView] = useState<BuilderView>("visual")
@@ -495,6 +504,7 @@ export function SiteBuilder({
                       site={site}
                       page={page}
                       mode="edit"
+                      formOptions={formOptions}
                       selectedBlockId={blockId ?? undefined}
                       onSelectBlock={setBlockId}
                       onReorder={(fromId, toId, place) => {
@@ -556,6 +566,7 @@ export function SiteBuilder({
               <SiteInspector
                 site={site}
                 block={selected}
+                formOptions={formOptions}
                 onChange={(block) => patchSite(mapBlock(site, page.id, block.id, () => block))}
                 onDelete={() => {
                   patchSite(removeBlock(site, page.id, selected.id))

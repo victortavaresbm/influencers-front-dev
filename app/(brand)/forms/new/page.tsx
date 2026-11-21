@@ -10,7 +10,7 @@ import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import type { FormTemplate } from "@/lib/mock-data/forms"
 import { SITE_TEMPLATES } from "@/lib/mock-data/form-templates"
-import { landingOnlySite, type FormSite, type SiteAction } from "@/lib/mock-data/form-site"
+import type { FormSite, SiteAction } from "@/lib/mock-data/form-site"
 
 const FORM_TEMPLATES: { id: FormTemplate; titleKey: MessageKey; helpKey: MessageKey }[] = [
   { id: "blank", titleKey: "forms.templateBlank", helpKey: "forms.templateBlankHelp" },

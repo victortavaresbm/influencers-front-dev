@@ -29,11 +29,13 @@ import { BLOCK_ICON, BLOCK_KEY } from "@/components/forms/site-canvas"
 export function SiteInspector({
   site,
   block,
+  formOptions,
   onChange,
   onDelete,
 }: {
   site: FormSite
   block: SiteBlock
+  formOptions?: { id: string; title: string }[]
   onChange: (block: SiteBlock) => void
   onDelete: () => void
 }) {
@@ -58,7 +60,7 @@ export function SiteInspector({
           <TabsTrigger value="content">{t("forms.contentTab")}</TabsTrigger>
         </TabsList>
         <TabsContent value="content">
-          <BlockFields pane="content" site={site} block={block} onChange={onChange} />
+          <BlockFields pane="content" site={site} block={block} formOptions={formOptions} onChange={onChange} />
         </TabsContent>
         <TabsContent value="style">
           <BlockFields pane="style" site={site} block={block} onChange={onChange} />
@@ -72,15 +74,17 @@ function BlockFields({
   pane,
   site,
   block,
+  formOptions,
   onChange,
 }: {
   pane: "content" | "style"
   site: FormSite
   block: SiteBlock
+  formOptions?: { id: string; title: string }[]
   onChange: (block: SiteBlock) => void
 }) {
   const { t } = useI18n()
-  const fields = pane === "content" ? contentFields(site, block, onChange, t) : styleFields(site, block, onChange, t)
+  const fields = pane === "content" ? contentFields(site, block, onChange, t, formOptions) : styleFields(site, block, onChange, t)
   if (!fields) {
     return <p className="text-sm text-zinc-500">{t(pane === "content" ? "forms.contentEmpty" : "forms.styleEmpty")}</p>
   }
@@ -92,6 +96,7 @@ function contentFields(
   block: SiteBlock,
   onChange: (block: SiteBlock) => void,
   t: ReturnType<typeof useI18n>["t"],
+  formOptions?: { id: string; title: string }[],
 ) {
   if (block.type === "banner") {
     return (
@@ -214,9 +219,25 @@ function contentFields(
 
   if (block.type === "form") {
     return (
-      <Field label={t("forms.blockTitle")}>
-        <Input value={block.title} onChange={(event) => onChange({ ...block, title: event.target.value })} />
-      </Field>
+      <>
+        <Field label={t("forms.blockTitle")}>
+          <Input value={block.title} onChange={(event) => onChange({ ...block, title: event.target.value })} />
+        </Field>
+        {formOptions ? (
+          formOptions.length === 0 ? (
+            <Field label={t("forms.formSource")}>
+              <p className="text-xs text-zinc-500">{t("forms.formSourceEmpty")}</p>
+            </Field>
+          ) : (
+            <SelectField
+              label={t("forms.formSource")}
+              value={block.formId ?? ""}
+              onChange={(formId) => onChange({ ...block, formId })}
+              options={formOptions.map((option) => ({ value: option.id, label: option.title }))}
+            />
+          )
+        ) : null}
+      </>
     )
   }
 

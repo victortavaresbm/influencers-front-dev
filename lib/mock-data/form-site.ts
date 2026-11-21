@@ -87,7 +87,7 @@ export type SiteBlock =
   | { id: string; type: "marquee"; items: ListItem[] }
   | { id: string; type: "faq"; title: string; items: ListItem[] }
   | { id: string; type: "testimonial"; quote: string; author: string; role: string }
-  | { id: string; type: "form"; title: string }
+  | { id: string; type: "form"; title: string; formId?: string }
   | { id: string; type: "html"; code: string; height: number }
   | { id: string; type: "divider" }
   | { id: string; type: "spacer"; size: "sm" | "md" | "lg" }
@@ -344,6 +344,18 @@ export function landingOnlySite(primary: string): FormSite {
 
 export function pageHasForm(page: SitePage) {
   return page.blocks.some((block) => block.type === "form")
+}
+
+// The form referenced by the first form block on the site (for page channels
+// that embed an existing form).
+export function formBlockFormId(site: FormSite | undefined): string | undefined {
+  if (!site) return undefined
+  for (const page of site.pages) {
+    for (const block of page.blocks) {
+      if (block.type === "form" && block.formId) return block.formId
+    }
+  }
+  return undefined
 }
 
 export function blockActions(block: SiteBlock): SiteAction | null {

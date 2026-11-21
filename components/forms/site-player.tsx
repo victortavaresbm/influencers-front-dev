@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 
 export function SitePlayer({
   form,
+  applicationForm,
   preview = false,
   device = "desktop",
   alreadySubmitted = false,
@@ -23,6 +24,9 @@ export function SitePlayer({
   onDone,
 }: {
   form: ApplicationForm
+  // The form actually filled in / submitted. Defaults to `form`; for a page
+  // channel it is the form referenced by the page's form block.
+  applicationForm?: ApplicationForm
   preview?: boolean
   device?: "desktop" | "mobile"
   alreadySubmitted?: boolean
@@ -34,6 +38,7 @@ export function SitePlayer({
 }) {
   const { t } = useI18n()
   const site = form.site
+  const app = applicationForm ?? form
   const [pageId, setPageId] = useState(() => {
     if (!site) return ""
     if (alreadySubmitted) return site.fallbackPageId
@@ -44,7 +49,7 @@ export function SitePlayer({
   if (!site) {
     return (
       <FormRunner
-        form={form}
+        form={app}
         preview={preview}
         alreadySubmitted={alreadySubmitted}
         onSubmit={onSubmit}
@@ -83,7 +88,7 @@ export function SitePlayer({
 
   const finish = (answers: FormAnswer[]) => {
     if (!preview) onSubmit?.(answers)
-    const score = scoreApplication(form, answers).score
+    const score = scoreApplication(app, answers).score
     setSubmitted(true)
     setPageId(resolveThanksPage(site, score, answers))
   }
@@ -91,7 +96,7 @@ export function SitePlayer({
   const frame = (
     <SiteShell site={site} className="min-h-[640px]">
       <SiteCanvas
-        form={form}
+        form={app}
         site={site}
         page={page}
         mode="live"

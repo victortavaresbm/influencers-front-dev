@@ -3,7 +3,7 @@
 import { use, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Copy, Archive, ExternalLink, Link2 } from "lucide-react"
+import { ArrowLeft, Copy, Archive, ExternalLink, Link2, Pause, Play } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
 import { FormBuilder } from "@/components/forms/form-builder"
 import { SiteBuilder } from "@/components/forms/site-builder"
-import { answerText, canPublish, type ApplicationForm, type FormResponse } from "@/lib/mock-data/forms"
+import { answerText, canPublish, type ApplicationForm, type FormResponse, type FormStatus } from "@/lib/mock-data/forms"
 import { formPublicPath, scoreApplication } from "@/lib/forms/brief-check"
 import { defaultSite } from "@/lib/mock-data/form-site"
 import { ORG_LOGOS } from "@/lib/mock-data/users"
@@ -21,6 +21,13 @@ import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { formatDateBR } from "@/lib/dates"
+
+const STATUS_META: Record<FormStatus, { key: MessageKey; dot: string }> = {
+  publicado: { key: "forms.statusActive", dot: "#16a34a" },
+  inativo: { key: "forms.statusInactive", dot: "#d97706" },
+  rascunho: { key: "forms.statusDraft", dot: "#a1a1aa" },
+  arquivado: { key: "forms.statusArchived", dot: "#71717a" },
+}
 
 export default function FormEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -80,11 +87,13 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
   )
   const labels = { yes: t("forms.yes"), no: t("forms.no"), empty: t("forms.emptyAnswer") }
 
-  const save = (status: "rascunho" | "publicado") => {
+  const save = (status: FormStatus) => {
     if (status === "publicado" && !canPublish(draft)) return
     updateForm(draft.id, { ...draft, status })
     setDraft({ ...draft, status })
   }
+
+  const statusMeta = STATUS_META[draft.status]
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
@@ -99,12 +108,24 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
         }
         actions={
           <>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700">
+              <span className="size-2 rounded-full" style={{ background: statusMeta.dot }} />
+              {t(statusMeta.key)}
+            </span>
             <Button type="button" variant="outline" size="sm" onClick={() => save("rascunho")}>
               {t("forms.saveDraft")}
             </Button>
-            <Button type="button" size="sm" disabled={!canPublish(draft)} onClick={() => save("publicado")}>
-              {t("forms.publish")}
-            </Button>
+            {draft.status === "publicado" ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => save("inativo")}>
+                <Pause />
+                {t("forms.setInactive")}
+              </Button>
+            ) : (
+              <Button type="button" size="sm" disabled={!canPublish(draft)} onClick={() => save("publicado")}>
+                <Play />
+                {t("forms.setActive")}
+              </Button>
+            )}
           </>
         }
       />
@@ -114,7 +135,7 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <TabsList>
               {draft.kind === "form" ? <TabsTrigger value="editor">{t("forms.questionsTab")}</TabsTrigger> : null}
-              <TabsTrigger value="pages">{t("forms.pagesTab")}</TabsTrigger>
+              {draft.kind === "page" ? <TabsTrigger value="pages">{t("forms.pagesTab")}</TabsTrigger> : null}
               {draft.kind === "form" ? <TabsTrigger value="responses">{t("forms.responses")}</TabsTrigger> : null}
             </TabsList>
             <div className="flex flex-wrap items-center gap-2">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { CREATORS } from "@/lib/mock-data/creators"
 import type { FormAnswer } from "@/lib/mock-data/forms"
 import { campaignAcceptsApplication } from "@/lib/campaign-access"
+import { formBlockFormId } from "@/lib/mock-data/form-site"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
@@ -47,12 +48,17 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
     )
   }
 
-  const campaign = form.campaignId ? campaigns.find((item) => item.id === form.campaignId) : undefined
+  // A page channel embeds an existing form via its form block; applications go
+  // to that referenced form instead of the page itself.
+  const referencedId = form.kind === "page" ? formBlockFormId(form.site) : undefined
+  const app = (referencedId ? forms.find((item) => item.id === referencedId) : undefined) ?? form
+
+  const campaign = app.campaignId ? campaigns.find((item) => item.id === app.campaignId) : undefined
   const closed =
-    form.scope === "campaign" &&
+    app.scope === "campaign" &&
     (!campaign || (creator ? !campaignAcceptsApplication(campaign, creator.id, campaigns) : false))
   const alreadyIn = !!creator && (campaign?.participants.some((participant) => participant.creatorId === creator.id) ?? false)
-  const alreadySubmitted = !!creator && responses.some((response) => response.formId === form.id && response.creatorId === creator.id)
+  const alreadySubmitted = !!creator && responses.some((response) => response.formId === app.id && response.creatorId === creator.id)
   const isBrand = user?.role === "brand"
   const canSubmit = user?.role === "creator" && !!creator && !closed && !alreadyIn && !alreadySubmitted
   const lockMessage = isBrand
@@ -68,14 +74,14 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
   const submit = (answers: FormAnswer[]) => {
     if (!creator) return
     const saved = submitResponse({
-      formId: form.id,
+      formId: app.id,
       creatorId: creator.id,
       creatorName: creator.name,
       creatorHandle: creator.handle,
       answers,
     })
-    if (!saved || form.scope !== "campaign" || !form.campaignId) return
-    addParticipant(form.campaignId, {
+    if (!saved || app.scope !== "campaign" || !app.campaignId) return
+    addParticipant(app.campaignId, {
       creatorId: creator.id,
       creatorName: creator.name,
       creatorHandle: creator.handle,
@@ -102,6 +108,7 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
       </header>
       <SitePlayer
         form={form}
+        applicationForm={app}
         alreadySubmitted={alreadySubmitted}
         locked={!canSubmit}
         lockMessage={lockMessage}

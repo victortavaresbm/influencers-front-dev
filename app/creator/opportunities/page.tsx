@@ -130,7 +130,7 @@ function BrandForms({ search, creatorId }: { search: string; creatorId: string }
   const responses = useFormStore((state) => state.responses)
   const query = search.trim().toLowerCase()
   const open = forms.filter((form) => {
-    if (form.scope !== "brand" || form.status !== "publicado") return false
+    if (form.kind !== "form" || form.scope !== "brand" || form.status !== "publicado") return false
     if (!query) return true
     return form.title.toLowerCase().includes(query) || form.organizationName.toLowerCase().includes(query)
   })

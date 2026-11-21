@@ -129,6 +129,7 @@ export function SiteCanvas({
   selectedBlockId,
   alreadySubmitted,
   formSlot,
+  formOptions,
   onSelectBlock,
   onReorder,
   onAction,
@@ -142,6 +143,7 @@ export function SiteCanvas({
   selectedBlockId?: string
   alreadySubmitted?: boolean
   formSlot?: React.ReactNode
+  formOptions?: { id: string; title: string }[]
   onSelectBlock?: (id: string | null) => void
   onReorder?: (fromId: string, toId: string, place: "before" | "after") => void
   onAction?: (action: SiteAction, block: SiteBlock) => void
@@ -271,6 +273,7 @@ export function SiteCanvas({
                 live={mode === "live"}
                 alreadySubmitted={alreadySubmitted}
                 formSlot={formSlot}
+                formOptions={formOptions}
                 isFirst={index === 0}
                 onAction={(action) => onAction?.(action, block)}
                 onSubmitForm={onSubmitForm}
@@ -291,6 +294,7 @@ function BlockView({
   live,
   alreadySubmitted,
   formSlot,
+  formOptions,
   isFirst,
   onAction,
   onSubmitForm,
@@ -302,6 +306,7 @@ function BlockView({
   live: boolean
   alreadySubmitted?: boolean
   formSlot?: React.ReactNode
+  formOptions?: { id: string; title: string }[]
   isFirst: boolean
   onAction: (action: SiteAction) => void
   onSubmitForm?: (answers: FormAnswer[]) => void
@@ -579,7 +584,13 @@ function BlockView({
           />
         ) : (
           <div className={cn("rounded-2xl border border-dashed px-4 py-8 text-center text-sm", border, muted)}>
-            {t("forms.formPlaceholder")}
+            {block.formId
+              ? (formOptions?.find((item) => item.id === block.formId)?.title
+                ? `${t("forms.formLinked")}: ${formOptions.find((item) => item.id === block.formId)?.title}`
+                : t("forms.formMissing"))
+              : formOptions
+                ? t("forms.formSelectHint")
+                : t("forms.formPlaceholder")}
           </div>
         )}
       </section>
