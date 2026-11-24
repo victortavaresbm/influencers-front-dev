@@ -10,6 +10,7 @@ import { useI18n } from "@/lib/i18n"
 import { startCircleThemeTransition } from "@/components/lightswind/toggle-theme"
 import { usePreferencesStore, type Locale, type Theme } from "@/lib/stores/preferences"
 import { CreatorLevelsPanel } from "@/components/settings/creator-levels-panel"
+import { ActiveMarca } from "@/components/settings/active-marca"
 import { useAuthStore } from "@/lib/stores/auth"
 import { Check, Medal, Moon, Plug, SlidersHorizontal, Store, Sun, type LucideIcon } from "lucide-react"
 import { SiFacebook, SiInstagram, SiShopify, SiTiktok, SiYoutube } from "react-icons/si"
@@ -151,6 +152,8 @@ export default function SettingsPage() {
               </Card>
             </>
           ) : (
+            <>
+            {role === "brand" && <ActiveMarca />}
             <div className="grid gap-3 sm:grid-cols-2">
               {INTEGRATIONS.map((item) => {
                 const Icon = item.icon
@@ -188,6 +191,7 @@ export default function SettingsPage() {
                 )
               })}
             </div>
+            </>
           )}
         </div>
       </div>

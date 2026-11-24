@@ -1,5 +1,8 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import { ClerkProvider } from "@clerk/nextjs"
+import { ClerkBridge } from "@/components/auth/clerk-bridge"
+import { clerkEnabled } from "@/lib/api/clerk"
 import { PreferencesSync } from "@/components/preferences-sync"
 import { Toaster } from "@/components/ui/toast"
 import "./globals.css"
@@ -14,16 +17,20 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
+  const content = (
+    <>
+      <PreferencesSync />
+      {children}
+      <Toaster />
+    </>
+  )
+  const page = (
     <html lang="pt-BR" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body className="min-h-full flex flex-col">
-        <PreferencesSync />
-        {children}
-        <Toaster />
-      </body>
+      <body className="min-h-full flex flex-col">{clerkEnabled ? <ClerkBridge>{content}</ClerkBridge> : content}</body>
     </html>
   )
+  return clerkEnabled ? <ClerkProvider>{page}</ClerkProvider> : page
 }
