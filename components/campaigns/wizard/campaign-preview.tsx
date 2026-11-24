@@ -22,6 +22,7 @@ import { isSocialNetwork, normalizeMentions, SOCIAL_NETWORK_LABEL, type SocialNe
 import type { ApplicationForm } from "@/lib/mock-data/forms"
 import { formatSuccessTarget, successMetricById } from "@/lib/success-metrics"
 import type { WizardDraft } from "@/lib/stores/campaigns"
+import { ProductThumb } from "@/components/campaigns/wizard/store-product-card"
 import { cn } from "@/lib/utils"
 
 const NETWORK_ICONS: Record<SocialNetwork, React.ComponentType<{ className?: string }>> = {
@@ -209,7 +210,17 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
         <Section title="Briefing">
           {draft.description ? <Markdown value={draft.description} /> : <Empty>Sem texto de briefing.</Empty>}
           {(draft.productCategories ?? []).length > 0 ? <Chips items={draft.productCategories ?? []} /> : null}
-          {(draft.storeProducts ?? []).length > 0 ? <Chips items={(draft.storeProducts ?? []).map((product) => product.name)} /> : null}
+          {(draft.storeProducts ?? []).length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {(draft.storeProducts ?? []).map((product) => (
+                <span key={`${product.connectionId}:${product.externalProductId}`} className="flex items-center gap-2 rounded-lg border border-zinc-200 py-1 pl-1 pr-2.5">
+                  <ProductThumb item={{ name: product.name, imageUrl: product.imageUrl ?? null, format: null }} className="h-10 w-10 rounded-md" />
+                  <span className="text-sm text-zinc-800">{product.name}</span>
+                  {product.priceLabel && <span className="text-xs text-zinc-500">{product.priceLabel}</span>}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {(draft.doList?.length || draft.dontList?.length) ? <GuidelineLists doList={draft.doList ?? []} dontList={draft.dontList ?? []} /> : null}
         </Section>
 
