@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { TopBar } from "@/components/layout/top-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,9 +11,10 @@ import { startCircleThemeTransition } from "@/components/lightswind/toggle-theme
 import { usePreferencesStore, type Locale, type Theme } from "@/lib/stores/preferences"
 import { CreatorLevelsPanel } from "@/components/settings/creator-levels-panel"
 import { ActiveMarca } from "@/components/settings/active-marca"
+import { StoreIntegrations } from "@/components/settings/store-integrations"
 import { useAuthStore } from "@/lib/stores/auth"
-import { Check, Medal, Moon, Plug, SlidersHorizontal, Store, Sun, type LucideIcon } from "lucide-react"
-import { SiFacebook, SiInstagram, SiShopify, SiTiktok, SiYoutube } from "react-icons/si"
+import { Check, Medal, Moon, Plug, SlidersHorizontal, Sun, type LucideIcon } from "lucide-react"
+import { SiFacebook, SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import { cn } from "@/lib/utils"
 
 const LANGUAGES: { id: Locale; native: string }[] = [
@@ -23,9 +24,7 @@ const LANGUAGES: { id: Locale; native: string }[] = [
 ]
 
 const INTEGRATIONS = [
-  { id: "nuvemshop", name: "Nuvemshop", icon: Store },
   { id: "instagram", name: "Instagram", icon: SiInstagram },
-  { id: "shopify", name: "Shopify", icon: SiShopify },
   { id: "facebook", name: "Facebook", icon: SiFacebook },
   { id: "tiktok", name: "TikTok", icon: SiTiktok },
   { id: "youtube", name: "YouTube", icon: SiYoutube },
@@ -34,13 +33,22 @@ const INTEGRATIONS = [
 type IntegrationId = (typeof INTEGRATIONS)[number]["id"]
 type Section = "integrations" | "preferences" | "levels"
 
+const noSubscription = () => () => {}
+
 export default function SettingsPage() {
   const { t } = useI18n()
   const locale = usePreferencesStore((state) => state.locale)
   const theme = usePreferencesStore((state) => state.theme)
   const setLocale = usePreferencesStore((state) => state.setLocale)
   const role = useAuthStore((state) => state.user?.role)
-  const [section, setSection] = useState<Section>("preferences")
+  // Coming back from a store's authorization page lands on Integrations.
+  const returningFromStore = useSyncExternalStore(
+    noSubscription,
+    () => new URLSearchParams(window.location.search).has("status"),
+    () => false
+  )
+  const [picked, setSection] = useState<Section | null>(null)
+  const section: Section = picked ?? (returningFromStore ? "integrations" : "preferences")
   const [connected, setConnected] = useState<IntegrationId[]>([])
   const sections: { id: Section; label: string; icon: LucideIcon }[] = [
     { id: "integrations", label: t("settings.integrations"), icon: Plug },
@@ -154,6 +162,7 @@ export default function SettingsPage() {
           ) : (
             <>
             {role === "brand" && <ActiveMarca />}
+            {role === "brand" && <StoreIntegrations />}
             <div className="grid gap-3 sm:grid-cols-2">
               {INTEGRATIONS.map((item) => {
                 const Icon = item.icon

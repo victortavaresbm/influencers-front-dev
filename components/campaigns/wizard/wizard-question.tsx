@@ -6,6 +6,7 @@ import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import { CampaignSuccessTargets } from "@/components/campaigns/campaign-success-targets"
 import { GuidelineLists } from "@/components/campaigns/guideline-list"
 import { AgePills, Choice, MultiChoice, QuestionTitle, Sentence, Token, YesNo } from "@/components/campaigns/wizard/wizard-chrome"
+import { StoreProductPicker } from "@/components/campaigns/wizard/store-product-picker"
 import { AI_ACCOMPANIMENT_CREDIT_COST } from "@/lib/credits"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -581,6 +582,7 @@ export function WizardQuestion({
             <Token key={item} selected pulse={pulse && index === list.length - 1}>{item}</Token>
           ))}
         </div>
+        <StoreProductPicker value={draft.storeProducts ?? []} onChange={(storeProducts) => onChange({ storeProducts })} />
       </div>
     )
   }
