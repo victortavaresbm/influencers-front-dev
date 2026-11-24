@@ -209,6 +209,7 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
         <Section title="Briefing">
           {draft.description ? <Markdown value={draft.description} /> : <Empty>Sem texto de briefing.</Empty>}
           {(draft.productCategories ?? []).length > 0 ? <Chips items={draft.productCategories ?? []} /> : null}
+          {(draft.storeProducts ?? []).length > 0 ? <Chips items={(draft.storeProducts ?? []).map((product) => product.name)} /> : null}
           {(draft.doList?.length || draft.dontList?.length) ? <GuidelineLists doList={draft.doList ?? []} dontList={draft.dontList ?? []} /> : null}
         </Section>
 

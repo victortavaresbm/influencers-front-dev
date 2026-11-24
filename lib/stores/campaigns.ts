@@ -11,12 +11,15 @@ import {
 } from "@/lib/mock-data/campaigns"
 import type { CompanyResearch } from "@/lib/campaigns/autofill"
 import type { SeedingMode, SeedingProduct } from "@/lib/mock-data/seeding"
+import type { StoreProduct } from "@/lib/campaigns/store-products"
 
 export type WizardDraft = Partial<Campaign> & {
   audienceTiers?: string[]
   seedingMode?: SeedingMode
   daysToPost?: number
   seedingProducts?: SeedingProduct[]
+  // Products picked from the Marca's connected stores (sales service).
+  storeProducts?: StoreProduct[]
   skippedSteps?: string[]
   inviteIds?: string[]
   reservedId?: string
