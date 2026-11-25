@@ -1,4 +1,5 @@
 import {
+  defaultTheme,
   item,
   uid,
   type Align,
@@ -33,7 +34,7 @@ function hero(o: {
     tone: o.tone,
     align: o.align ?? "center",
     ctaLabel: o.cta ?? "Quero me candidatar",
-    action: { kind: "form" },
+    action: { kind: "none" },
   }
 }
 
@@ -66,7 +67,7 @@ function gallery(images: [string, string][]): SiteBlock {
 }
 
 function announcement(text: string, cta: string, background: string, tone: "light" | "dark" = "light"): SiteBlock {
-  return { id: uid("blk"), type: "announcement", text, ctaLabel: cta, action: { kind: "form" }, background, tone }
+  return { id: uid("blk"), type: "announcement", text, ctaLabel: cta, action: { kind: "none" }, background, tone }
 }
 
 function faq(title: string, items: [string, string][]): SiteBlock {
@@ -85,7 +86,7 @@ function paragraph(text: string, align: Align = "center"): SiteBlock {
   return { id: uid("blk"), type: "text", text, align }
 }
 
-function button(label: string, action: SiteAction = { kind: "form" }, style: "solid" | "outline" = "solid", align: Align = "center"): SiteBlock {
+function button(label: string, action: SiteAction = { kind: "none" }, style: "solid" | "outline" = "solid", align: Align = "center"): SiteBlock {
   return { id: uid("blk"), type: "button", label, style, align, action }
 }
 
@@ -97,16 +98,14 @@ function divider(): SiteBlock {
   return { id: uid("blk"), type: "divider" }
 }
 
-function form(title = "Sua candidatura"): SiteBlock {
-  return { id: uid("blk"), type: "form", title }
-}
-
 function landing(blocks: SiteBlock[]): SitePage {
   return { id: uid("pg"), name: "Início", kind: "landing", blocks }
 }
 
-function formPage(title = "Sua candidatura"): SitePage {
-  return { id: uid("pg"), name: "Formulário", kind: "form", blocks: [form(title)] }
+// Legacy design-movement templates: the form page is left for the Construtor to
+// fill with field blocks (these templates are superseded by market templates).
+function formPage(_title = "Sua candidatura"): SitePage {
+  return { id: uid("pg"), name: "Formulário", kind: "form", blocks: [] }
 }
 
 function thanks(name: string, title: string, body: string, extra?: SiteBlock): SitePage {
@@ -114,16 +113,28 @@ function thanks(name: string, title: string, body: string, extra?: SiteBlock): S
     id: uid("pg"),
     name,
     kind: "thanks",
+    final: true,
     blocks: [spacer("lg"), heading(title, "center"), paragraph(body, "center"), ...(extra ? [extra] : []), spacer("lg")],
   }
 }
 
-function site(theme: FormSite["theme"], landingPage: SitePage, formPg: SitePage, thanksPage: SitePage): FormSite {
+function site(
+  theme: { primary: string; background?: string; font?: string },
+  landingPage: SitePage,
+  formPg: SitePage,
+  thanksPage: SitePage,
+): FormSite {
+  const full = defaultTheme(theme.primary)
+  if (theme.background) full.background = theme.background
+  if (theme.font) {
+    full.heading.font = theme.font
+    full.body.font = theme.font
+  }
   return {
     entryPageId: landingPage.id,
     fallbackPageId: thanksPage.id,
     rules: [],
-    theme,
+    theme: full,
     pages: [landingPage, formPg, thanksPage],
   }
 }
@@ -155,7 +166,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             "left",
           ),
           spacer("md"),
-          button("Começar", { kind: "form" }, "solid", "left"),
+          button("Começar", { kind: "none" }, "solid", "left"),
           spacer("lg"),
           divider(),
           stats([
@@ -175,7 +186,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Posso editar depois?", "Sim, pelo painel a qualquer momento."],
           ]),
           spacer("md"),
-          button("Começar candidatura", { kind: "form" }),
+          button("Começar candidatura", { kind: "none" }),
           spacer("lg"),
         ]),
         formPage(),
@@ -226,7 +237,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso de muitos seguidores?", "Não. Olhamos consistência e legibilidade do perfil."],
             ["Qual o prazo?", "Resposta em até três dias úteis."],
           ]),
-          button("Enviar portfólio", { kind: "form" }),
+          button("Enviar portfólio", { kind: "none" }),
         ]),
         formPage("Portfólio"),
         thanks("Obrigado", "Recebido.", "A curadoria avalia e retorna pela plataforma."),
@@ -275,7 +286,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Funciona no celular?", "Sim. A página inteira foi pensada para o feed."],
             ["Posso indicar alguém?", "Sim — depois da sua aprovação."],
           ]),
-          button("Quero entrar", { kind: "form" }),
+          button("Quero entrar", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Candidatura enviada!", "Acompanhe o status no painel."),
@@ -325,7 +336,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso de app?", "Não. Tudo roda no navegador."],
             ["Tem contrato?", "Sim, digital e assinado na plataforma."],
           ]),
-          button("Abrir candidatura", { kind: "form" }),
+          button("Abrir candidatura", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Estamos analisando", "Você recebe a notificação no painel e no e-mail."),
@@ -376,7 +387,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É só estética?", "Não. O fluxo de candidatura e pagamento é o mesmo da plataforma."],
             ["Quem entra?", "Creators alinhados ao posicionamento premium da marca."],
           ]),
-          button("Quero o convite", { kind: "form" }),
+          button("Quero o convite", { kind: "none" }),
         ]),
         formPage("Lista VIP"),
         thanks("Obrigado", "Você está na lista", "Avisamos assim que a marca abrir a próxima leva."),
@@ -429,7 +440,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso ser expert?", "Não. Buscamos autenticidade na rotina."],
             ["É pago?", "Produto + comissão ou cachê, conforme a campanha."],
           ]),
-          button("Candidatar-me", { kind: "form" }),
+          button("Candidatar-me", { kind: "none" }),
           spacer("md"),
         ]),
         formPage(),
@@ -479,7 +490,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É sério?", "Sim. Só parece agressivo."],
             ["Serve pra mim?", "Se você publica com opinião, sim."],
           ]),
-          button("MANDAR AGORA", { kind: "form" }),
+          button("MANDAR AGORA", { kind: "none" }),
         ]),
         formPage("Candidatura"),
         thanks("OK", "ENTROU.", "Aguarde o retorno no painel."),
@@ -534,7 +545,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Serve só pra Gen Z?", "Não. Serve pra quem quer destaque visual."],
             ["Tem cachê?", "Sim, combinado por campanha."],
           ]),
-          button("Me candidatar", { kind: "form" }),
+          button("Me candidatar", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Chegou!", "A marca avalia e te avisa no painel."),
@@ -584,7 +595,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso falar de tech?", "Tech, games, sci-fi ou cultura digital."],
             ["Como recebo?", "Pix ou cripto, combinado na aprovação."],
           ]),
-          button("Iniciar uplink", { kind: "form" }),
+          button("Iniciar uplink", { kind: "none" }),
         ]),
         formPage("Uplink"),
         thanks("OK", "Signal received", "Aguarde o handshake da marca no painel."),
@@ -646,7 +657,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Serve só para tech?", "Tech, inovação, mobilidade e marcas que querem cara de futuro."],
             ["Como começo?", "Candidatura abaixo. Aprovação em até dois dias."],
           ]),
-          button("Entrar na órbita", { kind: "form" }),
+          button("Entrar na órbita", { kind: "none" }),
         ]),
         formPage("Reserva"),
         thanks(
@@ -674,7 +685,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             "left",
           ),
           spacer("sm"),
-          button("Assinar a edição", { kind: "form" }, "solid", "left"),
+          button("Assinar a edição", { kind: "none" }, "solid", "left"),
           spacer("md"),
           divider(),
           features(
@@ -700,7 +711,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Serve para qualquer nicho?", "Melhor para lifestyle, moda, cultura e marca premium."],
             ["É pago?", "Cachê editorial combinado por campanha."],
           ]),
-          button("Assinar a edição", { kind: "form" }),
+          button("Assinar a edição", { kind: "none" }),
           spacer("md"),
         ]),
         formPage("Candidatura editorial"),
@@ -751,7 +762,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É só estética?", "Não. O fluxo de candidatura é o da plataforma."],
             ["Serve para B2B?", "Melhor para lifestyle, design e cultura pop."],
           ]),
-          button("Quero o zigzag", { kind: "form" }),
+          button("Quero o zigzag", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Você entrou no padrão", "A marca avalia e te avisa no painel."),
@@ -799,7 +810,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso de estética vintage?", "Ajuda, mas autenticidade conta mais."],
             ["Como recebo?", "Cachê ou produto + comissão."],
           ]),
-          button("Enviar carta", { kind: "form" }),
+          button("Enviar carta", { kind: "none" }),
         ]),
         formPage("Carta de candidatura"),
         thanks("Obrigado", "Carta recebida", "A marca responde pela plataforma."),
@@ -844,7 +855,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só para música?", "Música, moda, lifestyle e nostalgia pop."],
             ["Tem cachê?", "Sim, por campanha."],
           ]),
-          button("Entrar na faixa", { kind: "form" }),
+          button("Entrar na faixa", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Na fila do setlist", "Avisamos no painel."),
@@ -893,7 +904,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso saber 3D?", "Não. Os assets vêm prontos."],
             ["Nicho?", "Tech, games, produto e design."],
           ]),
-          button("Entrar em 3D", { kind: "form" }),
+          button("Entrar em 3D", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Render na fila", "A marca retorna no painel."),
@@ -942,7 +953,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É seletivo?", "Sim. Curadoria alinhada ao posicionamento."],
             ["Como sei se fui aceito?", "Notificação no painel e e-mail."],
           ]),
-          button("Solicitar acesso", { kind: "form" }),
+          button("Solicitar acesso", { kind: "none" }),
         ]),
         formPage("Lista VIP"),
         thanks("Obrigado", "Pedido recebido", "A curadoria responde em breve."),
@@ -991,7 +1002,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso de CNPJ?", "PF ou PJ, conforme a campanha."],
             ["Há NDA?", "Quando a campanha exigir, sim."],
           ]),
-          button("Iniciar candidatura", { kind: "form" }),
+          button("Iniciar candidatura", { kind: "none" }),
         ]),
         formPage("Candidatura corporativa"),
         thanks("Obrigado", "Registro recebido", "O time de parcerias retorna pelo painel."),
@@ -1039,7 +1050,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Serve para tech?", "Melhor para lifestyle, casa e bem-estar."],
             ["É pago?", "Produto + cachê ou comissão."],
           ]),
-          button("Candidatar-me", { kind: "form" }),
+          button("Candidatar-me", { kind: "none" }),
           spacer("md"),
         ]),
         formPage(),
@@ -1090,7 +1101,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso falar de ESG?", "Autenticidade > discurso."],
             ["Como começo?", "Candidatura abaixo."],
           ]),
-          button("Plantar candidatura", { kind: "form" }),
+          button("Plantar candidatura", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Semente plantada", "Acompanhe o crescimento no painel."),
@@ -1135,7 +1146,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Por que bento?", "Você vê tudo sem scroll infinito de texto."],
             ["Mobile?", "Os módulos empilham com elegância."],
           ]),
-          button("Abrir o bento", { kind: "form" }),
+          button("Abrir o bento", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Módulo enviado", "Status no painel."),
@@ -1183,7 +1194,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Serve para digital?", "Melhor para produto físico e lifestyle."],
             ["Frete?", "A marca envia o kit."],
           ]),
-          button("Tocar a parceria", { kind: "form" }),
+          button("Tocar a parceria", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Pedido na bancada", "Retorno no painel."),
@@ -1234,7 +1245,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só beauty?", "Beauty, wellness e lifestyle soft."],
             ["Como entro?", "Candidatura abaixo."],
           ]),
-          button("Seguir a aurora", { kind: "form" }),
+          button("Seguir a aurora", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Você brilhou na fila", "Avisamos no painel."),
@@ -1281,7 +1292,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Tem versão clara?", "Esta é dark-first de propósito."],
             ["Nicho?", "Tech, games, cultura digital."],
           ]),
-          button("Ativar modo escuro", { kind: "form" }),
+          button("Ativar modo escuro", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Sinal recebido", "Retorno no painel."),
@@ -1330,7 +1341,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Serve para B2B?", "Melhor para consumer e lifestyle."],
             ["Tem cachê?", "Sim."],
           ]),
-          button("Entrar no espectro", { kind: "form" }),
+          button("Entrar no espectro", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Cor registrada", "Aguarde no painel."),
@@ -1375,7 +1386,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso editar vídeo?", "Ajuda, mas foto + caption também rola."],
             ["Como recebo?", "Cachê por entrega."],
           ]),
-          button("Sincronizar", { kind: "form" }),
+          button("Sincronizar", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "No beat", "Retorno no painel."),
@@ -1398,7 +1409,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             "center",
           ),
           spacer("sm"),
-          button("Começar no celular", { kind: "form" }),
+          button("Começar no celular", { kind: "none" }),
           spacer("md"),
           stats([
             ["1", "coluna"],
@@ -1414,7 +1425,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Funciona offline?", "Não — mas é leve o suficiente para 4G."],
             ["Posso editar?", "Sim, no painel."],
           ]),
-          button("Começar no celular", { kind: "form" }),
+          button("Começar no celular", { kind: "none" }),
           spacer("lg"),
         ]),
         formPage(),
@@ -1463,7 +1474,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É frio demais?", "É preciso — o tom do brief humaniza."],
             ["Nicho?", "Produto, SaaS, design."],
           ]),
-          button("Aplicar", { kind: "form" }),
+          button("Aplicar", { kind: "none" }),
           spacer("md"),
         ]),
         formPage(),
@@ -1487,7 +1498,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             "left",
           ),
           spacer("sm"),
-          button("Compor candidatura", { kind: "form" }, "solid", "left"),
+          button("Compor candidatura", { kind: "none" }, "solid", "left"),
           spacer("md"),
           divider(),
           features(
@@ -1513,7 +1524,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso ser escritor?", "Ajuda gostar de texto. Não exige livro publicado."],
             ["Imagens?", "Opcional — a letra lidera."],
           ]),
-          button("Compor candidatura", { kind: "form" }),
+          button("Compor candidatura", { kind: "none" }),
           spacer("md"),
         ]),
         formPage(),
@@ -1557,7 +1568,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É rígido?", "A grade é firme; o tom do conteúdo é seu."],
             ["Nicho?", "Design, educação, produto."],
           ]),
-          button("Encaixar na grade", { kind: "form" }),
+          button("Encaixar na grade", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Na grade", "Retorno no painel."),
@@ -1605,7 +1616,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso ser artista?", "Creators com voz visual forte."],
             ["Pago?", "Cachê + crédito."],
           ]),
-          button("Entrar na peça", { kind: "form" }),
+          button("Entrar na peça", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Ingresso reservado", "Curadoria responde no painel."),
@@ -1653,7 +1664,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É o mesmo Material Design?", "É a evolução tonal — mais pessoal."],
             ["Mobile?", "Pensado para polegar e OLED."],
           ]),
-          button("Começar", { kind: "form" }),
+          button("Começar", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Tema aplicado", "Acompanhe no painel."),
@@ -1704,7 +1715,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["só gen z?", "quem vibra com nostalgia digital."],
             ["cachê?", "sim."],
           ]),
-          button("jack in ★", { kind: "form" }),
+          button("jack in ★", { kind: "none" }),
         ]),
         formPage("★ candidatura"),
         thanks("★", "you're in the queue", "check the panel."),
@@ -1752,7 +1763,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Dress code?", "Estética alinhada ao posicionamento da marca."],
             ["Como entro?", "RSVP abaixo."],
           ]),
-          button("RSVP", { kind: "form" }),
+          button("RSVP", { kind: "none" }),
         ]),
         formPage("RSVP"),
         thanks("Merci", "Presença anotada", "Confirmação pelo painel."),
@@ -1800,7 +1811,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É rígido?", "É disciplinado — o conteúdo é seu."],
             ["Nicho?", "Design, arquitetura, educação."],
           ]),
-          button("Aplicar", { kind: "form" }),
+          button("Aplicar", { kind: "none" }),
         ]),
         formPage(),
         thanks("Danke", "Bewerbung erhalten", "Retorno no painel."),
@@ -1850,7 +1861,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só humor?", "Humor, moda e cultura pop."],
             ["Pago?", "Sim."],
           ]),
-          button("BANG → candidatar", { kind: "form" }),
+          button("BANG → candidatar", { kind: "none" }),
         ]),
         formPage(),
         thanks("WOW", "Recebido!", "Painel te avisa."),
@@ -1900,7 +1911,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É caótico?", "É abundante — com brief claro por baixo."],
             ["Nicho?", "Moda, beleza, lifestyle expressivo."],
           ]),
-          button("Quero tudo", { kind: "form" }),
+          button("Quero tudo", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Excesso registrado", "Retorno no painel."),
@@ -1949,7 +1960,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Diferença do Memphis clássico?", "Mesma irreverência, tipografia e UX de agora."],
             ["Pago?", "Sim."],
           ]),
-          button("Revivir", { kind: "form" }),
+          button("Revivir", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Revival iniciado", "Painel te atualiza."),
@@ -1996,7 +2007,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É o mesmo que neumorphism?", "Não — mais cor, mais volume ‘clay’."],
             ["Nicho?", "Kids, wellness, lifestyle."],
           ]),
-          button("Amassar candidatura", { kind: "form" }),
+          button("Amassar candidatura", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Na forja suave", "Retorno no painel."),
@@ -2042,7 +2053,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só games?", "Games, tech e cultura nerd."],
             ["Pago em XP?", "Em Pix. Ou cripto."],
           ]),
-          button("PRESS START", { kind: "form" }),
+          button("PRESS START", { kind: "none" }),
         ]),
         formPage("SAVE FILE"),
         thanks("GG", "DATA SAVED", "Check the panel."),
@@ -2065,7 +2076,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             "left",
           ),
           spacer("sm"),
-          button("Rabiscar candidatura", { kind: "form" }, "solid", "left"),
+          button("Rabiscar candidatura", { kind: "none" }, "solid", "left"),
           spacer("md"),
           features(
             "No caderno",
@@ -2090,7 +2101,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Preciso desenhar?", "Não. Precisa de autenticidade."],
             ["Nicho?", "Craft, educação, lifestyle."],
           ]),
-          button("Rabiscar candidatura", { kind: "form" }),
+          button("Rabiscar candidatura", { kind: "none" }),
           spacer("md"),
         ]),
         formPage(),
@@ -2139,7 +2150,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É agressivo?", "É direto."],
             ["Serve pra mim?", "Se você tem posição, sim."],
           ]),
-          button("ENVIAR", { kind: "form" }),
+          button("ENVIAR", { kind: "none" }),
         ]),
         formPage("ENVIO"),
         thanks("OK", "RECEBIDO", "PAINEL."),
@@ -2186,7 +2197,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só sci-fi?", "Tech, inovação e cultura geek."],
             ["Pago?", "Sim."],
           ]),
-          button("Embarcar", { kind: "form" }),
+          button("Embarcar", { kind: "none" }),
         ]),
         formPage("Boarding pass"),
         thanks("Copy that", "You're on the manifest", "Panel updates incoming."),
@@ -2234,7 +2245,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Nicho?", "Ferramentas, auto, outdoor, manufatura."],
             ["Preciso ser expert?", "Uso real conta mais que diploma."],
           ]),
-          button("Entrar na fábrica", { kind: "form" }),
+          button("Entrar na fábrica", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Na linha", "Retorno no painel."),
@@ -2281,7 +2292,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só azul?", "Este template é azul; a marca pode trocar o primary."],
             ["Nicho?", "SaaS, fintech, educação."],
           ]),
-          button("Entrar no tom", { kind: "form" }),
+          button("Entrar no tom", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Tom registrado", "Painel."),
@@ -2330,7 +2341,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É só estética?", "É tom de voz + visual."],
             ["Pago?", "Produto + cachê."],
           ]),
-          button("Entrar no pastel", { kind: "form" }),
+          button("Entrar no pastel", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Na névoa", "Retorno suave no painel."),
@@ -2379,7 +2390,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Nicho?", "Digital, beleza, lifestyle."],
             ["Como começo?", "Candidatura abaixo."],
           ]),
-          button("Entrar na corrente", { kind: "form" }),
+          button("Entrar na corrente", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Na corrente", "Painel."),
@@ -2434,7 +2445,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Só beauty?", "Beauty, moda e cultura digital."],
             ["Pago?", "Sim."],
           ]),
-          button("Capturar o brilho", { kind: "form" }),
+          button("Capturar o brilho", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Reflexo capturado", "Painel."),
@@ -2483,7 +2494,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Nicho?", "SaaS, educação, produtividade."],
             ["Como começo?", "Candidatura abaixo."],
           ]),
-          button("Mapear candidatura", { kind: "form" }),
+          button("Mapear candidatura", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "No mapa", "Painel."),
@@ -2531,7 +2542,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["Diferença do Flat clássico?", "Mesma clareza, um toque de profundidade."],
             ["Pago?", "Sim."],
           ]),
-          button("Começar", { kind: "form" }),
+          button("Começar", { kind: "none" }),
         ]),
         formPage(),
         thanks("Obrigado", "Enviado", "Painel."),
@@ -2582,7 +2593,7 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
             ["É o mesmo Glassmorphism?", "Mesma família — aqui o foco é UI de painéis."],
             ["Nicho?", "Tech, SaaS, premium digital."],
           ]),
-          button("Abrir o painel", { kind: "form" }),
+          button("Abrir o painel", { kind: "none" }),
         ]),
         formPage("Glass access"),
         thanks("Obrigado", "Painel reservado", "Confirmação na plataforma."),

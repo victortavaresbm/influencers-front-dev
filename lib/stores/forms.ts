@@ -2,14 +2,14 @@
 
 import { create } from "zustand"
 import { scoreApplication } from "@/lib/forms/brief-check"
-import { cloneSite, defaultSite, landingOnlySite, type FormSite } from "@/lib/mock-data/form-site"
+import { cloneSite, defaultSite, type FormSite } from "@/lib/mock-data/form-site"
 import {
   FORM_RESPONSES,
   FORMS,
   questionsFromTemplate,
   type ApplicationForm,
   type FormAnswer,
-  type FormKind,
+  type FormQuestion,
   type FormResponse,
   type FormScope,
   type FormStatus,
@@ -45,14 +45,20 @@ interface CreateFormInput {
   title: string
   description?: string
   scope?: FormScope
-  kind?: FormKind
+  // A ready-made funnel site (from a template). When omitted, a default funnel
+  // is built from the template's seed questions.
   site?: FormSite
+  // Explicit question set (e.g. a market template's questions).
+  questions?: FormQuestion[]
+  // Landing-only funnel: no application questions/form step.
+  landingOnly?: boolean
   campaignId?: string
 }
 
 interface SubmitInput {
   formId: string
-  creatorId: string
+  sessionId?: string
+  creatorId?: string
   creatorName: string
   creatorHandle: string
   answers: FormAnswer[]
@@ -74,20 +80,22 @@ export const useFormStore = create<FormState>()((set, get) => ({
   responses: FORM_RESPONSES,
   createForm: (input) => {
     const stamp = today()
-    const kind = input.kind ?? "form"
     const color = ORG_LOGOS[input.organizationId]?.color ?? "#18181b"
+    // A template may carry its own questions; a blank funnel seeds them from the
+    // template kind. A provided site keeps its own questions (field blocks).
+    const questions = input.questions ?? (input.landingOnly || input.site ? [] : questionsFromTemplate(input.template))
+    const site = input.site ?? defaultSite(color, questions.map((question) => question.id))
     const form: ApplicationForm = {
       id: `form_${crypto.randomUUID()}`,
       organizationId: input.organizationId,
       organizationName: input.organizationName,
       scope: input.scope ?? "brand",
-      kind,
       campaignId: input.campaignId,
       title: input.title,
       description: input.description ?? "",
       status: "rascunho",
-      questions: kind === "page" ? [] : questionsFromTemplate(input.template),
-      site: input.site ?? (kind === "page" ? landingOnlySite(color) : defaultSite(color)),
+      questions,
+      site,
       createdAt: stamp,
       updatedAt: stamp,
     }
@@ -141,8 +149,11 @@ export const useFormStore = create<FormState>()((set, get) => ({
       responses: state.responses.filter((response) => response.formId !== id),
     })),
   submitResponse: (input) => {
+    const sessionId = input.sessionId ?? input.creatorId ?? `sess_${crypto.randomUUID()}`
     const existing = get().responses.find(
-      (response) => response.formId === input.formId && response.creatorId === input.creatorId,
+      (response) =>
+        response.formId === input.formId &&
+        (response.sessionId === sessionId || (!!input.creatorId && response.creatorId === input.creatorId)),
     )
     if (existing) return existing
     const form = get().forms.find((item) => item.id === input.formId)
@@ -150,10 +161,13 @@ export const useFormStore = create<FormState>()((set, get) => ({
     const response: FormResponse = {
       id: `resp_${crypto.randomUUID()}`,
       formId: input.formId,
+      sessionId,
       creatorId: input.creatorId,
       creatorName: input.creatorName,
       creatorHandle: input.creatorHandle,
       submittedAt: new Date().toISOString(),
+      complete: true,
+      stage: input.answers[input.answers.length - 1]?.questionId ?? "",
       answers: input.answers,
       matchScore: scoreApplication(form, input.answers).score,
     }

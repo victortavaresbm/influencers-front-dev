@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { CREATORS } from "@/lib/mock-data/creators"
 import type { FormAnswer } from "@/lib/mock-data/forms"
 import { campaignAcceptsApplication } from "@/lib/campaign-access"
-import { formBlockFormId } from "@/lib/mock-data/form-site"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
@@ -48,10 +47,8 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
     )
   }
 
-  // A page channel embeds an existing form via its form block; applications go
-  // to that referenced form instead of the page itself.
-  const referencedId = form.kind === "page" ? formBlockFormId(form.site) : undefined
-  const app = (referencedId ? forms.find((item) => item.id === referencedId) : undefined) ?? form
+  // In the unified model the funnel is the application itself.
+  const app = form
 
   const campaign = app.campaignId ? campaigns.find((item) => item.id === app.campaignId) : undefined
   const closed =

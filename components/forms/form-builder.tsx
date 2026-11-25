@@ -3,15 +3,19 @@
 import { useState } from "react"
 import {
   AlignLeft,
+  Calendar,
   ChevronDown,
   ChevronUp,
   CircleDot,
   Hash,
   Link,
   ListChecks,
+  Mail,
+  Phone,
   ToggleLeft,
   Trash2,
   Type,
+  Video,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -47,6 +51,10 @@ const TYPE_KEY: Record<QuestionType, MessageKey> = {
   yes_no: "forms.type.yesNo",
   number: "forms.type.number",
   link: "forms.type.link",
+  email: "forms.type.email",
+  phone: "forms.type.phone",
+  date: "forms.type.date",
+  video_response: "forms.type.videoResponse",
 }
 
 const TYPE_ICON: Record<QuestionType, LucideIcon> = {
@@ -57,6 +65,10 @@ const TYPE_ICON: Record<QuestionType, LucideIcon> = {
   yes_no: ToggleLeft,
   number: Hash,
   link: Link,
+  email: Mail,
+  phone: Phone,
+  date: Calendar,
+  video_response: Video,
 }
 
 function QuestionTypeOption({ type }: { type: QuestionType }) {

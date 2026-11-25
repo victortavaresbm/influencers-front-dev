@@ -1,8 +1,10 @@
 import {
   createBlock,
   createPage,
+  defaultTheme,
   firstFormPageId,
   uid,
+  type BlockType,
   type FormSite,
   type GalleryImage,
   type ListItem,
@@ -34,7 +36,7 @@ const BLOCK_TYPES = new Set<SiteBlock["type"]>([
   "marquee",
   "faq",
   "testimonial",
-  "form",
+  "audio",
   "html",
   "divider",
   "spacer",
@@ -82,12 +84,11 @@ function galleryItems(value: unknown): GalleryImage[] | null {
   return list.length ? list : null
 }
 
-function toAction(value: unknown, fallback: SiteAction = { kind: "form" }): SiteAction {
-  if (value === "form") return { kind: "form" }
-  if (value === "none") return { kind: "none" }
+function toAction(value: unknown, fallback: SiteAction = { kind: "none" }): SiteAction {
+  if (value === "none" || value === "form") return { kind: "none" }
   const obj = asRecord(value)
-  if (obj.kind === "form") return { kind: "form" }
-  if (obj.kind === "none") return { kind: "none" }
+  if (obj.kind === "none" || obj.kind === "form") return { kind: "none" }
+  if (obj.kind === "page" && typeof obj.pageId === "string") return { kind: "page", pageId: obj.pageId }
   if (obj.kind === "url" && typeof obj.url === "string") return { kind: "url", url: obj.url }
   if (typeof value === "string" && /^https?:\/\//.test(value)) return { kind: "url", url: value }
   return fallback
@@ -97,7 +98,9 @@ function sanitizeBlock(raw: unknown): SiteBlock | null {
   const obj = asRecord(raw)
   const type = obj.type
   if (typeof type !== "string" || !BLOCK_TYPES.has(type as SiteBlock["type"])) return null
-  const base = createBlock(type as SiteBlock["type"])
+  // BLOCK_TYPES excludes "field" (fields are created from questions), so the
+  // cast to a creatable block type is safe here.
+  const base = createBlock(type as Exclude<BlockType, "field">)
   switch (base.type) {
     case "banner":
       return {
@@ -124,6 +127,8 @@ function sanitizeBlock(raw: unknown): SiteBlock | null {
       return { ...base, src: str(obj.src, base.src), alt: str(obj.caption ?? obj.alt, base.alt), caption: str(obj.caption, base.caption) }
     case "video":
       return { ...base, url: str(obj.url, base.url) }
+    case "audio":
+      return { ...base, url: str(obj.url, base.url), title: str(obj.title, base.title) }
     case "button":
       return {
         ...base,
@@ -140,8 +145,6 @@ function sanitizeBlock(raw: unknown): SiteBlock | null {
       return { ...base, title: str(obj.title, base.title), items: listItems(obj.items) ?? base.items }
     case "testimonial":
       return { ...base, quote: str(obj.quote, base.quote), author: str(obj.author, base.author), role: str(obj.role, base.role) }
-    case "form":
-      return { ...base, title: str(obj.title, base.title) }
     case "html":
       return {
         ...base,
@@ -169,6 +172,8 @@ function sanitizeBlock(raw: unknown): SiteBlock | null {
       return base
     case "spacer":
       return { ...base, size: oneOf(obj.size, ["sm", "md", "lg"] as const, base.size) }
+    default:
+      return null
   }
 }
 
@@ -182,20 +187,19 @@ function sanitizePage(raw: unknown): SitePage | null {
   const kind = oneOf(obj.kind, ["landing", "form", "thanks", "custom"] as const, "custom")
   const blocksRaw = Array.isArray(obj.blocks) ? obj.blocks.slice(0, 16) : []
   const blocks = blocksRaw.map(sanitizeBlock).filter((block): block is SiteBlock => Boolean(block))
-  if (kind === "form" && !blocks.some((block) => block.type === "form")) {
-    blocks.unshift(createBlock("form"))
-  }
   const name = str(obj.name).trim().slice(0, 60) || defaultName(kind)
-  return { id: uid("pg"), name, kind, blocks }
+  return { id: uid("pg"), name, kind, final: kind === "thanks" ? true : undefined, blocks }
 }
 
 export function sanitizeSite(raw: unknown, current: FormSite): FormSite {
   const obj = asRecord(raw)
   const themeObj = asRecord(obj.theme)
-  const theme = {
-    primary: hex(themeObj.primary, current.theme.primary),
-    background: hex(themeObj.background, "#ffffff"),
-    font: oneOf(themeObj.font, ["sans", "serif"] as const, current.theme.font === "serif" ? "serif" : "sans"),
+  const theme = defaultTheme(hex(themeObj.primary, current.theme.primary))
+  theme.background = hex(themeObj.background, current.theme.background)
+  const font = str(themeObj.font)
+  if (font) {
+    theme.heading.font = font
+    theme.body.font = font
   }
 
   const pages = (Array.isArray(obj.pages) ? obj.pages.slice(0, 6) : [])
@@ -212,7 +216,7 @@ export function sanitizeSite(raw: unknown, current: FormSite): FormSite {
       blocks: last.blocks.length ? last.blocks : createPage("thanks", "Obrigado").blocks,
     }
   }
-  const hasForm = pages.some((page) => page.kind === "form" || page.blocks.some((block) => block.type === "form"))
+  const hasForm = pages.some((page) => page.kind === "form")
   if (!hasForm) {
     const thanksIndex = pages.findIndex((page) => page.kind === "thanks")
     pages.splice(thanksIndex >= 0 ? thanksIndex : pages.length, 0, createPage("form", "Formulário"))
@@ -221,12 +225,23 @@ export function sanitizeSite(raw: unknown, current: FormSite): FormSite {
   const entry = pages.find((page) => page.kind === "landing") ?? pages[0]
   const fallback = pages.find((page) => page.kind === "thanks") ?? pages[pages.length - 1]
 
-  const formTarget = firstFormPageId({ ...current, pages })
+  // Wire explicit navigation: the entry page must have a CTA that advances to
+  // the form step (the runtime has no implicit "next page").
+  const formTarget = firstFormPageId({ ...current, pages }) ?? pages.find((page) => page.kind === "form")?.id
   const entryReachesForm = entry.blocks.some(
-    (block) => (block.type === "banner" || block.type === "button") && block.action.kind === "form",
+    (block) =>
+      (block.type === "banner" || block.type === "button" || block.type === "announcement") &&
+      block.action.kind === "page",
   )
   if (formTarget && !entryReachesForm) {
-    entry.blocks.push({ id: uid("blk"), type: "button", label: "Quero me candidatar", style: "solid", align: "center", action: { kind: "form" } })
+    entry.blocks.push({
+      id: uid("blk"),
+      type: "button",
+      label: "Quero me candidatar",
+      style: "solid",
+      align: "center",
+      action: { kind: "page", pageId: formTarget },
+    })
   }
 
   return { entryPageId: entry.id, fallbackPageId: fallback.id, rules: [], theme, pages }
@@ -238,12 +253,12 @@ A pessoa descreve a página que quer e você devolve a estrutura pronta.
 
 Responda APENAS com um objeto JSON válido, sem markdown, sem comentários, no formato:
 {
-  "theme": { "primary": "#RRGGBB", "background": "#ffffff", "font": "sans" | "serif" },
+  "theme": { "primary": "#RRGGBB", "background": "#ffffff", "font": "Inter" },
   "pages": [ { "name": "string", "kind": "landing" | "form" | "thanks" | "custom", "blocks": [ Bloco, ... ] } ]
 }
 
 Cada Bloco tem um "type" e campos próprios:
-- { "type": "banner", "title", "subtitle", "background": "#RRGGBB", "tone": "light" | "dark", "align": "left" | "center", "image": "url ou vazio", "ctaLabel", "action": "form" }  (tone "light" = texto claro sobre fundo escuro)
+- { "type": "banner", "title", "subtitle", "background": "#RRGGBB", "tone": "light" | "dark", "align": "left" | "center", "image": "url ou vazio", "ctaLabel", "action": "none" }  (tone "light" = texto claro sobre fundo escuro)
 - { "type": "heading", "text", "size": "md" | "lg", "align": "left" | "center" }
 - { "type": "text", "text", "align": "left" | "center" }
 - { "type": "features", "title", "items": [ { "title", "text" } ] }  (grade de 3 benefícios)
@@ -253,17 +268,17 @@ Cada Bloco tem um "type" e campos próprios:
 - { "type": "marquee", "items": [ { "title" } ] }  (faixa rolante de nomes/marcas; use só title)
 - { "type": "faq", "title", "items": [ { "title", "text" } ] }
 - { "type": "testimonial", "quote", "author", "role" }
-- { "type": "announcement", "text", "ctaLabel", "action": "form", "background": "#RRGGBB", "tone": "light" | "dark" }  (barra fina no topo)
-- { "type": "button", "label", "style": "solid" | "outline", "align", "action": "form" }
+- { "type": "announcement", "text", "ctaLabel", "action": "none", "background": "#RRGGBB", "tone": "light" | "dark" }  (barra fina no topo)
+- { "type": "button", "label", "style": "solid" | "outline", "align", "action": "none" }
 - { "type": "image", "src": "url", "caption" }
 - { "type": "gallery", "items": [ { "src": "url", "caption" } ] }  (grade de imagens)
 - { "type": "video", "url" }
-- { "type": "form", "title" }
+- { "type": "audio", "url", "title" }
 - { "type": "divider" } , { "type": "spacer", "size": "sm" | "md" | "lg" }
 
 Regras obrigatórias:
-- Monte o fluxo: uma página "landing" (Início) com os blocos de venda; uma página "form" (Formulário) contendo um bloco { "type": "form" }; e uma página "thanks" (Obrigado) curta.
-- A landing deve ter um banner ou botão com "action": "form" para levar ao formulário.
+- Monte o fluxo: uma página "landing" (Início) com os blocos de venda; uma página "form" (Formulário) para as perguntas; e uma página "thanks" (Obrigado) curta.
+- Use "action": "none" nos CTAs — a navegação entre páginas é cabeada automaticamente pelo sistema.
 - Use a cor da marca enviada em primaryColor no theme.primary.
 - Escreva todos os textos em português brasileiro, curtos, específicos e persuasivos, usando o contexto da marca.
 - background "#ffffff" para tema claro; um tom bem escuro (ex. "#0b0b14") para tema escuro.

@@ -217,27 +217,24 @@ function contentFields(
     )
   }
 
-  if (block.type === "form") {
+  if (block.type === "audio") {
     return (
       <>
         <Field label={t("forms.blockTitle")}>
           <Input value={block.title} onChange={(event) => onChange({ ...block, title: event.target.value })} />
         </Field>
-        {formOptions ? (
-          formOptions.length === 0 ? (
-            <Field label={t("forms.formSource")}>
-              <p className="text-xs text-zinc-500">{t("forms.formSourceEmpty")}</p>
-            </Field>
-          ) : (
-            <SelectField
-              label={t("forms.formSource")}
-              value={block.formId ?? ""}
-              onChange={(formId) => onChange({ ...block, formId })}
-              options={formOptions.map((option) => ({ value: option.id, label: option.title }))}
-            />
-          )
-        ) : null}
+        <Field label={t("forms.audioUrl")}>
+          <Input value={block.url} onChange={(event) => onChange({ ...block, url: event.target.value })} />
+        </Field>
       </>
+    )
+  }
+
+  if (block.type === "field") {
+    return (
+      <Field label={t("forms.fieldQuestion")}>
+        <p className="text-xs text-zinc-500">{t("forms.fieldQuestionHint")}</p>
+      </Field>
     )
   }
 
@@ -413,12 +410,10 @@ function ActionFields({
         onChange={(next) => {
           if (next === "page") onChange({ kind: "page", pageId: site.pages[0]?.id ?? "" })
           else if (next === "url") onChange({ kind: "url", url: action.kind === "url" ? action.url : "" })
-          else if (next === "form") onChange({ kind: "form" })
           else onChange({ kind: "none" })
         }}
         options={[
           { value: "none", label: t("forms.actionNone") },
-          { value: "form", label: t("forms.actionForm") },
           { value: "page", label: t("forms.actionPage") },
           { value: "url", label: t("forms.actionUrl") },
         ]}

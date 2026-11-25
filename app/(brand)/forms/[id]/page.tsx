@@ -3,21 +3,19 @@
 import { use, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Copy, Archive, ExternalLink, Link2, Pause, Play } from "lucide-react"
+import { ArrowLeft, Archive, Copy, ExternalLink, Link2, Pause, Play } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
-import { FormBuilder } from "@/components/forms/form-builder"
 import { SiteBuilder } from "@/components/forms/site-builder"
 import { answerText, canPublish, type ApplicationForm, type FormResponse, type FormStatus } from "@/lib/mock-data/forms"
-import { formPublicPath, scoreApplication } from "@/lib/forms/brief-check"
+import { formPublicPath } from "@/lib/forms/brief-check"
 import { defaultSite } from "@/lib/mock-data/form-site"
 import { ORG_LOGOS } from "@/lib/mock-data/users"
 import { useAuthStore } from "@/lib/stores/auth"
-import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { formatDateBR } from "@/lib/dates"
@@ -29,7 +27,7 @@ const STATUS_META: Record<FormStatus, { key: MessageKey; dot: string }> = {
   arquivado: { key: "forms.statusArchived", dot: "#71717a" },
 }
 
-export default function FormEditorPage({ params }: { params: Promise<{ id: string }> }) {
+export default function FunnelEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { t } = useI18n()
   const router = useRouter()
@@ -39,7 +37,6 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
   const updateForm = useFormStore((state) => state.updateForm)
   const duplicateForm = useFormStore((state) => state.duplicateForm)
   const archiveForm = useFormStore((state) => state.archiveForm)
-  const campaigns = useCampaignStore((state) => state.campaigns)
   const stored = forms.find((form) => form.id === id && form.organizationId === organizationId)
   const [draft, setDraft] = useState<ApplicationForm | null>(null)
   const [loadedId, setLoadedId] = useState<string | null>(null)
@@ -67,24 +64,15 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
   if (!draft.site) {
     setDraft({
       ...draft,
-      site: defaultSite(ORG_LOGOS[draft.organizationId]?.color ?? "#18181b"),
+      site: defaultSite(
+        ORG_LOGOS[draft.organizationId]?.color ?? "#18181b",
+        draft.questions.map((question) => question.id),
+      ),
     })
     return null
   }
 
-  const orgCampaigns = campaigns
-    .filter((campaign) => campaign.organizationId === organizationId)
-    .map((campaign) => ({ id: campaign.id, name: campaign.name }))
   const formResponses = responses.filter((response) => response.formId === stored.id)
-  const conflict = forms.find(
-    (form) =>
-      form.id !== draft.id &&
-      form.status === "publicado" &&
-      form.scope === "campaign" &&
-      draft.scope === "campaign" &&
-      draft.campaignId &&
-      form.campaignId === draft.campaignId,
-  )
   const labels = { yes: t("forms.yes"), no: t("forms.no"), empty: t("forms.emptyAnswer") }
 
   const save = (status: FormStatus) => {
@@ -112,6 +100,27 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
               <span className="size-2 rounded-full" style={{ background: statusMeta.dot }} />
               {t(statusMeta.key)}
             </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                await navigator.clipboard.writeText(`${window.location.origin}${formPublicPath(draft.id)}`)
+                toast.add({ type: "success", title: t("forms.linkCopied") })
+              }}
+            >
+              <Link2 />
+              {t("forms.copyLink")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(formPublicPath(draft.id), "_blank", "noopener,noreferrer")}
+            >
+              <ExternalLink />
+              {t("forms.openLp")}
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => save("rascunho")}>
               {t("forms.saveDraft")}
             </Button>
@@ -123,43 +132,23 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
             ) : (
               <Button type="button" size="sm" disabled={!canPublish(draft)} onClick={() => save("publicado")}>
                 <Play />
-                {t("forms.setActive")}
+                {t("forms.publish")}
               </Button>
             )}
           </>
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col px-6 pt-6">
-        <Tabs defaultValue={draft.kind === "page" ? "pages" : "editor"} className="min-h-0 flex-1">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-h-0 flex-1 flex-col px-6 pt-4">
+        <Tabs defaultValue="builder" className="min-h-0 flex-1">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <TabsList>
-              {draft.kind === "form" ? <TabsTrigger value="editor">{t("forms.questionsTab")}</TabsTrigger> : null}
-              {draft.kind === "page" ? <TabsTrigger value="pages">{t("forms.pagesTab")}</TabsTrigger> : null}
-              {draft.kind === "form" ? <TabsTrigger value="responses">{t("forms.responses")}</TabsTrigger> : null}
+              <TabsTrigger value="builder">{t("forms.tabBuilder")}</TabsTrigger>
+              <TabsTrigger value="flow">{t("forms.tabFlow")}</TabsTrigger>
+              <TabsTrigger value="design">{t("forms.tabDesign")}</TabsTrigger>
+              <TabsTrigger value="leads">{t("forms.tabLeads")}</TabsTrigger>
             </TabsList>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(`${window.location.origin}${formPublicPath(draft.id)}`)
-                  toast.add({ type: "success", title: t("forms.linkCopied") })
-                }}
-              >
-                <Link2 />
-                {t("forms.copyLink")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(formPublicPath(draft.id), "_blank", "noopener,noreferrer")}
-              >
-                <ExternalLink />
-                {t("forms.openLp")}
-              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -186,18 +175,20 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
               </Button>
             </div>
           </div>
-          <TabsContent value="editor" className="min-h-0 overflow-auto pb-6">
-            <FormBuilder
-              form={draft}
-              campaigns={orgCampaigns}
-              conflictNote={conflict ? t("forms.replacesPublished", { name: conflict.title }) : undefined}
-              onChange={setDraft}
-            />
-          </TabsContent>
-          <TabsContent value="pages" className="-mx-6 flex min-h-0 flex-col overflow-hidden">
+
+          <TabsContent value="builder" className="-mx-6 flex min-h-0 flex-col overflow-hidden">
             <SiteBuilder form={draft} onChange={setDraft} />
           </TabsContent>
-          <TabsContent value="responses" className="min-h-0 overflow-auto pb-6">
+
+          <TabsContent value="flow" className="min-h-0 overflow-auto pb-6">
+            <SlicePlaceholder title={t("forms.tabFlow")} />
+          </TabsContent>
+
+          <TabsContent value="design" className="min-h-0 overflow-auto pb-6">
+            <SlicePlaceholder title={t("forms.tabDesign")} />
+          </TabsContent>
+
+          <TabsContent value="leads" className="min-h-0 overflow-auto pb-6">
             {formResponses.length === 0 ? (
               <p className="py-16 text-center text-sm text-zinc-500">{t("forms.responsesEmpty")}</p>
             ) : (
@@ -211,11 +202,11 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
                     className="h-auto w-full justify-between rounded-none border-b border-zinc-100 px-4 py-3 text-left last:border-b-0"
                   >
                     <span>
-                      <span className="block text-sm font-medium text-zinc-900">{response.creatorName}</span>
+                      <span className="block text-sm font-medium text-zinc-900">{response.creatorName || t("forms.anonLead")}</span>
                       <span className="block text-xs font-normal text-zinc-400">{response.creatorHandle}</span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <MatchBadge form={draft} answers={response.answers} />
+                      {!response.complete ? <Badge variant="secondary">{t("forms.leadIncomplete")}</Badge> : null}
                       <Badge variant="secondary">{formatDateBR(response.submittedAt)}</Badge>
                     </span>
                   </Button>
@@ -229,15 +220,9 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
       <Sheet open={!!openResponse} onOpenChange={(open) => !open && setOpenResponse(null)}>
         <SheetContent className="w-full sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{openResponse?.creatorName}</SheetTitle>
+            <SheetTitle>{openResponse?.creatorName || t("forms.anonLead")}</SheetTitle>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
-            {openResponse ? (
-              <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2">
-                <p className="text-xs text-zinc-500">{t("forms.briefCheck")}</p>
-                <MatchBadge form={draft} answers={openResponse.answers} />
-              </div>
-            ) : null}
             {draft.questions.map((question) => {
               const answer = openResponse?.answers.find((item) => item.questionId === question.id)
               return (
@@ -254,15 +239,12 @@ export default function FormEditorPage({ params }: { params: Promise<{ id: strin
   )
 }
 
-function MatchBadge({ form, answers }: { form: ApplicationForm; answers: FormResponse["answers"] }) {
+function SlicePlaceholder({ title }: { title: string }) {
   const { t } = useI18n()
-  if (!form.brandSummary && !form.questions.some((question) => (question.match?.weight ?? 0) > 0)) return null
-  const result = scoreApplication(form, answers)
-  const key: MessageKey =
-    result.label === "alto" ? "forms.matchHighLabel" : result.label === "medio" ? "forms.matchMidLabel" : "forms.matchLowLabel"
   return (
-    <Badge variant={result.label === "alto" ? "default" : "secondary"}>
-      {t(key)} · {result.score}%
-    </Badge>
+    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-zinc-200 py-20 text-center">
+      <p className="text-sm font-medium text-zinc-700">{title}</p>
+      <p className="text-xs text-zinc-400">{t("forms.sliceSoon")}</p>
+    </div>
   )
 }

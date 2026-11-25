@@ -5,7 +5,7 @@ import Link from "next/link"
 import { SiteCanvas, SiteShell } from "@/components/forms/site-canvas"
 import { FormRunner } from "@/components/forms/form-runner"
 import { scoreApplication } from "@/lib/forms/brief-check"
-import { firstFormPageId, pageHasForm, resolveThanksPage, type SiteAction } from "@/lib/mock-data/form-site"
+import { pageHasForm, resolveThanksPage, type SiteAction } from "@/lib/mock-data/form-site"
 import type { ApplicationForm, FormAnswer } from "@/lib/mock-data/forms"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
@@ -61,21 +61,8 @@ export function SitePlayer({
   const page = site.pages.find((item) => item.id === pageId) ?? site.pages[0]
   if (!page) return null
 
-  const goForm = () => {
-    if (pageHasForm(page)) {
-      document.getElementById("site-form")?.scrollIntoView({ behavior: "smooth", block: "start" })
-      return
-    }
-    const formPage = firstFormPageId(site)
-    if (formPage) setPageId(formPage)
-  }
-
   const runAction = (action: SiteAction) => {
     if (action.kind === "none") return
-    if (action.kind === "form") {
-      goForm()
-      return
-    }
     if (action.kind === "page") {
       setPageId(action.pageId)
       return

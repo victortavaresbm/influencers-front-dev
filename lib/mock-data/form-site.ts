@@ -1,3 +1,5 @@
+import type { QuestionType } from "@/lib/mock-data/forms"
+
 export type BlockType =
   | "banner"
   | "announcement"
@@ -6,7 +8,9 @@ export type BlockType =
   | "image"
   | "gallery"
   | "video"
+  | "audio"
   | "button"
+  | "field"
   | "features"
   | "bento"
   | "steps"
@@ -14,16 +18,17 @@ export type BlockType =
   | "marquee"
   | "faq"
   | "testimonial"
-  | "form"
   | "html"
   | "divider"
   | "spacer"
 
 export type Align = "left" | "center"
 
+// Navigation is explicit: a CTA either advances to a page, opens an external
+// URL, or does nothing (only valid on a final page). There is no implicit
+// "next page" fallback — see SitePage.final and canPublish validation.
 export type SiteAction =
   | { kind: "none" }
-  | { kind: "form" }
   | { kind: "page"; pageId: string }
   | { kind: "url"; url: string }
 
@@ -79,7 +84,12 @@ export type SiteBlock =
   | { id: string; type: "image"; src: string; alt: string; caption: string }
   | { id: string; type: "gallery"; items: GalleryImage[] }
   | { id: string; type: "video"; url: string }
+  | { id: string; type: "audio"; url: string; title: string }
   | { id: string; type: "button"; label: string; style: "solid" | "outline"; align: Align; action: SiteAction }
+  // A field block is a lightweight pointer to a FormQuestion (source of truth
+  // = form.questions). The canvas renders the question by id; order of field
+  // blocks across pages defines the order the questions are asked.
+  | { id: string; type: "field"; questionId: string }
   | { id: string; type: "features"; title: string; items: ListItem[]; appearance?: ListAppearance }
   | { id: string; type: "bento"; title: string; items: ListItem[]; appearance?: ListAppearance }
   | { id: string; type: "steps"; title: string; items: ListItem[] }
@@ -87,7 +97,6 @@ export type SiteBlock =
   | { id: string; type: "marquee"; items: ListItem[] }
   | { id: string; type: "faq"; title: string; items: ListItem[] }
   | { id: string; type: "testimonial"; quote: string; author: string; role: string }
-  | { id: string; type: "form"; title: string; formId?: string }
   | { id: string; type: "html"; code: string; height: number }
   | { id: string; type: "divider" }
   | { id: string; type: "spacer"; size: "sm" | "md" | "lg" }
@@ -98,6 +107,10 @@ export interface SitePage {
   id: string
   name: string
   kind: PageKind
+  // A final page is terminal (a "thank you"/result page): it needs no onward
+  // navigation and marks a lead as complete when reached. Non-final pages must
+  // have at least one CTA that advances to a page (enforced by canPublish).
+  final?: boolean
   blocks: SiteBlock[]
 }
 
@@ -112,10 +125,59 @@ export interface FlowRule {
   pageId: string
 }
 
+export type ContentWidth = "narrow" | "regular" | "wide"
+export type ContentSpacing = "tight" | "regular" | "relaxed"
+export type BackgroundMode = "color" | "image" | "gradient" | "video"
+export type BackgroundEffect = "none" | "dark" | "gradient" | "grain" | "blur"
+
+export interface Typography {
+  font: string
+  color: string
+  size: number
+  weight: number
+  lineHeight: number
+}
+
 export interface SiteTheme {
+  // Geral
   primary: string
   background: string
-  font: string
+  align: Align
+  width: ContentWidth
+  spacing: ContentSpacing
+  radius: number
+  // Header
+  showProgress: boolean
+  logo: string
+  // Fundo
+  backgroundMode: BackgroundMode
+  backgroundImage: string
+  backgroundGradient: string
+  backgroundVideo: string
+  backgroundEffect: BackgroundEffect
+  // Tipografia
+  heading: Typography
+  body: Typography
+}
+
+export function defaultTheme(primary: string): SiteTheme {
+  return {
+    primary,
+    background: "#ffffff",
+    align: "center",
+    width: "regular",
+    spacing: "regular",
+    radius: 16,
+    showProgress: true,
+    logo: "",
+    backgroundMode: "color",
+    backgroundImage: "",
+    backgroundGradient: "linear-gradient(135deg, #ffffff 0%, #f4f4f5 100%)",
+    backgroundVideo: "",
+    backgroundEffect: "none",
+    heading: { font: "Inter", color: "#18181b", size: 32, weight: 700, lineHeight: 1.15 },
+    body: { font: "Inter", color: "#3f3f46", size: 16, weight: 400, lineHeight: 1.6 },
+  }
 }
 
 export interface FormSite {
@@ -126,11 +188,22 @@ export interface FormSite {
   pages: SitePage[]
 }
 
-export const BLOCK_GROUPS: { id: "structure" | "content" | "media" | "conversion"; types: BlockType[] }[] = [
-  { id: "structure", types: ["announcement", "banner", "divider", "spacer"] },
-  { id: "content", types: ["heading", "text", "features", "bento", "steps", "stats", "marquee", "faq", "testimonial"] },
-  { id: "media", types: ["image", "gallery", "video", "html"] },
-  { id: "conversion", types: ["button", "form"] },
+// Palette groups shown in the Construtor. Form/Quiz groups create field blocks
+// (which also create the backing FormQuestion); media/content are plain blocks.
+export const FIELD_PALETTE: { type: QuestionType; icon?: string }[] = [
+  { type: "short_text" },
+  { type: "email" },
+  { type: "phone" },
+  { type: "number" },
+  { type: "date" },
+  { type: "long_text" },
+]
+export const QUIZ_PALETTE: QuestionType[] = ["single_choice", "multiple_choice", "yes_no", "video_response"]
+
+export const BLOCK_GROUPS: { id: "media" | "content" | "structure"; types: BlockType[] }[] = [
+  { id: "media", types: ["text", "image", "video", "audio"] },
+  { id: "content", types: ["heading", "banner", "features", "bento", "steps", "stats", "marquee", "faq", "testimonial", "gallery"] },
+  { id: "structure", types: ["announcement", "button", "html", "divider", "spacer"] },
 ]
 
 export function uid(prefix: string) {
@@ -141,7 +214,9 @@ export function item(title: string, text: string): ListItem {
   return { id: uid("it"), title, text }
 }
 
-export function createBlock(type: BlockType): SiteBlock {
+// Field blocks are created via fieldBlock(questionId) (they need a backing
+// question), so createBlock covers every other block type.
+export function createBlock(type: Exclude<BlockType, "field">): SiteBlock {
   const id = uid("blk")
   switch (type) {
     case "banner":
@@ -155,7 +230,7 @@ export function createBlock(type: BlockType): SiteBlock {
         tone: "light",
         align: "center",
         ctaLabel: "Quero me candidatar",
-        action: { kind: "form" },
+        action: { kind: "none" },
       }
     case "heading":
       return { id, type, text: "Por que participar", size: "lg", align: "left" }
@@ -170,8 +245,10 @@ export function createBlock(type: BlockType): SiteBlock {
       return { id, type, src: "", alt: "", caption: "" }
     case "video":
       return { id, type, url: "" }
+    case "audio":
+      return { id, type, url: "", title: "Áudio" }
     case "button":
-      return { id, type, label: "Quero participar", style: "solid", align: "center", action: { kind: "form" } }
+      return { id, type, label: "Quero participar", style: "solid", align: "center", action: { kind: "none" } }
     case "features":
       return {
         id,
@@ -207,8 +284,6 @@ export function createBlock(type: BlockType): SiteBlock {
         author: "Creator da comunidade",
         role: "Lifestyle · 80 mil seguidores",
       }
-    case "form":
-      return { id, type, title: "Sua candidatura" }
     case "html":
       return {
         id,
@@ -222,7 +297,7 @@ export function createBlock(type: BlockType): SiteBlock {
         type,
         text: "Inscrições abertas por tempo limitado",
         ctaLabel: "Participar",
-        action: { kind: "form" },
+        action: { kind: "none" },
         background: "#18181b",
         tone: "light",
       }
@@ -278,6 +353,11 @@ function galleryImage(): GalleryImage {
   return { id: uid("it"), src: "", caption: "" }
 }
 
+// A field block points to a FormQuestion by id (see SiteBlock "field").
+export function fieldBlock(questionId: string): SiteBlock {
+  return { id: uid("blk"), type: "field", questionId }
+}
+
 export function cloneBlock(block: SiteBlock): SiteBlock {
   const copy = structuredClone(block)
   copy.id = uid("blk")
@@ -294,6 +374,7 @@ export function createPage(kind: PageKind, name: string): SitePage {
       id,
       name,
       kind,
+      final: true,
       blocks: [
         { id: uid("blk"), type: "spacer", size: "lg" },
         { id: uid("blk"), type: "heading", text: "Candidatura enviada!", size: "lg", align: "center" },
@@ -308,7 +389,8 @@ export function createPage(kind: PageKind, name: string): SitePage {
     }
   }
   if (kind === "form") {
-    return { id, name, kind, blocks: [createBlock("form")] }
+    // Fields are added by dropping questions from the palette.
+    return { id, name, kind, blocks: [] }
   }
   if (kind === "landing") {
     return { id, name, kind, blocks: [createBlock("banner"), createBlock("features")] }
@@ -316,46 +398,61 @@ export function createPage(kind: PageKind, name: string): SitePage {
   return { id, name, kind, blocks: [createBlock("heading"), createBlock("text")] }
 }
 
-export function defaultSite(primary: string): FormSite {
+// A ready-to-use funnel: landing → form (with the given questions as field
+// blocks) → final thank-you page, with explicit navigation wired between them.
+export function defaultSite(primary: string, questionIds: string[] = []): FormSite {
   const landing = createPage("landing", "Início")
   const formPage = createPage("form", "Formulário")
   const thanks = createPage("thanks", "Obrigado")
+  // Landing CTA advances to the form page.
+  landing.blocks = landing.blocks.map((block) =>
+    block.type === "banner" ? { ...block, action: { kind: "page", pageId: formPage.id } } : block,
+  )
+  // Form page: the questions, then a submit button to the final page.
+  formPage.blocks = [
+    ...questionIds.map((qid) => fieldBlock(qid)),
+    { id: uid("blk"), type: "button", label: "Enviar candidatura", style: "solid", align: "center", action: { kind: "page", pageId: thanks.id } },
+  ]
   return {
     entryPageId: landing.id,
     fallbackPageId: thanks.id,
     rules: [],
-    theme: { primary, background: "#ffffff", font: "sans" },
+    theme: defaultTheme(primary),
     pages: [landing, formPage, thanks],
   }
 }
 
-// A landing page channel without the application form step (kind "page").
+// A landing-only funnel (no application form): landing → final page.
 export function landingOnlySite(primary: string): FormSite {
   const landing = createPage("landing", "Início")
   const thanks = createPage("thanks", "Obrigado")
+  landing.blocks = landing.blocks.map((block) =>
+    block.type === "banner" ? { ...block, action: { kind: "page", pageId: thanks.id } } : block,
+  )
   return {
     entryPageId: landing.id,
     fallbackPageId: thanks.id,
     rules: [],
-    theme: { primary, background: "#ffffff", font: "sans" },
+    theme: defaultTheme(primary),
     pages: [landing, thanks],
   }
 }
 
 export function pageHasForm(page: SitePage) {
-  return page.blocks.some((block) => block.type === "form")
+  return page.blocks.some((block) => block.type === "field")
 }
 
-// The form referenced by the first form block on the site (for page channels
-// that embed an existing form).
-export function formBlockFormId(site: FormSite | undefined): string | undefined {
-  if (!site) return undefined
+// Question ids referenced by field blocks across the whole site, in page/block
+// order — this is the order the questions are asked at runtime.
+export function siteQuestionIds(site: FormSite | undefined): string[] {
+  if (!site) return []
+  const ids: string[] = []
   for (const page of site.pages) {
     for (const block of page.blocks) {
-      if (block.type === "form" && block.formId) return block.formId
+      if (block.type === "field") ids.push(block.questionId)
     }
   }
-  return undefined
+  return ids
 }
 
 export function blockActions(block: SiteBlock): SiteAction | null {
@@ -538,18 +635,21 @@ export function resolveThanksPage(
 
 export type FlowNode = {
   id: string
-  kind: "page" | "form" | "url"
+  kind: "page" | "url"
   label: string
   pageKind?: PageKind
   entry?: boolean
-  fallback?: boolean
+  final?: boolean
 }
 
+// An edge carries enough to edit its source back: a block action (blockId) or a
+// post-submit rule (ruleId). Derived edges never live in their own array.
 export type FlowEdge = {
   id: string
   from: string
   to: string
   label: string
+  source: { kind: "action"; pageId: string; blockId: string } | { kind: "rule"; ruleId: string }
 }
 
 export function siteFlow(site: FormSite): { nodes: FlowNode[]; edges: FlowEdge[] } {
@@ -560,39 +660,32 @@ export function siteFlow(site: FormSite): { nodes: FlowNode[]; edges: FlowEdge[]
     label: page.name,
     pageKind: page.kind,
     entry: page.id === site.entryPageId,
-    fallback: page.id === site.fallbackPageId,
+    final: !!page.final,
   }))
-  if (formPageId) {
-    nodes.push({ id: "form", kind: "form", label: "Formulário" })
-  }
   const edges: FlowEdge[] = []
-  const pushEdge = (from: string, to: string, label: string) => {
-    edges.push({ id: `${from}-${to}-${edges.length}`, from, to, label })
+  const pushEdge = (from: string, to: string, label: string, source: FlowEdge["source"]) => {
+    edges.push({ id: `${from}-${to}-${edges.length}`, from, to, label, source })
   }
+  // Edges from explicit CTA actions (Botão/Banner/Announcement → página / URL).
   for (const page of site.pages) {
     for (const block of page.blocks) {
       const action = blockActions(block)
       if (!action || action.kind === "none") continue
       const label = blockActionLabel(block) || "Botão"
-      if (action.kind === "form") {
-        if (pageHasForm(page)) pushEdge(page.id, "form", label)
-        else if (formPageId) {
-          pushEdge(page.id, formPageId, label)
-          pushEdge(formPageId, "form", "")
-        }
-      } else if (action.kind === "page") {
-        pushEdge(page.id, action.pageId, label)
+      const source = { kind: "action" as const, pageId: page.id, blockId: block.id }
+      if (action.kind === "page") {
+        pushEdge(page.id, action.pageId, label, source)
       } else if (action.kind === "url") {
         const urlId = `url-${block.id}`
         if (!nodes.some((node) => node.id === urlId)) {
           nodes.push({ id: urlId, kind: "url", label: action.url || "Link" })
         }
-        pushEdge(page.id, urlId, label)
+        pushEdge(page.id, urlId, label, source)
       }
     }
   }
+  // Post-submit routing rules branch from the form step (score/answer → página).
   if (formPageId) {
-    if (!edges.some((edge) => edge.to === "form")) pushEdge(formPageId, "form", "Candidatura")
     for (const rule of site.rules) {
       const label =
         rule.condition.kind === "score"
@@ -600,10 +693,7 @@ export function siteFlow(site: FormSite): { nodes: FlowNode[]; edges: FlowEdge[]
           : rule.condition.kind === "answer"
             ? `Resposta: ${rule.condition.value}`
             : "Sempre"
-      pushEdge("form", rule.pageId, label)
-    }
-    if (!edges.some((edge) => edge.from === "form" && edge.to === site.fallbackPageId)) {
-      pushEdge("form", site.fallbackPageId, "Demais")
+      pushEdge(formPageId, rule.pageId, label, { kind: "rule", ruleId: rule.id })
     }
   }
   return { nodes, edges }

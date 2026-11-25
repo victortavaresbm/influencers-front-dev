@@ -31,7 +31,7 @@ function hero(o: {
     tone: o.tone,
     align: o.align ?? "center",
     ctaLabel: o.cta ?? "Quero me candidatar",
-    action: { kind: "form" },
+    action: { kind: "none" },
   }
 }
 
@@ -59,16 +59,12 @@ function paragraph(text: string, align: Align = "center"): SiteBlock {
   return { id: uid("blk"), type: "text", text, align }
 }
 
-function button(label: string, action: SiteAction = { kind: "form" }, style: "solid" | "outline" = "solid", align: Align = "center"): SiteBlock {
+function button(label: string, action: SiteAction = { kind: "none" }, style: "solid" | "outline" = "solid", align: Align = "center"): SiteBlock {
   return { id: uid("blk"), type: "button", label, style, align, action }
 }
 
 function image(src: string, caption = ""): SiteBlock {
   return { id: uid("blk"), type: "image", src, alt: caption, caption }
-}
-
-function form(title = "Sua candidatura"): SiteBlock {
-  return { id: uid("blk"), type: "form", title }
 }
 
 function divider(): SiteBlock {
@@ -96,7 +92,7 @@ function gallery(images: [string, string][]): SiteBlock {
 }
 
 function announcement(text: string, cta: string, background: string, tone: "light" | "dark" = "light"): SiteBlock {
-  return { id: uid("blk"), type: "announcement", text, ctaLabel: cta, action: { kind: "form" }, background, tone }
+  return { id: uid("blk"), type: "announcement", text, ctaLabel: cta, action: { kind: "none" }, background, tone }
 }
 
 export type ComponentCategory =
@@ -474,7 +470,7 @@ export const SITE_COMPONENTS: ComponentPreset[] = [
     build: () => [
       heading("Pronto para começar?", "center", "lg"),
       paragraph("Envie a sua candidatura agora e entre para a próxima campanha.", "center"),
-      button("Quero me candidatar", { kind: "form" }),
+      button("Quero me candidatar", { kind: "none" }),
     ],
   },
   {
@@ -482,7 +478,7 @@ export const SITE_COMPONENTS: ComponentPreset[] = [
     name: "Botão de ação",
     description: "Um botão isolado que abre o formulário.",
     category: "cta",
-    build: () => [button("Quero me candidatar", { kind: "form" })],
+    build: () => [button("Quero me candidatar", { kind: "none" })],
   },
   {
     id: "cta-outline",
@@ -560,15 +556,6 @@ export const SITE_COMPONENTS: ComponentPreset[] = [
         [`https://images.unsplash.com/photo-1492691527719-9d1e07e534b4${PHOTO}`, "Campanha"],
       ]),
     ],
-  },
-
-  // ── Conversão ─────────────────────────────────────────────────
-  {
-    id: "conversion-form",
-    name: "Formulário",
-    description: "O formulário de candidatura da campanha.",
-    category: "conversion",
-    build: () => [form()],
   },
 ]
 

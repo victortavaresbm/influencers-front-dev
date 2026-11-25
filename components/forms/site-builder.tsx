@@ -67,7 +67,6 @@ const GROUP_KEY: Record<(typeof BLOCK_GROUPS)[number]["id"], MessageKey> = {
   structure: "forms.group.structure",
   content: "forms.group.content",
   media: "forms.group.media",
-  conversion: "forms.group.conversion",
 }
 
 const KIND_KEY: Record<PageKind, MessageKey> = {
@@ -87,12 +86,13 @@ function blockPreview(block: SiteBlock) {
     case "bento":
     case "steps":
     case "faq":
-    case "form":
       return block.title
     case "heading":
     case "text":
     case "announcement":
       return block.text
+    case "audio":
+      return block.title || block.url
     case "button":
       return block.label
     case "testimonial":
@@ -104,6 +104,7 @@ function blockPreview(block: SiteBlock) {
     case "stats":
     case "marquee":
       return block.items.map((item) => item.title).filter(Boolean).join(" · ")
+    case "field":
     case "gallery":
     case "html":
     case "divider":
@@ -126,7 +127,7 @@ export function SiteBuilder({
   const formOptions = useMemo(
     () =>
       allForms
-        .filter((item) => item.organizationId === form.organizationId && item.kind === "form" && item.status !== "arquivado")
+        .filter((item) => item.organizationId === form.organizationId && item.status !== "arquivado")
         .map((item) => ({ id: item.id, title: item.title })),
     [allForms, form.organizationId],
   )
@@ -194,7 +195,7 @@ export function SiteBuilder({
     setView("visual")
   }
 
-  const addBlock = (type: BlockType) => {
+  const addBlock = (type: Exclude<BlockType, "field">) => {
     if (!page) return
     const block = createBlock(type)
     patchSite(insertBlock(site, page.id, block, blockId ?? undefined))
@@ -234,7 +235,7 @@ export function SiteBuilder({
                   type="button"
                   variant="outline"
                   className="h-auto flex-col items-center gap-1 px-2 py-2 text-[11px] font-normal"
-                  onClick={() => addBlock(type)}
+                  onClick={() => addBlock(type as Exclude<BlockType, "field">)}
                 >
                   <Icon className="size-4" />
                   {t(BLOCK_KEY[type])}
@@ -423,7 +424,19 @@ export function SiteBuilder({
             />
             <div className="space-y-1.5">
               <Label>{t("forms.themeFont")}</Label>
-              <FontPicker value={site.theme.font} onChange={(font) => patchSite({ ...site, theme: { ...site.theme, font } })} />
+              <FontPicker
+                value={site.theme.body.font}
+                onChange={(font) =>
+                  patchSite({
+                    ...site,
+                    theme: {
+                      ...site.theme,
+                      heading: { ...site.theme.heading, font },
+                      body: { ...site.theme.body, font },
+                    },
+                  })
+                }
+              />
             </div>
           </div>
         </div>

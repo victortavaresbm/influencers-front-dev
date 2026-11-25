@@ -15,6 +15,7 @@ import {
   Megaphone,
   Minus,
   MousePointerClick,
+  Music,
   Quote,
   SeparatorHorizontal,
   SquareStack,
@@ -34,7 +35,7 @@ import {
   type SiteBlock,
   type SitePage,
 } from "@/lib/mock-data/form-site"
-import type { ApplicationForm, FormAnswer } from "@/lib/mock-data/forms"
+import { isChoiceType, type ApplicationForm, type FormAnswer, type FormQuestion } from "@/lib/mock-data/forms"
 import { ensureGoogleFont, siteFontFamily } from "@/lib/google-fonts"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,8 @@ const BLOCK_ICON: Record<SiteBlock["type"], typeof LayoutTemplate> = {
   image: Image,
   gallery: Images,
   video: Video,
+  audio: Music,
+  field: ClipboardList,
   button: MousePointerClick,
   features: SquareStack,
   bento: LayoutGrid,
@@ -55,7 +58,6 @@ const BLOCK_ICON: Record<SiteBlock["type"], typeof LayoutTemplate> = {
   marquee: GalleryHorizontal,
   faq: List,
   testimonial: Quote,
-  form: ClipboardList,
   html: Code,
   divider: Minus,
   spacer: SeparatorHorizontal,
@@ -69,6 +71,8 @@ const BLOCK_KEY: Record<SiteBlock["type"], MessageKey> = {
   image: "forms.block.image",
   gallery: "forms.block.gallery",
   video: "forms.block.video",
+  audio: "forms.block.audio",
+  field: "forms.block.field",
   button: "forms.block.button",
   features: "forms.block.features",
   bento: "forms.block.bento",
@@ -77,7 +81,6 @@ const BLOCK_KEY: Record<SiteBlock["type"], MessageKey> = {
   marquee: "forms.block.marquee",
   faq: "forms.block.faq",
   testimonial: "forms.block.testimonial",
-  form: "forms.block.form",
   html: "forms.block.html",
   divider: "forms.block.divider",
   spacer: "forms.block.spacer",
@@ -92,22 +95,19 @@ export function SiteShell({
   className?: string
   children: React.ReactNode
 }) {
+  const headingFont = site.theme.heading.font
+  const bodyFont = site.theme.body.font
   useEffect(() => {
-    ensureGoogleFont(site.theme.font)
-  }, [site.theme.font])
+    ensureGoogleFont(headingFont)
+    ensureGoogleFont(bodyFont)
+  }, [headingFont, bodyFont])
 
   const lightPage = site.theme.background === "#ffffff"
   return (
     <div
-      className={cn(
-        "min-h-full",
-        lightPage && "bg-white text-zinc-900",
-        site.theme.font === "serif" && "font-serif",
-        (site.theme.font === "sans" || !site.theme.font) && "font-sans",
-        className,
-      )}
+      className={cn("min-h-full font-sans", lightPage && "bg-white text-zinc-900", className)}
       style={{
-        fontFamily: siteFontFamily(site.theme.font),
+        fontFamily: siteFontFamily(bodyFont),
         ...(lightPage
           ? {}
           : {
@@ -167,7 +167,7 @@ export function SiteCanvas({
           return (
             <div
               key={block.id}
-              id={block.type === "form" ? "site-form" : undefined}
+              id={block.type === "field" ? "site-form" : undefined}
               data-block-id={block.id}
               draggable={editable}
               className={cn(
@@ -564,33 +564,26 @@ function BlockView({
     )
   }
 
-  if (block.type === "form") {
+  if (block.type === "field") {
+    const question = form.questions.find((item) => item.id === block.questionId)
     return (
-      <section className="mx-auto max-w-xl px-5 py-8 sm:px-6 sm:py-10" id="site-form">
-        {block.title ? (
-          <Reveal active={live}>
-            <h3 className="mb-4 text-lg font-semibold tracking-tight sm:text-xl">{block.title}</h3>
-          </Reveal>
-        ) : null}
-        {formSlot ? (
-          formSlot
-        ) : live ? (
-          <FormRunner
-            form={form}
-            skipIntro
-            alreadySubmitted={alreadySubmitted}
-            onSubmit={onSubmitForm}
-            onDone={onFormDone}
-          />
+      <section className="mx-auto max-w-xl px-5 py-3 sm:px-6" id="site-form">
+        <Reveal active={live}>
+          <FieldPreview question={question} border={border} muted={muted} primary={site.theme.primary} />
+        </Reveal>
+      </section>
+    )
+  }
+
+  if (block.type === "audio") {
+    return (
+      <section className="mx-auto max-w-xl px-5 py-4 sm:px-6">
+        {block.title ? <p className={cn("mb-2 text-sm font-medium", muted)}>{block.title}</p> : null}
+        {block.url ? (
+          <audio controls src={block.url} className="w-full" />
         ) : (
-          <div className={cn("rounded-2xl border border-dashed px-4 py-8 text-center text-sm", border, muted)}>
-            {block.formId
-              ? (formOptions?.find((item) => item.id === block.formId)?.title
-                ? `${t("forms.formLinked")}: ${formOptions.find((item) => item.id === block.formId)?.title}`
-                : t("forms.formMissing"))
-              : formOptions
-                ? t("forms.formSelectHint")
-                : t("forms.formPlaceholder")}
+          <div className={cn("rounded-xl border border-dashed px-4 py-6 text-center text-sm", border, muted)}>
+            {t("forms.audioPlaceholder")}
           </div>
         )}
       </section>
@@ -771,6 +764,84 @@ function BlockView({
   }
 
   return null
+}
+
+// A non-interactive preview of a single question (field block) rendered on the
+// canvas. The live, submitting runtime is handled by the SitePlayer.
+function FieldPreview({
+  question,
+  border,
+  muted,
+  primary,
+}: {
+  question?: FormQuestion
+  border: string
+  muted: string
+  primary: string
+}) {
+  if (!question) {
+    return <div className={cn("rounded-xl border border-dashed px-4 py-4 text-sm", border, muted)}>—</div>
+  }
+  const box = cn("pointer-events-none w-full rounded-lg border bg-white/60 px-3 py-2 text-sm text-zinc-400", border)
+  const label = (
+    <span className="mb-1.5 block text-sm font-medium">
+      {question.title || "Pergunta sem título"}
+      {question.required ? <span style={{ color: primary }}> *</span> : null}
+    </span>
+  )
+  if (isChoiceType(question.type)) {
+    return (
+      <div>
+        {label}
+        <div className="flex flex-col gap-2">
+          {(question.options ?? []).map((option, index) => (
+            <div key={index} className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-sm", border, muted)}>
+              <span
+                className={cn("size-4 border", question.type === "single_choice" ? "rounded-full" : "rounded")}
+                style={{ borderColor: primary }}
+              />
+              {option || `Opção ${index + 1}`}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (question.type === "yes_no") {
+    return (
+      <div>
+        {label}
+        <div className="flex gap-2">
+          <span className={cn("rounded-lg border px-4 py-2 text-sm", border, muted)}>Sim</span>
+          <span className={cn("rounded-lg border px-4 py-2 text-sm", border, muted)}>Não</span>
+        </div>
+      </div>
+    )
+  }
+  if (question.type === "long_text") {
+    return (
+      <div>
+        {label}
+        <div className={cn(box, "h-20")} />
+      </div>
+    )
+  }
+  if (question.type === "video_response") {
+    return (
+      <div>
+        {label}
+        <div className={cn("flex h-24 items-center justify-center rounded-lg border border-dashed text-sm", border, muted)}>
+          🎥
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div>
+      {label}
+      <div className={box}>{question.help || ""}</div>
+    </div>
+  )
 }
 
 export { BLOCK_ICON, BLOCK_KEY }

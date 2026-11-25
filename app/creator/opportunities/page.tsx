@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { Search } from "lucide-react"
 import { CampaignTypeBadge } from "@/components/campaigns/campaign-type-badge"
@@ -54,12 +53,7 @@ export default function CreatorOpportunitiesPage() {
           />
         </div>
 
-        <Tabs defaultValue="campaigns">
-          <TabsList>
-            <TabsTrigger value="campaigns">{t("forms.campaignsTab")}</TabsTrigger>
-            <TabsTrigger value="brands">{t("forms.brandsTab")}</TabsTrigger>
-          </TabsList>
-          <TabsContent value="campaigns">
+        <div>
             {openCampaigns.length === 0 ? (
               <div className="py-16 text-center text-sm text-zinc-400">Nenhuma campanha aberta no momento.</div>
             ) : (
@@ -114,52 +108,8 @@ export default function CreatorOpportunitiesPage() {
                 })}
               </div>
             )}
-          </TabsContent>
-          <TabsContent value="brands">
-            <BrandForms search={search} creatorId={creator.id} />
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
-    </div>
-  )
-}
-
-function BrandForms({ search, creatorId }: { search: string; creatorId: string }) {
-  const { t } = useI18n()
-  const forms = useFormStore((state) => state.forms)
-  const responses = useFormStore((state) => state.responses)
-  const query = search.trim().toLowerCase()
-  const open = forms.filter((form) => {
-    if (form.kind !== "form" || form.scope !== "brand" || form.status !== "publicado") return false
-    if (!query) return true
-    return form.title.toLowerCase().includes(query) || form.organizationName.toLowerCase().includes(query)
-  })
-
-  if (open.length === 0) {
-    return <div className="py-16 text-center text-sm text-zinc-400">{t("forms.noBrandForms")}</div>
-  }
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {open.map((form) => {
-        const sent = responses.some((response) => response.formId === form.id && response.creatorId === creatorId)
-        return (
-          <Card key={form.id} className="p-4">
-            <p className="text-xs text-zinc-400">{form.organizationName}</p>
-            <p className="mt-1 text-sm font-semibold text-zinc-900">{form.title}</p>
-            {form.description ? <p className="mt-2 line-clamp-3 text-xs text-zinc-500">{form.description}</p> : null}
-            <div className="mt-4">
-              {sent ? (
-                <Badge variant="secondary">{t("forms.sent")}</Badge>
-              ) : (
-                <Link href={form.site ? `/lp/${form.id}` : `/creator/apply/${form.id}?return=/creator/opportunities`}>
-                  <Button size="sm">{t("forms.apply")}</Button>
-                </Link>
-              )}
-            </div>
-          </Card>
-        )
-      })}
     </div>
   )
 }

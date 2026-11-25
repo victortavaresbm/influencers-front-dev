@@ -3,12 +3,16 @@ import {
   createBlock,
   createPage,
   defaultSite,
+  defaultTheme,
   item,
   uid,
   type FormSite,
   type SiteBlock,
   type SitePage,
 } from "@/lib/mock-data/form-site"
+
+const SERIF_FONT = "Playfair Display"
+const SANS_FONT = "Inter"
 
 const COLOR_WORDS: { test: RegExp; color: string }[] = [
   { test: /azul|blue|magalu/i, color: "#0086FF" },
@@ -68,7 +72,7 @@ function landingBlocks(form: ApplicationForm, prompt: string, color: string): Si
       tone: "light",
       align: "left",
       ctaLabel: "Quero me candidatar",
-      action: { kind: "form" },
+      action: { kind: "none" },
     },
   ]
   if (!/sem n[uú]meros|sem stats/i.test(prompt)) {
@@ -157,8 +161,13 @@ function applyEdits(site: FormSite, form: ApplicationForm, prompt: string): Form
     theme: { ...site.theme, primary: colorFrom(prompt, site.theme.primary) },
     pages: site.pages.map((page) => ({ ...page, blocks: page.blocks.map((block) => ({ ...block })) })),
   }
-  if (/serif/i.test(prompt)) next = { ...next, theme: { ...next.theme, font: "serif" } }
-  if (/sans/i.test(prompt)) next = { ...next, theme: { ...next.theme, font: "sans" } }
+  const setFont = (font: string) =>
+    (next = {
+      ...next,
+      theme: { ...next.theme, heading: { ...next.theme.heading, font }, body: { ...next.theme.body, font } },
+    })
+  if (/serif/i.test(prompt)) setFont(SERIF_FONT)
+  if (/sans/i.test(prompt)) setFont(SANS_FONT)
   if (/escuro|dark|preto/i.test(prompt)) next = { ...next, theme: { ...next.theme, background: "#09090b" } }
   if (/claro|white|branco/i.test(prompt)) next = { ...next, theme: { ...next.theme, background: "#ffffff" } }
 
@@ -220,14 +229,19 @@ export function generateSite(form: ApplicationForm, prompt: string, current?: Fo
     return { site: applyEdits(current, form, prompt), note: "edit" }
   }
 
+  const formStep = createPage("form", "Formulário")
+  const thanks = createPage("thanks", "Obrigado")
+  // Explicit navigation: the landing CTA advances to the form step.
   const landing: SitePage = {
     id: uid("pg"),
     name: "Início",
     kind: "landing",
-    blocks: landingBlocks(form, prompt, color),
+    blocks: landingBlocks(form, prompt, color).map((block) =>
+      block.type === "banner" || block.type === "button"
+        ? { ...block, action: { kind: "page", pageId: formStep.id } }
+        : block,
+    ),
   }
-  const formStep = createPage("form", "Formulário")
-  const thanks = createPage("thanks", "Obrigado")
   const pages = [landing, formStep, thanks]
   const rules: FormSite["rules"] = []
   if (/match|brief check|priorit/i.test(prompt) || (form.brandSummary && form.questions.some((question) => question.match))) {
@@ -241,7 +255,15 @@ export function generateSite(form: ApplicationForm, prompt: string, current?: Fo
     entryPageId: landing.id,
     fallbackPageId: thanks.id,
     rules,
-    theme: { primary: color, background: /escuro|dark/i.test(prompt) ? "#09090b" : "#ffffff", font: /serif/i.test(prompt) ? "serif" : "sans" },
+    theme: (() => {
+      const theme = defaultTheme(color)
+      theme.background = /escuro|dark/i.test(prompt) ? "#09090b" : "#ffffff"
+      if (/serif/i.test(prompt)) {
+        theme.heading.font = SERIF_FONT
+        theme.body.font = SERIF_FONT
+      }
+      return theme
+    })(),
     pages,
   }
   return { site, note: "create" }

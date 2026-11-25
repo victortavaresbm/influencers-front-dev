@@ -3,24 +3,17 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, Copy, FilePen, FileText, LayoutPanelTop, Pause, Play, Plus } from "lucide-react"
+import { Archive, Copy, FilePen, Pause, Play, Plus } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { FormCardPreview } from "@/components/forms/form-card-preview"
 import { ActionsMenu, type ActionMenuItem } from "@/components/ui/actions-menu"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
-import { canPublish, type ApplicationForm, type FormKind, type FormStatus } from "@/lib/mock-data/forms"
+import { canPublish, type ApplicationForm, type FormStatus } from "@/lib/mock-data/forms"
 
 const STATUS_META: Record<FormStatus, { key: MessageKey; dot: string }> = {
   publicado: { key: "forms.statusActive", dot: "#16a34a" },
@@ -41,24 +34,15 @@ const FILTERS: { value: StatusFilter; key: MessageKey }[] = [
 
 export default function FormsPage() {
   const { t } = useI18n()
-  const router = useRouter()
   const organizationId = useAuthStore((state) => state.user?.organizationId)
   const forms = useFormStore((state) => state.forms)
   const responses = useFormStore((state) => state.responses)
   const campaigns = useCampaignStore((state) => state.campaigns)
-  const [tab, setTab] = useState<FormKind>("form")
   const [filter, setFilter] = useState<StatusFilter>("all")
 
-  const mine = forms.filter((form) => form.organizationId === organizationId)
-  const visible = (kind: FormKind) =>
-    mine
-      .filter((form) => form.kind === kind)
-      .filter((form) => (filter === "all" ? form.status !== "arquivado" : form.status === filter))
-
-  const formCount = mine.filter((form) => form.kind === "form" && form.status !== "arquivado").length
-  const pageCount = mine.filter((form) => form.kind === "page" && form.status !== "arquivado").length
-
-  const create = (kind: FormKind) => router.push(`/forms/new?kind=${kind}`)
+  const visible = forms
+    .filter((form) => form.organizationId === organizationId)
+    .filter((form) => (filter === "all" ? form.status !== "arquivado" : form.status === filter))
 
   return (
     <div className="flex flex-1 flex-col">
@@ -66,114 +50,47 @@ export default function FormsPage() {
         title={t("pages.hubTitle")}
         subtitle={t("pages.hubSubtitle")}
         actions={
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button size="sm" type="button" />}>
-              <Plus />
-              {t("pages.create")}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => create("form")}>
-                <FileText />
-                {t("pages.createForm")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => create("page")}>
-                <LayoutPanelTop />
-                {t("pages.createPage")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" type="button" render={<Link href="/forms/new" />}>
+            <Plus />
+            {t("pages.newFunnel")}
+          </Button>
         }
       />
       <div className="space-y-4 p-6">
-        <Tabs value={tab} onValueChange={(value) => value && setTab(value as FormKind)}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <TabsList>
-              <TabsTrigger value="form">
-                <FileText />
-                {t("pages.hubForms")}
-                <span className="ml-1 text-xs text-muted-foreground">{formCount}</span>
-              </TabsTrigger>
-              <TabsTrigger value="page">
-                <LayoutPanelTop />
-                {t("pages.hubPages")}
-                <span className="ml-1 text-xs text-muted-foreground">{pageCount}</span>
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex flex-wrap gap-1">
-              {FILTERS.map((item) => (
-                <Button
-                  key={item.value}
-                  type="button"
-                  size="sm"
-                  variant={filter === item.value ? "secondary" : "ghost"}
-                  onClick={() => setFilter(item.value)}
-                >
-                  {t(item.key)}
-                </Button>
-              ))}
-            </div>
+        <div className="flex flex-wrap gap-1">
+          {FILTERS.map((item) => (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={filter === item.value ? "secondary" : "ghost"}
+              onClick={() => setFilter(item.value)}
+            >
+              {t(item.key)}
+            </Button>
+          ))}
+        </div>
+        {visible.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-200 py-16 text-center">
+            <p className="text-sm text-zinc-500">{t("pages.funnelsEmpty")}</p>
+            <Button type="button" variant="outline" size="sm" render={<Link href="/forms/new" />}>
+              <Plus />
+              {t("pages.newFunnel")}
+            </Button>
           </div>
-          <TabsContent value="form" className="mt-4">
-            <ChannelGrid
-              forms={visible("form")}
-              kind="form"
-              responses={responses}
-              campaigns={campaigns}
-              onCreate={() => create("form")}
-            />
-          </TabsContent>
-          <TabsContent value="page" className="mt-4">
-            <ChannelGrid
-              forms={visible("page")}
-              kind="page"
-              responses={responses}
-              campaigns={campaigns}
-              onCreate={() => create("page")}
-            />
-          </TabsContent>
-        </Tabs>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((form) => (
+              <FunnelCard key={form.id} form={form} responses={responses} campaigns={campaigns} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function ChannelGrid({
-  forms,
-  kind,
-  responses,
-  campaigns,
-  onCreate,
-}: {
-  forms: ApplicationForm[]
-  kind: FormKind
-  responses: { formId: string }[]
-  campaigns: { id: string; name: string }[]
-  onCreate: () => void
-}) {
-  const { t } = useI18n()
-
-  if (forms.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-200 py-16 text-center">
-        <p className="text-sm text-zinc-500">{t(kind === "page" ? "pages.pagesEmpty" : "pages.formsEmpty")}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onCreate}>
-          <Plus />
-          {t(kind === "page" ? "pages.createPage" : "pages.createForm")}
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {forms.map((form) => (
-        <ChannelCard key={form.id} form={form} responses={responses} campaigns={campaigns} />
-      ))}
-    </div>
-  )
-}
-
-function ChannelCard({
+function FunnelCard({
   form,
   responses,
   campaigns,
@@ -233,15 +150,9 @@ function ChannelCard({
       </Link>
       <CardContent className="flex items-center justify-between gap-2 pt-2 pb-3">
         <p className="min-w-0 truncate text-xs text-muted-foreground">
-          {form.kind === "page" ? (
-            t("forms.pagesCount", { count: form.site?.pages.length ?? 0 })
-          ) : (
-            <>
-              {t("forms.questionsCount", { count: form.questions.length })}
-              {" · "}
-              {t("forms.responsesCount", { count })}
-            </>
-          )}
+          {t("forms.pagesCount", { count: form.site?.pages.length ?? 0 })}
+          {" · "}
+          {t("forms.responsesCount", { count })}
           {form.scope === "campaign" ? <span className="text-zinc-300"> · {campaign?.name ?? t("forms.scopeCampaign")}</span> : null}
         </p>
         <ActionsMenu trigger="ellipsis" items={items} />

@@ -60,7 +60,7 @@ export function SiteFlow({
         {outgoing(site.entryPageId).map((edge) => (
           <EdgeLabel key={edge.id} label={edge.label} />
         ))}
-        {graph.nodes.some((node) => node.kind === "form") ? (
+        {Boolean(formPageId) ? (
           <>
             <NodeCard
               label={t("forms.flowFormNode")}

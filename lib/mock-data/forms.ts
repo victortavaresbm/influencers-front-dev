@@ -6,12 +6,15 @@ export type QuestionType =
   | "yes_no"
   | "number"
   | "link"
+  | "email"
+  | "phone"
+  | "date"
+  | "video_response"
 
-import { landingOnlySite, type FormSite } from "@/lib/mock-data/form-site"
+import { defaultTheme, landingOnlySite, type FormSite } from "@/lib/mock-data/form-site"
 
 export type FormStatus = "rascunho" | "publicado" | "inativo" | "arquivado"
 export type FormScope = "brand" | "campaign"
-export type FormKind = "form" | "page"
 export type FormTemplate = "blank" | "creator" | "affiliate"
 
 export type MatchWeight = 0 | 1 | 2 | 3
@@ -36,7 +39,6 @@ export interface ApplicationForm {
   organizationId: string
   organizationName: string
   scope: FormScope
-  kind: FormKind
   campaignId?: string
   title: string
   description: string
@@ -55,15 +57,73 @@ export interface FormAnswer {
   value: AnswerValue
 }
 
+export type Device = "desktop" | "mobile" | "tablet"
+
+export type StepEventKind = "enter" | "advance" | "back" | "click" | "submit"
+
+export interface StepEvent {
+  pageId: string
+  kind: StepEventKind
+  at: string
+  blockId?: string
+}
+
+// Marketing attribution captured from the public link's URL (UTMs, fbclid) and
+// inferred channel/device. Present on leads that came through a shared funnel.
+export interface ResponseTracking {
+  channel?: string
+  destination?: string
+  fbclid?: string
+  utmSource?: string
+  utmMedium?: string
+  utmCampaign?: string
+  utmContent?: string
+  utmTerm?: string
+  device?: Device
+}
+
 export interface FormResponse {
   id: string
   formId: string
-  creatorId: string
+  // Session that ties incremental (per-page) saves to the same lead. Anonymous
+  // visitors get a client-generated id; logged-in creators reuse their id.
+  sessionId: string
+  creatorId?: string
   creatorName: string
   creatorHandle: string
+  leadEmail?: string
   submittedAt: string
+  updatedAt?: string
+  // A lead is complete once it reaches a final page; partial leads show in the
+  // Respostas table with an "incompleto" badge and feed drop-off analytics.
+  complete: boolean
+  stage: string
   answers: FormAnswer[]
   matchScore?: number
+  tracking?: ResponseTracking
+  stepEvents?: StepEvent[]
+}
+
+// Seeded per-funnel performance numbers (there is no real traffic): the funnel
+// counts, device/source/UTM splits, a timeline and a 0–100 health score.
+export interface FunnelStageCount {
+  pageId?: string
+  label: string
+  count: number
+}
+
+export interface FunnelAnalytics {
+  formId: string
+  visitors: number
+  responses: number
+  leads: number
+  completions: number
+  score: number
+  byDevice: { device: Device; count: number }[]
+  bySource: { source: string; count: number }[]
+  byUtm: { campaign: string; count: number }[]
+  timeline: { date: string; visitors: number; responses: number; leads: number }[]
+  funnel: FunnelStageCount[]
 }
 
 export const QUESTION_TYPES: QuestionType[] = [
@@ -74,6 +134,10 @@ export const QUESTION_TYPES: QuestionType[] = [
   "yes_no",
   "number",
   "link",
+  "email",
+  "phone",
+  "date",
+  "video_response",
 ]
 
 export function isChoiceType(type: QuestionType) {
@@ -124,17 +188,46 @@ export function questionsFromTemplate(template: FormTemplate): FormQuestion[] {
   return seeds.map((seed) => createQuestion(seed.type, seed))
 }
 
-export function canPublish(form: Pick<ApplicationForm, "title" | "scope" | "campaignId" | "questions" | "kind">) {
-  if (!form.title.trim()) return false
-  if (form.scope === "campaign" && !form.campaignId) return false
-  // A landing page channel has no questions to validate.
-  if (form.kind === "page") return true
-  if (form.questions.length === 0) return false
-  return form.questions.every((question) => {
-    if (!question.title.trim()) return false
-    if (!isChoiceType(question.type)) return true
-    return (question.options ?? []).filter((option) => option.trim()).length >= 2
-  })
+export type FunnelIssue = "title" | "campaign" | "question" | "options" | "final" | "deadend"
+
+// All reasons a funnel can't be published yet. A landing-only funnel has no
+// questions to validate; every non-final page must have a CTA that advances.
+export function funnelIssues(
+  form: Pick<ApplicationForm, "title" | "scope" | "campaignId" | "questions" | "site">,
+): FunnelIssue[] {
+  const issues: FunnelIssue[] = []
+  if (!form.title.trim()) issues.push("title")
+  if (form.scope === "campaign" && !form.campaignId) issues.push("campaign")
+  for (const question of form.questions) {
+    if (!question.title.trim()) {
+      issues.push("question")
+      break
+    }
+    if (isChoiceType(question.type) && (question.options ?? []).filter((o) => o.trim()).length < 2) {
+      issues.push("options")
+      break
+    }
+  }
+  const site = form.site
+  if (site) {
+    if (!site.pages.some((page) => page.final)) issues.push("final")
+    const advances = (page: FormSite["pages"][number]) =>
+      page.blocks.some((block) =>
+        block.type === "button"
+          ? block.action.kind === "page"
+          : (block.type === "banner" || block.type === "announcement") &&
+            block.ctaLabel.trim() !== "" &&
+            block.action.kind === "page",
+      )
+    if (site.pages.some((page) => !page.final && !advances(page))) issues.push("deadend")
+  }
+  return issues
+}
+
+export function canPublish(
+  form: Pick<ApplicationForm, "title" | "scope" | "campaignId" | "questions" | "site">,
+) {
+  return funnelIssues(form).length === 0
 }
 
 export function answerFilled(question: FormQuestion, value: AnswerValue | undefined) {
@@ -162,7 +255,6 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org1",
     organizationName: "Natura",
     scope: "brand",
-    kind: "form",
     title: "Candidatura Natura",
     description: "Conte como você se conecta com a marca para entrar na comunidade de creators e afiliados.",
     status: "publicado",
@@ -187,7 +279,6 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org2",
     organizationName: "Magazine Luiza",
     scope: "campaign",
-    kind: "form",
     campaignId: "camp2",
     title: "Candidatura Tech Week",
     description: "Formulário para creators e afiliados que querem divulgar a Tech Week Magalu.",
@@ -213,7 +304,6 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org2",
     organizationName: "Magazine Luiza",
     scope: "campaign",
-    kind: "form",
     campaignId: "camp7",
     title: "Candidatura Casa & Decor",
     description: "Para creators de decoração que querem mostrar o novo módulo do app Magalu.",
@@ -237,7 +327,7 @@ export const FORMS: ApplicationForm[] = [
       entryPageId: "pg-casa-home",
       fallbackPageId: "pg-casa-thanks",
       rules: [{ id: "rule-casa-1", condition: { kind: "score", min: 70 }, pageId: "pg-casa-match" }],
-      theme: { primary: "#0086FF", background: "#ffffff", font: "sans" },
+      theme: defaultTheme("#0086FF"),
       pages: [
         {
           id: "pg-casa-home",
@@ -254,7 +344,7 @@ export const FORMS: ApplicationForm[] = [
               tone: "light",
               align: "left",
               ctaLabel: "Quero me candidatar",
-              action: { kind: "form" },
+              action: { kind: "page", pageId: "pg-casa-form" },
             },
             {
               id: "blk-casa-stats",
@@ -290,12 +380,26 @@ export const FORMS: ApplicationForm[] = [
           id: "pg-casa-form",
           name: "Formulário",
           kind: "form",
-          blocks: [{ id: "blk-casa-form", type: "form", title: "Sua candidatura" }],
+          blocks: [
+            { id: "blk-casa-f1", type: "field", questionId: "q-casa-1" },
+            { id: "blk-casa-f2", type: "field", questionId: "q-casa-2" },
+            { id: "blk-casa-f3", type: "field", questionId: "q-casa-3" },
+            { id: "blk-casa-f4", type: "field", questionId: "q-casa-4" },
+            {
+              id: "blk-casa-fsubmit",
+              type: "button",
+              label: "Enviar candidatura",
+              style: "solid",
+              align: "center",
+              action: { kind: "page", pageId: "pg-casa-thanks" },
+            },
+          ],
         },
         {
           id: "pg-casa-match",
           name: "Match alto",
           kind: "thanks",
+          final: true,
           blocks: [
             { id: "blk-casa-m1", type: "spacer", size: "lg" },
             { id: "blk-casa-m2", type: "heading", text: "Seu perfil tem a cara do Casa & Decor", size: "lg", align: "center" },
@@ -308,6 +412,7 @@ export const FORMS: ApplicationForm[] = [
           id: "pg-casa-thanks",
           name: "Obrigado",
           kind: "thanks",
+          final: true,
           blocks: [
             { id: "blk-casa-t1", type: "spacer", size: "lg" },
             { id: "blk-casa-t2", type: "heading", text: "Candidatura enviada!", size: "lg", align: "center" },
@@ -325,7 +430,6 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org1",
     organizationName: "Natura",
     scope: "brand",
-    kind: "page",
     title: "Clube de Creators Natura",
     description: "Página de apresentação do clube de creators para atrair novos talentos.",
     status: "publicado",
@@ -339,7 +443,6 @@ export const FORMS: ApplicationForm[] = [
     organizationId: "org2",
     organizationName: "Magazine Luiza",
     scope: "brand",
-    kind: "page",
     title: "Hub de Parcerias Magalu",
     description: "Landing institucional com os benefícios de ser parceiro Magalu.",
     status: "rascunho",
@@ -350,7 +453,7 @@ export const FORMS: ApplicationForm[] = [
   },
 ]
 
-export const FORM_RESPONSES: FormResponse[] = [
+const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & Partial<FormResponse>)[] = [
   {
     id: "resp-nat-1",
     formId: "form-natura",
@@ -469,3 +572,12 @@ export const FORM_RESPONSES: FormResponse[] = [
     ],
   },
 ]
+
+// Seed responses predate the incremental-lead model, so they are all complete
+// leads anchored to a stable session id derived from their response id.
+export const FORM_RESPONSES: FormResponse[] = RAW_RESPONSES.map((response) => ({
+  complete: true,
+  stage: response.answers[response.answers.length - 1]?.questionId ?? "",
+  sessionId: `sess_${response.id}`,
+  ...response,
+}))
