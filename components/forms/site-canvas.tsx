@@ -24,8 +24,14 @@ import {
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { FormRunner } from "@/components/forms/form-runner"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Textarea } from "@/components/ui/textarea"
 import { MediaCover } from "@/components/forms/media-field"
+import { SocialLinksField } from "@/components/forms/social-links-field"
+import { socialLinksFilled } from "@/lib/forms/social-links"
 import { BorderBeam, NumberTicker, Reveal } from "@/components/forms/site-animations"
 import {
   blockActions,
@@ -35,7 +41,13 @@ import {
   type SiteBlock,
   type SitePage,
 } from "@/lib/mock-data/form-site"
-import { isChoiceType, type ApplicationForm, type FormAnswer, type FormQuestion } from "@/lib/mock-data/forms"
+import {
+  isChoiceType,
+  type AnswerValue,
+  type ApplicationForm,
+  type FormAnswer,
+  type FormQuestion,
+} from "@/lib/mock-data/forms"
 import { ensureGoogleFont, siteFontFamily } from "@/lib/google-fonts"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -108,10 +120,12 @@ export function SiteShell({
     ensureGoogleFont(theme.body.font)
   }, [theme.heading.font, theme.body.font])
 
+  const pageFont = siteFontFamily(theme.body.font)
   const cssVars = {
     "--site-primary": theme.primary,
     "--site-radius": `${theme.radius}px`,
-    "--site-heading-font": siteFontFamily(theme.heading.font) ?? "inherit",
+    "--site-font": pageFont,
+    "--site-heading-font": siteFontFamily(theme.heading.font),
     "--site-heading-color": theme.heading.color,
     "--site-heading-weight": String(theme.heading.weight),
     "--site-heading-line": String(theme.heading.lineHeight),
@@ -119,10 +133,10 @@ export function SiteShell({
 
   return (
     <div
-      className={cn("relative min-h-full font-sans", className)}
+      className={cn("site-page relative min-h-full", className)}
       style={{
         ...cssVars,
-        fontFamily: siteFontFamily(theme.body.font),
+        fontFamily: pageFont,
         fontSize: theme.body.size,
         lineHeight: theme.body.lineHeight,
         color: theme.body.color,
@@ -205,9 +219,15 @@ export function SiteCanvas({
   alreadySubmitted,
   formSlot,
   formOptions,
+  className,
+  progress,
+  answers,
+  invalidQuestionIds,
+  footer,
   onSelectBlock,
   onReorder,
   onAction,
+  onAnswer,
   onSubmitForm,
   onFormDone,
 }: {
@@ -219,9 +239,15 @@ export function SiteCanvas({
   alreadySubmitted?: boolean
   formSlot?: React.ReactNode
   formOptions?: { id: string; title: string }[]
+  className?: string
+  progress?: number
+  answers?: FormAnswer[]
+  invalidQuestionIds?: string[]
+  footer?: React.ReactNode
   onSelectBlock?: (id: string | null) => void
   onReorder?: (fromId: string, toId: string, place: "before" | "after") => void
   onAction?: (action: SiteAction, block: SiteBlock) => void
+  onAnswer?: (questionId: string, value: AnswerValue) => void
   onSubmitForm?: (answers: FormAnswer[]) => void
   onFormDone?: () => void
 }) {
@@ -232,8 +258,11 @@ export function SiteCanvas({
   const [dropAt, setDropAt] = useState<{ id: string; place: "before" | "after" } | null>(null)
   const editable = mode === "edit" && Boolean(onReorder)
 
+  const firstFieldId = page.blocks.find((block) => block.type === "field")?.id
+  const anchorButtonId = [...page.blocks].reverse().find((block) => block.type === "button")?.id
+
   return (
-    <SiteShell site={site}>
+    <SiteShell site={site} className={className} progress={progress}>
       {page.blocks.length === 0 ? (
         <p className="px-6 py-16 text-center text-sm text-zinc-400">{t("forms.emptyPage")}</p>
       ) : (
@@ -347,17 +376,22 @@ export function SiteCanvas({
                 form={form}
                 live={mode === "live"}
                 alreadySubmitted={alreadySubmitted}
-                formSlot={formSlot}
+                formSlot={block.id === firstFieldId ? formSlot : undefined}
+                answers={answers}
+                invalid={invalidQuestionIds?.includes(block.type === "field" ? block.questionId : "")}
                 formOptions={formOptions}
                 isFirst={index === 0}
                 onAction={(action) => onAction?.(action, block)}
+                onAnswer={onAnswer}
                 onSubmitForm={onSubmitForm}
                 onFormDone={onFormDone}
+                companion={block.id === anchorButtonId ? footer : undefined}
               />
             </div>
           )
         })
       )}
+      {anchorButtonId ? null : footer ? <div className="px-5 pb-8 sm:px-6">{footer}</div> : null}
     </SiteShell>
   )
 }
@@ -369,11 +403,15 @@ function BlockView({
   live,
   alreadySubmitted,
   formSlot,
+  answers,
+  invalid,
   formOptions,
   isFirst,
   onAction,
+  onAnswer,
   onSubmitForm,
   onFormDone,
+  companion,
 }: {
   block: SiteBlock
   site: FormSite
@@ -381,11 +419,15 @@ function BlockView({
   live: boolean
   alreadySubmitted?: boolean
   formSlot?: React.ReactNode
+  answers?: FormAnswer[]
+  invalid?: boolean
   formOptions?: { id: string; title: string }[]
   isFirst: boolean
   onAction: (action: SiteAction) => void
+  onAnswer?: (questionId: string, value: AnswerValue) => void
   onSubmitForm?: (answers: FormAnswer[]) => void
   onFormDone?: () => void
+  companion?: React.ReactNode
 }) {
   const { t } = useI18n()
   const primary = site.theme.primary
@@ -526,12 +568,18 @@ function BlockView({
     const action = block.action
     return (
       <Reveal active={live}>
-        <div className={cn("px-5 py-5 sm:px-6 sm:py-6", block.align === "center" ? "flex justify-center" : "flex justify-start")}>
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-3 px-5 py-5 sm:px-6 sm:py-6",
+            block.align === "center" ? "justify-center" : "justify-start",
+          )}
+        >
+          {companion}
           <Button
             type="button"
             variant={block.style === "outline" ? "outline" : "default"}
             size="lg"
-            className={cn("w-full sm:w-auto", live && block.style !== "outline" && "site-shine")}
+            className={cn(companion ? "w-auto" : "w-full sm:w-auto", live && block.style !== "outline" && "site-shine")}
             style={
               block.style === "outline"
                 ? { borderColor: primary, color: primary, borderRadius: "var(--site-radius)" }
@@ -543,6 +591,7 @@ function BlockView({
               onAction(action)
             }}
           >
+            {block.emoji ? <span aria-hidden className="text-base leading-none">{block.emoji}</span> : null}
             {block.label}
           </Button>
         </div>
@@ -559,12 +608,12 @@ function BlockView({
             <h3 className="mb-5 text-lg font-semibold tracking-tight sm:mb-6 sm:text-xl">{block.title}</h3>
           </Reveal>
         ) : null}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {block.items.map((entry, index) => (
-            <Reveal key={entry.id} active={live} delay={index * 110} className="h-full">
+            <Reveal key={entry.id} active={live} delay={index * 110} className="h-full min-w-0">
               <div
                 className={cn(
-                  "relative flex h-full flex-col gap-2 overflow-hidden rounded-2xl border p-5 sm:p-5",
+                  "relative flex h-full min-w-0 flex-col gap-2 overflow-hidden rounded-2xl border p-5 sm:p-5",
                   !appearance && border,
                   !appearance && card,
                   live && "site-lift",
@@ -582,8 +631,8 @@ function BlockView({
                 >
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <p className="text-base font-semibold tracking-tight">{entry.title}</p>
-                <p className={cn("text-sm leading-relaxed", !appearance && muted)} style={appearance ? { opacity: 0.72 } : undefined}>
+                <p className="text-base font-semibold tracking-tight break-words">{entry.title}</p>
+                <p className={cn("text-sm leading-relaxed break-words", !appearance && muted)} style={appearance ? { opacity: 0.72 } : undefined}>
                   {entry.text}
                 </p>
               </div>
@@ -649,10 +698,24 @@ function BlockView({
 
   if (block.type === "field") {
     const question = form.questions.find((item) => item.id === block.questionId)
+    const value = answers?.find((item) => item.questionId === block.questionId)?.value
     return (
-      <section className="mx-auto max-w-xl px-5 py-3 sm:px-6" id="site-form">
+      <section className="mx-auto max-w-xl px-5 py-3 text-left sm:px-6" id="site-form">
         <Reveal active={live}>
-          <FieldPreview question={question} border={border} muted={muted} primary={site.theme.primary} />
+          {formSlot ? (
+            formSlot
+          ) : live && onAnswer && question ? (
+            <LiveField
+              question={question}
+              value={value}
+              invalid={!!invalid}
+              border={border}
+              primary={site.theme.primary}
+              onChange={(next) => onAnswer(question.id, next)}
+            />
+          ) : (
+            <FieldPreview question={question} border={border} muted={muted} primary={site.theme.primary} />
+          )}
         </Reveal>
       </section>
     )
@@ -849,8 +912,137 @@ function BlockView({
   return null
 }
 
+function LiveField({
+  question,
+  value,
+  invalid,
+  border,
+  primary,
+  onChange,
+}: {
+  question: FormQuestion
+  value: AnswerValue | undefined
+  invalid: boolean
+  border: string
+  primary: string
+  onChange: (value: AnswerValue) => void
+}) {
+  const { t } = useI18n()
+  const text = typeof value === "string" ? value : ""
+  const box = "bg-white"
+  const label = (
+    <span className="mb-1.5 block text-sm font-medium">
+      {question.title || t("forms.untitledQuestion")}
+      {question.required ? <span style={{ color: primary }}> *</span> : null}
+    </span>
+  )
+  const inputType =
+    question.type === "email"
+      ? "email"
+      : question.type === "phone"
+        ? "tel"
+        : question.type === "date"
+          ? "date"
+          : question.type === "number"
+            ? "number"
+            : question.type === "link" || question.type === "video_response"
+              ? "url"
+              : "text"
+
+  return (
+    <div className="space-y-1.5">
+      {question.type === "long_text" ? (
+        <div>
+          {label}
+          <Textarea
+            value={text}
+            rows={4}
+            aria-invalid={invalid}
+            className={box}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </div>
+      ) : question.type === "yes_no" || question.type === "single_choice" ? (
+        <div>
+          {label}
+          <RadioGroup
+            value={text}
+            onValueChange={(next) => {
+              if (typeof next === "string") onChange(next)
+            }}
+            className="grid gap-2"
+          >
+            {(question.type === "yes_no" ? (["yes", "no"] as const) : (question.options ?? []).filter((option) => option.trim())).map(
+              (option) => {
+                const optionLabel = option === "yes" ? t("forms.yes") : option === "no" ? t("forms.no") : option
+                const id = `${question.id}-${option}`
+                return (
+                  <label key={option} htmlFor={id} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border bg-white px-3 py-2", border)}>
+                    <RadioGroupItem id={id} value={option} />
+                    <Label htmlFor={id} className="cursor-pointer font-normal">
+                      {optionLabel}
+                    </Label>
+                  </label>
+                )
+              },
+            )}
+          </RadioGroup>
+        </div>
+      ) : question.type === "social_links" ? (
+        <div>
+          {label}
+          <SocialLinksField idPrefix={question.id} value={value} showInvalid={invalid} onChange={onChange} />
+        </div>
+      ) : question.type === "multiple_choice" ? (
+        <div>
+          {label}
+          <div className="grid gap-2">
+            {(question.options ?? [])
+              .filter((option) => option.trim())
+              .map((option) => {
+                const selected = Array.isArray(value) ? value : []
+                const checked = selected.includes(option)
+                return (
+                  <label key={option} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border bg-white px-3 py-2", border)}>
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(next) => {
+                        const on = next === true
+                        onChange(on ? [...selected, option] : selected.filter((item) => item !== option))
+                      }}
+                    />
+                    <span className="text-sm">{option}</span>
+                  </label>
+                )
+              })}
+          </div>
+        </div>
+      ) : (
+        <div>
+          {label}
+          <Input
+            type={inputType}
+            inputMode={question.type === "phone" ? "tel" : question.type === "number" ? "numeric" : undefined}
+            placeholder={question.type === "link" || question.type === "video_response" ? "https://" : undefined}
+            value={text}
+            aria-invalid={invalid}
+            className={box}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </div>
+      )}
+      {question.help ? <p className="text-xs text-zinc-500">{question.help}</p> : null}
+      {invalid && !(question.type === "social_links" && socialLinksFilled(value)) ? (
+        <p className="text-sm text-red-600">
+          {question.type === "social_links" ? t("forms.socialRequired") : t("forms.requiredHint")}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 // A non-interactive preview of a single question (field block) rendered on the
-// canvas. The live, submitting runtime is handled by the SitePlayer.
+// canvas. The live runtime edits the same block through LiveField.
 function FieldPreview({
   question,
   border,
@@ -906,6 +1098,20 @@ function FieldPreview({
       <div>
         {label}
         <div className={cn(box, "h-20")} />
+      </div>
+    )
+  }
+  if (question.type === "social_links") {
+    return (
+      <div>
+        {label}
+        <div className="space-y-2">
+          {["Instagram", "TikTok", "YouTube"].map((network) => (
+            <div key={network} className={cn(box, "text-xs")}>
+              {network}
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

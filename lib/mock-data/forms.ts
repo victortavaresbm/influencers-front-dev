@@ -6,11 +6,13 @@ export type QuestionType =
   | "yes_no"
   | "number"
   | "link"
+  | "social_links"
   | "email"
   | "phone"
   | "date"
   | "video_response"
 
+import { invalidSocialFields, socialLinksFilled, socialLinksText } from "@/lib/forms/social-links"
 import { defaultTheme, landingOnlySite, type FormSite } from "@/lib/mock-data/form-site"
 
 export type FormStatus = "rascunho" | "publicado" | "inativo" | "arquivado"
@@ -82,6 +84,8 @@ export interface ResponseTracking {
   device?: Device
 }
 
+export type LeadDecision = "pendente" | "aceito" | "rejeitado"
+
 export interface FormResponse {
   id: string
   formId: string
@@ -100,6 +104,8 @@ export interface FormResponse {
   stage: string
   answers: FormAnswer[]
   matchScore?: number
+  // Brand decision on the application. Missing means still pending.
+  decision?: LeadDecision
   tracking?: ResponseTracking
   stepEvents?: StepEvent[]
 }
@@ -134,6 +140,7 @@ export const QUESTION_TYPES: QuestionType[] = [
   "yes_no",
   "number",
   "link",
+  "social_links",
   "email",
   "phone",
   "date",
@@ -145,10 +152,12 @@ export function isChoiceType(type: QuestionType) {
 }
 
 export function createQuestion(type: QuestionType, partial?: Partial<FormQuestion>): FormQuestion {
+  const social = type === "social_links"
   return {
     id: `q_${crypto.randomUUID()}`,
     type,
-    title: "",
+    title: social ? "Links das redes sociais" : "",
+    help: social ? "Instagram, TikTok ou YouTube. Pelo menos um." : undefined,
     required: true,
     options: isChoiceType(type) ? ["", ""] : undefined,
     ...partial,
@@ -158,7 +167,7 @@ export function createQuestion(type: QuestionType, partial?: Partial<FormQuestio
 
 const CREATOR_SEEDS: Omit<FormQuestion, "id">[] = [
   { type: "short_text", title: "Qual é o seu nome artístico?", required: true },
-  { type: "link", title: "Link do perfil principal", help: "Instagram, TikTok ou YouTube.", required: true },
+  { type: "social_links", title: "Links das redes sociais", help: "Instagram, TikTok ou YouTube. Pelo menos um.", required: true },
   {
     type: "single_choice",
     title: "Qual nicho combina mais com você?",
@@ -179,7 +188,7 @@ const AFFILIATE_SEEDS: Omit<FormQuestion, "id">[] = [
   },
   { type: "number", title: "Qual o tamanho aproximado da sua audiência?", required: true },
   { type: "long_text", title: "Como você divulga ofertas e cupons?", required: true },
-  { type: "link", title: "Link do perfil onde o cupom aparece", required: true },
+  { type: "social_links", title: "Links das redes sociais", help: "Instagram, TikTok ou YouTube. Pelo menos um.", required: true },
 ]
 
 export function questionsFromTemplate(template: FormTemplate): FormQuestion[] {
@@ -231,8 +240,15 @@ export function canPublish(
 }
 
 export function answerFilled(question: FormQuestion, value: AnswerValue | undefined) {
+  if (question.type === "social_links") return socialLinksFilled(value)
   if (Array.isArray(value)) return value.some((item) => item.trim())
   return typeof value === "string" && value.trim().length > 0
+}
+
+export function answerAccepted(question: FormQuestion, value: AnswerValue | undefined) {
+  if (question.type === "social_links" && invalidSocialFields(value).length > 0) return false
+  if (question.required && !answerFilled(question, value)) return false
+  return true
 }
 
 export function answerText(
@@ -241,6 +257,7 @@ export function answerText(
   labels: { yes: string; no: string; empty: string },
 ) {
   if (!answerFilled(question ?? { id: "", type: "short_text", title: "", required: false }, value)) return labels.empty
+  if (question?.type === "social_links") return socialLinksText(value) || labels.empty
   if (Array.isArray(value)) return value.filter((item) => item.trim()).join(", ")
   if (question?.type === "yes_no") {
     if (value === "yes") return labels.yes
@@ -260,7 +277,7 @@ export const FORMS: ApplicationForm[] = [
     status: "publicado",
     questions: [
       { id: "q-nat-1", type: "short_text", title: "Qual é o seu nome artístico?", required: true },
-      { id: "q-nat-2", type: "link", title: "Link do perfil principal", help: "Instagram, TikTok ou YouTube.", required: true },
+      { id: "q-nat-2", type: "social_links", title: "Links das redes sociais", help: "Instagram, TikTok ou YouTube. Pelo menos um.", required: true },
       {
         id: "q-nat-3",
         type: "single_choice",
@@ -271,6 +288,8 @@ export const FORMS: ApplicationForm[] = [
       { id: "q-nat-4", type: "long_text", title: "Por que você combina com a Natura?", required: true },
       { id: "q-nat-5", type: "yes_no", title: "Você já usou produtos Natura?", required: true },
     ],
+    brandSummary:
+      "A Natura procura creators de beleza, bem-estar e lifestyle. O conteúdo mostra cuidado real com a pele e o corpo, textura, cheiro e sensação, sem pose e sem promessa médica. A marca entra na rotina da pessoa.",
     createdAt: "2026-09-12",
     updatedAt: "2026-10-18",
   },
@@ -294,8 +313,10 @@ export const FORMS: ApplicationForm[] = [
       },
       { id: "q-tw-3", type: "number", title: "Audiência aproximada nesse canal", required: true },
       { id: "q-tw-4", type: "long_text", title: "Como você apresentaria as ofertas da Tech Week?", required: true },
-      { id: "q-tw-5", type: "link", title: "Link do perfil", required: true },
+      { id: "q-tw-5", type: "social_links", title: "Links das redes sociais", help: "Instagram, TikTok ou YouTube. Pelo menos um.", required: true },
     ],
+    brandSummary:
+      "A Tech Week do Magalu procura creators de tecnologia, games e lifestyle para mostrar ofertas, preço e cupom, com um caminho claro até o app.",
     createdAt: "2026-10-10",
     updatedAt: "2026-10-22",
   },
@@ -320,6 +341,7 @@ export const FORMS: ApplicationForm[] = [
       },
       { id: "q-casa-3", type: "long_text", title: "Por que esta campanha combina com o seu conteúdo?", required: true },
       { id: "q-casa-4", type: "yes_no", title: "Você já mostrou o app Magalu?", required: false, match: { weight: 1, ideal: ["yes"] } },
+      { id: "q-casa-5", type: "social_links", title: "Links das redes sociais", help: "Instagram, TikTok ou YouTube. Pelo menos um.", required: true },
     ],
     brandSummary:
       "O Magalu é o maior varejo omnichannel do Brasil. O módulo Casa & Decor ajuda a planejar ambientes com realidade aumentada dentro do app: decoração, móveis, organização e reforma de apartamentos pequenos. Buscamos creators de decoração e arquitetura que mostrem a casa real, com dicas práticas e linguagem próxima.",
@@ -385,10 +407,12 @@ export const FORMS: ApplicationForm[] = [
             { id: "blk-casa-f2", type: "field", questionId: "q-casa-2" },
             { id: "blk-casa-f3", type: "field", questionId: "q-casa-3" },
             { id: "blk-casa-f4", type: "field", questionId: "q-casa-4" },
+            { id: "blk-casa-f5", type: "field", questionId: "q-casa-5" },
             {
               id: "blk-casa-fsubmit",
               type: "button",
               label: "Enviar candidatura",
+              emoji: "🚀",
               style: "solid",
               align: "center",
               action: { kind: "page", pageId: "pg-casa-thanks" },
@@ -463,7 +487,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
     submittedAt: "2026-10-18T15:10:00.000Z",
     answers: [
       { questionId: "q-nat-1", value: "Mariana Viagem Real" },
-      { questionId: "q-nat-2", value: "https://instagram.com/marianaviagemreal" },
+      { questionId: "q-nat-2", value: ["instagram|https://instagram.com/marianaviagemreal", "youtube|https://youtube.com/@marianaviagemreal"] },
       { questionId: "q-nat-3", value: "Lifestyle" },
       { questionId: "q-nat-4", value: "Levo a rotina de cuidado para a estrada e falo de bem-estar sem pose." },
       { questionId: "q-nat-5", value: "yes" },
@@ -478,7 +502,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
     submittedAt: "2026-10-24T14:20:00.000Z",
     answers: [
       { questionId: "q-nat-1", value: "Diego Run" },
-      { questionId: "q-nat-2", value: "https://instagram.com/diegorun" },
+      { questionId: "q-nat-2", value: ["instagram|https://instagram.com/diegorun"] },
       { questionId: "q-nat-3", value: "Lifestyle" },
       { questionId: "q-nat-4", value: "Corro trilhas e mostro a rotina de cuidado antes e depois das provas. Quero falar da Natura no pós-treino e nas viagens." },
       { questionId: "q-nat-5", value: "no" },
@@ -493,7 +517,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
     submittedAt: "2026-10-21T11:40:00.000Z",
     answers: [
       { questionId: "q-nat-1", value: "Amanda Mãe" },
-      { questionId: "q-nat-2", value: "https://instagram.com/amandamae" },
+      { questionId: "q-nat-2", value: ["instagram|https://instagram.com/amandamae", "tiktok|https://tiktok.com/@amandamae"] },
       { questionId: "q-nat-3", value: "Bem-estar" },
       { questionId: "q-nat-4", value: "Mostro o cuidado real de quem tem filho pequeno e escolhe o que entra em casa." },
       { questionId: "q-nat-5", value: "yes" },
@@ -511,7 +535,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
       { questionId: "q-tw-2", value: "TikTok" },
       { questionId: "q-tw-3", value: "445000" },
       { questionId: "q-tw-4", value: "Um vídeo curto comparando o preço do setup e o cupom no final." },
-      { questionId: "q-tw-5", value: "https://tiktok.com/@rafaelgames" },
+      { questionId: "q-tw-5", value: ["tiktok|https://tiktok.com/@rafaelgames", "youtube|https://youtube.com/@rafaelgames"] },
     ],
   },
   {
@@ -526,7 +550,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
       { questionId: "q-tw-2", value: "YouTube" },
       { questionId: "q-tw-3", value: "312000" },
       { questionId: "q-tw-4", value: "Um review de notebook com o link e o cupom na descrição e no card." },
-      { questionId: "q-tw-5", value: "https://youtube.com/@thiagoinvestidor" },
+      { questionId: "q-tw-5", value: ["youtube|https://youtube.com/@thiagoinvestidor", "instagram|https://instagram.com/thiagoinvestidor"] },
     ],
   },
   {
@@ -541,6 +565,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
       { questionId: "q-casa-2", value: "Decoração" },
       { questionId: "q-casa-3", value: "Meu conteúdo é planejar ambientes pequenos. O app entra como ferramenta, não como anúncio solto." },
       { questionId: "q-casa-4", value: "no" },
+      { questionId: "q-casa-5", value: ["instagram|https://instagram.com/judecordecasa", "youtube|https://youtube.com/@judecordecasa"] },
     ],
   },
   {
@@ -555,6 +580,7 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
       { questionId: "q-casa-2", value: "DIY" },
       { questionId: "q-casa-3", value: "Faço reforma barata com móveis reaproveitados. Planejar o ambiente antes de comprar evita desperdício." },
       { questionId: "q-casa-4", value: "yes" },
+      { questionId: "q-casa-5", value: ["instagram|https://instagram.com/isabelasustenta", "youtube|https://youtube.com/@isabelasustenta"] },
     ],
   },
   {
@@ -569,15 +595,162 @@ const RAW_RESPONSES: (Omit<FormResponse, "sessionId" | "complete" | "stage"> & P
       { questionId: "q-casa-2", value: "Lifestyle" },
       { questionId: "q-casa-3", value: "Mostro minha rotina de treino e posso falar do app nos stories." },
       { questionId: "q-casa-4", value: "no" },
+      { questionId: "q-casa-5", value: ["instagram|https://instagram.com/carolsouza", "youtube|https://youtube.com/@carolsouza"] },
+    ],
+  },
+  {
+    id: "resp-casa-4",
+    formId: "form-casa",
+    creatorName: "Helena Prado",
+    creatorHandle: "@helenapradocasa",
+    submittedAt: "2026-11-23T14:10:00.000Z",
+    answers: [
+      { questionId: "q-casa-1", value: "Helena Prado" },
+      { questionId: "q-casa-2", value: "Arquitetura" },
+      { questionId: "q-casa-3", value: "Mostro plantas de apartamentos pequenos e o Casa & Decor entra no antes e depois." },
+      { questionId: "q-casa-4", value: "yes" },
+      { questionId: "q-casa-5", value: ["instagram|https://instagram.com/helenapradocasa"] },
+    ],
+  },
+  {
+    id: "resp-casa-5",
+    formId: "form-casa",
+    creatorName: "Rita Alves",
+    creatorHandle: "@rita.casa",
+    leadEmail: "rita.alves@email.com",
+    submittedAt: "2026-11-24T18:40:00.000Z",
+    answers: [
+      { questionId: "q-casa-1", value: "Rita Alves" },
+      { questionId: "q-casa-2", value: "Decoração" },
+      { questionId: "q-casa-3", value: "Decoro salas reais com o planejador do app Magalu e mostro o resultado." },
+      { questionId: "q-casa-4", value: "yes" },
+      { questionId: "q-casa-5", value: ["instagram|https://instagram.com/rita.casa", "tiktok|https://tiktok.com/@rita.casa"] },
+    ],
+  },
+  {
+    id: "resp-casa-6",
+    formId: "form-casa",
+    creatorName: "Lívia Costa",
+    creatorHandle: "@liviacosta",
+    submittedAt: "2026-11-25T12:05:00.000Z",
+    complete: false,
+    answers: [
+      { questionId: "q-casa-1", value: "Lívia Costa" },
+      { questionId: "q-casa-2", value: "Decoração" },
+    ],
+  },
+  {
+    id: "resp-casa-7",
+    formId: "form-casa",
+    creatorName: "",
+    creatorHandle: "",
+    leadEmail: "ana.silva@email.com",
+    submittedAt: "2026-11-25T15:20:00.000Z",
+    complete: false,
+    answers: [],
+  },
+  {
+    id: "resp-casa-8",
+    formId: "form-casa",
+    creatorName: "Bruno Dias",
+    creatorHandle: "@brunodecora",
+    submittedAt: "2026-11-12T11:00:00.000Z",
+    answers: [
+      { questionId: "q-casa-1", value: "Bruno Dias" },
+      { questionId: "q-casa-2", value: "Decoração" },
+      { questionId: "q-casa-3", value: "Faço tours por apartamentos alugados e indico móveis com o link." },
+      { questionId: "q-casa-4", value: "no" },
+      { questionId: "q-casa-5", value: ["tiktok|https://tiktok.com/@brunodecora"] },
     ],
   },
 ]
 
-// Seed responses predate the incremental-lead model, so they are all complete
-// leads anchored to a stable session id derived from their response id.
-export const FORM_RESPONSES: FormResponse[] = RAW_RESPONSES.map((response) => ({
-  complete: true,
-  stage: response.answers[response.answers.length - 1]?.questionId ?? "",
-  sessionId: `sess_${response.id}`,
-  ...response,
-}))
+const CASA_HOME = "pg-casa-home"
+const CASA_FORM = "pg-casa-form"
+const CASA_MATCH = "pg-casa-match"
+const CASA_THANKS = "pg-casa-thanks"
+
+function casaTrail(path: string[], submittedAt: string): StepEvent[] {
+  const start = new Date(submittedAt).getTime()
+  const events: StepEvent[] = []
+  path.forEach((pageId, index) => {
+    events.push({ pageId, kind: "enter", at: new Date(start + index * 45000).toISOString() })
+    if (index < path.length - 1) {
+      events.push({ pageId, kind: "advance", at: new Date(start + index * 45000 + 20000).toISOString() })
+    }
+  })
+  return events
+}
+
+// Sample of the Casa & Decor funnel: recent dates, attribution and the pages
+// each lead actually reached. Performance traffic lives in FUNNEL_ANALYTICS.
+const CASA_LEADS: Record<string, { stage: string; path: string[]; tracking: ResponseTracking; complete?: boolean; submittedAt?: string }> = {
+  "resp-casa-1": {
+    stage: CASA_THANKS,
+    path: [CASA_HOME, CASA_FORM, CASA_THANKS],
+    submittedAt: "2026-11-18T13:20:00.000Z",
+    tracking: { channel: "instagram", destination: "/lp/form-casa", utmSource: "instagram", utmMedium: "paid", utmCampaign: "casa-nov", device: "mobile" },
+  },
+  "resp-casa-2": {
+    stage: CASA_THANKS,
+    path: [CASA_HOME, CASA_FORM, CASA_THANKS],
+    submittedAt: "2026-11-20T10:05:00.000Z",
+    tracking: { channel: "tiktok", destination: "/lp/form-casa", utmSource: "tiktok", utmMedium: "paid", utmCampaign: "stories", device: "mobile", fbclid: "IwAR0casa2" },
+  },
+  "resp-casa-3": {
+    stage: CASA_THANKS,
+    path: [CASA_HOME, CASA_FORM, CASA_THANKS],
+    submittedAt: "2026-11-22T17:45:00.000Z",
+    tracking: { channel: "youtube", destination: "/lp/form-casa", utmSource: "youtube", utmMedium: "organic", utmCampaign: "bio", device: "desktop" },
+  },
+  "resp-casa-4": {
+    stage: CASA_MATCH,
+    path: [CASA_HOME, CASA_FORM, CASA_MATCH],
+    tracking: { channel: "instagram", destination: "/lp/form-casa", utmSource: "instagram", utmMedium: "paid", utmCampaign: "casa-nov", device: "desktop", fbclid: "IwAR0casa4" },
+  },
+  "resp-casa-5": {
+    stage: CASA_MATCH,
+    path: [CASA_HOME, CASA_FORM, CASA_MATCH],
+    tracking: { channel: "instagram", destination: "/lp/form-casa", utmSource: "instagram", utmMedium: "cpc", utmCampaign: "casa-nov", device: "mobile" },
+  },
+  "resp-casa-6": {
+    stage: CASA_FORM,
+    path: [CASA_HOME, CASA_FORM],
+    complete: false,
+    tracking: { channel: "direct", destination: "/lp/form-casa", device: "mobile" },
+  },
+  "resp-casa-7": {
+    stage: CASA_HOME,
+    path: [CASA_HOME],
+    complete: false,
+    tracking: { channel: "direct", destination: "/lp/form-casa", device: "desktop" },
+  },
+  "resp-casa-8": {
+    stage: CASA_THANKS,
+    path: [CASA_HOME, CASA_FORM, CASA_THANKS],
+    tracking: { channel: "tiktok", destination: "/lp/form-casa", utmSource: "tiktok", utmMedium: "paid", utmCampaign: "stories", device: "tablet" },
+  },
+}
+
+// Seed responses predate the incremental-lead model, so they are complete leads
+// unless a Casa sample says otherwise. Session ids stay stable.
+export const FORM_RESPONSES: FormResponse[] = RAW_RESPONSES.map((response) => {
+  const base: FormResponse = {
+    complete: true,
+    stage: response.answers[response.answers.length - 1]?.questionId ?? "",
+    sessionId: `sess_${response.id}`,
+    ...response,
+  }
+  const decor = CASA_LEADS[response.id]
+  if (!decor) return base
+  const submittedAt = decor.submittedAt ?? base.submittedAt
+  return {
+    ...base,
+    submittedAt,
+    complete: decor.complete ?? true,
+    stage: decor.stage,
+    tracking: decor.tracking,
+    stepEvents: casaTrail(decor.path, submittedAt),
+    matchScore: decor.stage === CASA_MATCH ? 86 : decor.complete === false ? undefined : 54,
+  }
+})

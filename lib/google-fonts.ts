@@ -1969,8 +1969,12 @@ export function canonicalGoogleFont(value: string) {
   return CANONICAL.get(value.toLowerCase()) ?? value
 }
 
+const SYSTEM_SANS = "var(--font-sans), ui-sans-serif, system-ui, sans-serif"
+const SYSTEM_SERIF = 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
+
 export function siteFontFamily(font: string | undefined) {
-  if (!font || font === "sans" || font === "serif") return undefined
+  if (!font || font === "sans") return SYSTEM_SANS
+  if (font === "serif") return SYSTEM_SERIF
   const category = CATEGORY.get(font)
   const fallback =
     category === "serif" ? "serif" : category === "monospace" ? "monospace" : category === "handwriting" ? "cursive" : "sans-serif"

@@ -1,7 +1,9 @@
 "use client"
 
-import { Plus, Trash2 } from "lucide-react"
+import { useState } from "react"
+import { ClipboardList, FileText, Flag, Home, Plus, Trash2, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -19,10 +21,52 @@ import {
   type FormSite,
   type GalleryImage,
   type ListItem,
+  type PageKind,
   type SiteAction,
   type SiteBlock,
 } from "@/lib/mock-data/form-site"
 import { useI18n } from "@/lib/i18n"
+
+const BUTTON_EMOJIS = ["🚀", "✨", "💌", "🎯", "⭐", "🔥", "🧡", "💜", "🙌", "👋", "✅", "💡", "🎉", "💎", "🌿", "🏆", "💪", "📣"]
+
+const PAGE_KIND_ICON: Record<PageKind, LucideIcon> = {
+  landing: Home,
+  form: ClipboardList,
+  thanks: Flag,
+  custom: FileText,
+}
+
+function EmojiPicker({ value, onChange }: { value?: string; onChange: (emoji: string) => void }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger render={<Button type="button" variant="outline" className="w-full justify-start" />}>
+        {value ? <span aria-hidden className="text-base leading-none">{value}</span> : null}
+        {value ?? t("forms.buttonEmojiPick")}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-auto p-2">
+        <div className="grid grid-cols-6 gap-1">
+          {BUTTON_EMOJIS.map((emoji) => (
+            <Button
+              key={emoji}
+              type="button"
+              variant={value === emoji ? "secondary" : "ghost"}
+              size="icon-sm"
+              aria-label={emoji}
+              onClick={() => {
+                onChange(emoji)
+                setOpen(false)
+              }}
+            >
+              <span className="text-base leading-none">{emoji}</span>
+            </Button>
+          ))}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 import { MediaField } from "@/components/forms/media-field"
 import { BLOCK_ICON, BLOCK_KEY } from "@/components/forms/site-canvas"
 
@@ -175,6 +219,9 @@ function contentFields(
       <>
         <Field label={t("forms.ctaLabel")}>
           <Input value={block.label} onChange={(event) => onChange({ ...block, label: event.target.value })} />
+        </Field>
+        <Field label={t("forms.buttonEmoji")}>
+          <EmojiPicker value={block.emoji} onChange={(emoji) => onChange({ ...block, emoji })} />
         </Field>
         <ActionFields site={site} action={block.action} onCreatePage={onCreatePage} onChange={(action) => onChange({ ...block, action })} />
       </>
@@ -439,7 +486,11 @@ function ActionFields({
             label={t("forms.actionPageValue")}
             value={action.pageId}
             onChange={(pageId) => onChange({ kind: "page", pageId })}
-            options={site.pages.map((page) => ({ value: page.id, label: page.name }))}
+            options={site.pages.map((page) => ({
+              value: page.id,
+              label: page.name,
+              icon: page.final ? Flag : PAGE_KIND_ICON[page.kind],
+            }))}
           />
           {onCreatePage ? (
             <Button
@@ -597,6 +648,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function SelectOptionLabel({ label, icon: Icon }: { label: string; icon?: LucideIcon }) {
+  return (
+    <>
+      {Icon ? <Icon className="text-zinc-400" /> : null}
+      <span className="truncate">{label}</span>
+    </>
+  )
+}
+
 function SelectField({
   label,
   value,
@@ -606,18 +666,23 @@ function SelectField({
   label: string
   value: string
   onChange: (value: string) => void
-  options: { value: string; label: string }[]
+  options: { value: string; label: string; icon?: LucideIcon }[]
 }) {
   return (
     <Field label={label}>
       <Select value={value} onValueChange={(next) => next && onChange(next)}>
         <SelectTrigger className="w-full">
-          <SelectValue>{(current) => options.find((option) => option.value === current)?.label}</SelectValue>
+          <SelectValue>
+            {(current) => {
+              const option = options.find((item) => item.value === current)
+              return option ? <SelectOptionLabel label={option.label} icon={option.icon} /> : null
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              <SelectOptionLabel label={option.label} icon={option.icon} />
             </SelectItem>
           ))}
         </SelectContent>

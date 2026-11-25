@@ -2,6 +2,7 @@
 
 import { Trash2 } from "lucide-react"
 import { QuestionTypeOption } from "@/components/forms/form-builder"
+import { MatchWeightSelect } from "@/components/forms/match-weight-select"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -11,7 +12,6 @@ import {
   QUESTION_TYPES,
   isChoiceType,
   type FormQuestion,
-  type MatchWeight,
   type QuestionType,
 } from "@/lib/mock-data/forms"
 import { useI18n } from "@/lib/i18n"
@@ -119,34 +119,10 @@ export function QuestionInspector({
 
       <div className="space-y-1.5 border-t border-zinc-100 pt-3">
         <Label>{t("forms.matchWeight")}</Label>
-        <Select
-          value={String(question.match?.weight ?? 0)}
-          onValueChange={(value) => {
-            if (value == null) return
-            const weight = Number(value) as MatchWeight
-            onChange({ match: weight === 0 ? undefined : { weight, ideal: question.match?.ideal } })
-          }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue>
-              {(value) =>
-                value === "3"
-                  ? t("forms.matchHigh")
-                  : value === "2"
-                    ? t("forms.matchMid")
-                    : value === "1"
-                      ? t("forms.matchLow")
-                      : t("forms.matchNone")
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">{t("forms.matchNone")}</SelectItem>
-            <SelectItem value="1">{t("forms.matchLow")}</SelectItem>
-            <SelectItem value="2">{t("forms.matchMid")}</SelectItem>
-            <SelectItem value="3">{t("forms.matchHigh")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <MatchWeightSelect
+          value={question.match?.weight ?? 0}
+          onChange={(weight) => onChange({ match: weight === 0 ? undefined : { weight, ideal: question.match?.ideal } })}
+        />
       </div>
 
       {(question.match?.weight ?? 0) > 0 && (

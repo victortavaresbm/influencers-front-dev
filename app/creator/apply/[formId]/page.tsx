@@ -6,10 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { Button } from "@/components/ui/button"
-import { FormRunner } from "@/components/forms/form-runner"
 import { SitePlayer } from "@/components/forms/site-player"
 import { CREATORS } from "@/lib/mock-data/creators"
-import type { FormAnswer } from "@/lib/mock-data/forms"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
@@ -34,7 +32,6 @@ function ApplyForm({ params }: { params: Promise<{ formId: string }> }) {
   const creator = CREATORS.find((item) => item.email === user?.email) ?? CREATORS[0]
   const forms = useFormStore((state) => state.forms)
   const responses = useFormStore((state) => state.responses)
-  const submitResponse = useFormStore((state) => state.submitResponse)
   const campaigns = useCampaignStore((state) => state.campaigns)
   const addParticipant = useCampaignStore((state) => state.addParticipant)
   const form = forms.find((item) => item.id === formId && item.status === "publicado")
@@ -59,15 +56,8 @@ function ApplyForm({ params }: { params: Promise<{ formId: string }> }) {
     (response) => response.formId === form.id && response.creatorId === creator.id,
   )
 
-  const submit = (answers: FormAnswer[]) => {
-    const saved = submitResponse({
-      formId: form.id,
-      creatorId: creator.id,
-      creatorName: creator.name,
-      creatorHandle: creator.handle,
-      answers,
-    })
-    if (!saved || form.scope !== "campaign" || !form.campaignId) return
+  const submit = () => {
+    if (form.scope !== "campaign" || !form.campaignId) return
     addParticipant(form.campaignId, {
       creatorId: creator.id,
       creatorName: creator.name,
@@ -102,17 +92,17 @@ function ApplyForm({ params }: { params: Promise<{ formId: string }> }) {
               <Button variant="outline">{t("pages.back")}</Button>
             </Link>
           </div>
-        ) : form.site ? (
+        ) : (
           <SitePlayer
             form={form}
             alreadySubmitted={alreadySubmitted}
-            onSubmit={submit}
-            onDone={() => router.push(returnTo)}
-          />
-        ) : (
-          <FormRunner
-            form={form}
-            alreadySubmitted={alreadySubmitted}
+            persist={!alreadySubmitted}
+            respondent={{
+              sessionId: creator.id,
+              creatorId: creator.id,
+              creatorName: creator.name,
+              creatorHandle: creator.handle,
+            }}
             onSubmit={submit}
             onDone={() => router.push(returnTo)}
           />

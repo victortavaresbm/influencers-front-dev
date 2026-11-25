@@ -85,7 +85,7 @@ export type SiteBlock =
   | { id: string; type: "gallery"; items: GalleryImage[] }
   | { id: string; type: "video"; url: string }
   | { id: string; type: "audio"; url: string; title: string }
-  | { id: string; type: "button"; label: string; style: "solid" | "outline"; align: Align; action: SiteAction }
+  | { id: string; type: "button"; label: string; emoji?: string; style: "solid" | "outline"; align: Align; action: SiteAction }
   // A field block is a lightweight pointer to a FormQuestion (source of truth
   // = form.questions). The canvas renders the question by id; order of field
   // blocks across pages defines the order the questions are asked.
@@ -191,6 +191,7 @@ export interface FormSite {
 // Palette groups shown in the Construtor. Form/Quiz groups create field blocks
 // (which also create the backing FormQuestion); media/content are plain blocks.
 export const FIELD_PALETTE: { type: QuestionType; icon?: string }[] = [
+  { type: "social_links" },
   { type: "short_text" },
   { type: "email" },
   { type: "phone" },
@@ -411,7 +412,7 @@ export function defaultSite(primary: string, questionIds: string[] = []): FormSi
   // Form page: the questions, then a submit button to the final page.
   formPage.blocks = [
     ...questionIds.map((qid) => fieldBlock(qid)),
-    { id: uid("blk"), type: "button", label: "Enviar candidatura", style: "solid", align: "center", action: { kind: "page", pageId: thanks.id } },
+    { id: uid("blk"), type: "button", label: "Enviar candidatura", emoji: "🚀", style: "solid", align: "center", action: { kind: "page", pageId: thanks.id } },
   ]
   return {
     entryPageId: landing.id,
@@ -507,6 +508,9 @@ export function cloneSite(site: FormSite, questionIds?: Map<string, string>): Fo
         const copy = cloneBlock(block)
         if (copy.type === "banner" || copy.type === "button" || copy.type === "announcement") {
           copy.action = remapAction(copy.action)
+        }
+        if (copy.type === "field" && questionIds) {
+          copy.questionId = questionIds.get(copy.questionId) ?? copy.questionId
         }
         return copy
       }),
@@ -609,28 +613,71 @@ export function firstFormPageId(site: FormSite) {
   return site.pages.find((page) => pageHasForm(page))?.id
 }
 
+function readRuleValue(
+  answers: { questionId: string; value: string | string[] }[],
+  questionId: string,
+) {
+  const value = answers.find((answer) => answer.questionId === questionId)?.value
+  if (Array.isArray(value)) return value
+  return value ?? ""
+}
+
+function ruleMatches(
+  rule: FlowRule,
+  score: number,
+  answers: { questionId: string; value: string | string[] }[],
+) {
+  if (rule.condition.kind === "always") return true
+  if (rule.condition.kind === "score") return score >= rule.condition.min
+  const value = readRuleValue(answers, rule.condition.questionId)
+  const expected = rule.condition.value
+  return Array.isArray(value) ? value.includes(expected) : value === expected
+}
+
+// First flow rule that matches the current answers, or null when the visitor
+// should stay on the explicit button destination.
+export function matchingRulePage(
+  site: FormSite,
+  score: number,
+  answers: { questionId: string; value: string | string[] }[],
+) {
+  for (const rule of site.rules) {
+    if (!site.pages.some((page) => page.id === rule.pageId)) continue
+    if (ruleMatches(rule, score, answers)) return rule.pageId
+  }
+  return null
+}
+
 export function resolveThanksPage(
   site: FormSite,
   score: number,
   answers: { questionId: string; value: string | string[] }[],
 ) {
-  const read = (questionId: string) => {
-    const value = answers.find((answer) => answer.questionId === questionId)?.value
-    if (Array.isArray(value)) return value
-    return value ?? ""
-  }
-  for (const rule of site.rules) {
-    if (!site.pages.some((page) => page.id === rule.pageId)) continue
-    if (rule.condition.kind === "always") return rule.pageId
-    if (rule.condition.kind === "score" && score >= rule.condition.min) return rule.pageId
-    if (rule.condition.kind === "answer") {
-      const value = read(rule.condition.questionId)
-      const expected = rule.condition.value
-      const hit = Array.isArray(value) ? value.includes(expected) : value === expected
-      if (hit) return rule.pageId
+  return matchingRulePage(site, score, answers) ?? site.fallbackPageId
+}
+
+// Where a "go to page" action lands. An answer rule on a question of this page
+// branches immediately (quiz → page). Score and "always" rules take over only
+// when the button itself points at a final page (post-submit).
+export function branchTarget(
+  site: FormSite,
+  page: SitePage,
+  explicitPageId: string,
+  score: number,
+  answers: { questionId: string; value: string | string[] }[],
+) {
+  const here = new Set(page.blocks.flatMap((block) => (block.type === "field" ? [block.questionId] : [])))
+  if (here.size > 0) {
+    for (const rule of site.rules) {
+      if (rule.condition.kind !== "answer") continue
+      if (!here.has(rule.condition.questionId)) continue
+      if (!site.pages.some((item) => item.id === rule.pageId)) continue
+      if (ruleMatches(rule, score, answers)) return rule.pageId
     }
   }
-  return site.fallbackPageId
+  const target = site.pages.find((item) => item.id === explicitPageId)
+  if (target?.final) return matchingRulePage(site, score, answers) ?? explicitPageId
+  return explicitPageId
 }
 
 export type FlowNode = {

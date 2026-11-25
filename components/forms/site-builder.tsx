@@ -17,20 +17,17 @@ import {
   Sparkles,
   Star,
   Trash2,
-  Workflow,
 } from "lucide-react"
-import { FontPicker } from "@/components/forms/font-picker"
 import { TYPE_ICON, TYPE_KEY } from "@/components/forms/form-builder"
 import { QuestionInspector } from "@/components/forms/question-inspector"
 import { SiteAiPanel } from "@/components/forms/site-ai-panel"
 import { BLOCK_ICON, BLOCK_KEY, SiteCanvas } from "@/components/forms/site-canvas"
-import { SiteFlow } from "@/components/forms/site-flow"
+import { SiteDesignPanel } from "@/components/forms/site-design"
 import { SiteComponentsButton } from "@/components/forms/site-components"
 import { SiteTemplatesButton } from "@/components/forms/site-templates"
-import { ColorField, SiteInspector } from "@/components/forms/site-inspector"
+import { SiteInspector } from "@/components/forms/site-inspector"
 import { SitePlayer } from "@/components/forms/site-player"
 import { ActionsMenu } from "@/components/ui/actions-menu"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -39,7 +36,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createQuestion, type ApplicationForm, type FormQuestion, type QuestionType } from "@/lib/mock-data/forms"
@@ -75,14 +71,7 @@ const GROUP_KEY: Record<(typeof BLOCK_GROUPS)[number]["id"], MessageKey> = {
   media: "forms.group.media",
 }
 
-const KIND_KEY: Record<PageKind, MessageKey> = {
-  landing: "forms.kindLanding",
-  form: "forms.kindForm",
-  thanks: "forms.kindThanks",
-  custom: "forms.kindCustom",
-}
-
-type BuilderView = "visual" | "flow" | "preview"
+type BuilderView = "visual" | "preview"
 type Device = "desktop" | "mobile"
 
 function blockPreview(block: SiteBlock) {
@@ -265,8 +254,8 @@ export function SiteBuilder({
     return created.id
   }
 
-  const applyTemplate = (next: FormSite) => {
-    patchSite(next)
+  const applyTemplate = (next: FormSite, questions?: FormQuestion[]) => {
+    onChange({ ...form, site: next, ...(questions ? { questions } : {}) })
     setPageId(next.entryPageId)
     setBlockId(null)
     setView("visual")
@@ -340,85 +329,7 @@ export function SiteBuilder({
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden border-t border-zinc-200 bg-white">
       <aside ref={asideRef} className="flex min-h-0 w-[16.8rem] shrink-0 flex-col border-r border-zinc-200">
-        <div className="flex items-center justify-between px-3 py-2">
-          <p className="text-xs font-medium text-zinc-500">{t("forms.pagesTree")}</p>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("forms.addPage")} />}>
-              <Plus />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => addPage("landing")}>{t("forms.pageLanding")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => addPage("form")}>{t("forms.pageForm")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => addPage("thanks")}>{t("forms.pageThanks")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => addPage("custom")}>{t("forms.pageCustom")}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <ScrollArea className="min-h-0 flex-1 overflow-hidden">
-          <div className="space-y-1 p-3">
-            {site.pages.map((item) => (
-              <div key={item.id} className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setPageId(item.id)
-                    setBlockId(null)
-                    setView("visual")
-                  }}
-                  className={cn(
-                    "h-auto min-w-0 flex-1 justify-start px-2 py-1.5 text-left",
-                    item.id === page?.id && "bg-zinc-100",
-                  )}
-                >
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1">
-                      {item.id === site.entryPageId ? (
-                        <Home className="size-3 text-zinc-400" />
-                      ) : item.final ? (
-                        <Flag className="size-3 text-zinc-400" />
-                      ) : item.kind === "form" ? (
-                        <ClipboardList className="size-3 text-zinc-400" />
-                      ) : null}
-                      <span className="block truncate text-sm font-medium text-zinc-900">{item.name}</span>
-                    </span>
-                    <span className="block text-[11px] font-normal text-zinc-400">{t(KIND_KEY[item.kind])}</span>
-                  </span>
-                </Button>
-                <ActionsMenu
-                  trigger="ellipsis"
-                  items={[
-                    { label: t("forms.setEntry"), icon: Home, onSelect: () => patchSite({ ...site, entryPageId: item.id }) },
-                    { label: t("forms.setFallback"), icon: Star, onSelect: () => patchSite({ ...site, fallbackPageId: item.id }) },
-                    {
-                      label: item.final ? t("forms.unsetFinal") : t("forms.setFinal"),
-                      icon: Flag,
-                      onSelect: () => toggleFinal(item.id),
-                    },
-                    {
-                      label: t("forms.duplicatePage"),
-                      icon: Copy,
-                      onSelect: () => {
-                        const next = duplicatePage(site, item.id)
-                        const added = next.pages[next.pages.length - 1]
-                        patchSite(next)
-                        if (added) setPageId(added.id)
-                      },
-                    },
-                    {
-                      label: t("forms.deletePage"),
-                      icon: Trash2,
-                      destructive: true,
-                      disabled: site.pages.length <= 1,
-                      onSelect: () => patchSite(removePage(site, item.id)),
-                    },
-                  ]}
-                />
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-        <div className="flex min-h-0 flex-1 flex-col border-t border-zinc-200">
+        <div className="flex min-h-0 flex-1 flex-col">
           <p className="px-3 pt-3 text-xs font-medium text-zinc-500">{t("forms.blocks")}</p>
           <ScrollArea className="min-h-0 flex-1 overflow-hidden">
             <div className="space-y-1 p-3">
@@ -426,8 +337,10 @@ export function SiteBuilder({
                 <p className="px-1 text-xs text-zinc-400">{t("forms.blocksEmpty")}</p>
               ) : (
                 page.blocks.map((block) => {
-                  const Icon = BLOCK_ICON[block.type]
-                  const preview = blockPreview(block)
+                  const question = block.type === "field" ? form.questions.find((item) => item.id === block.questionId) : undefined
+                  const Icon = question ? TYPE_ICON[question.type] : BLOCK_ICON[block.type]
+                  const preview = question?.title.trim() || blockPreview(block)
+                  const kind = question ? t(TYPE_KEY[question.type]) : t(BLOCK_KEY[block.type])
                   return (
                     <div
                       key={block.id}
@@ -473,14 +386,8 @@ export function SiteBuilder({
                       >
                         <Icon className="size-4 shrink-0 text-zinc-400" />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-zinc-900">
-                            {preview || t(BLOCK_KEY[block.type])}
-                          </span>
-                          {preview ? (
-                            <span className="block truncate text-[11px] font-normal text-zinc-400">
-                              {t(BLOCK_KEY[block.type])}
-                            </span>
-                          ) : null}
+                          <span className="block truncate text-sm font-medium text-zinc-900">{preview || kind}</span>
+                          {preview ? <span className="block truncate text-[11px] font-normal text-zinc-400">{kind}</span> : null}
                         </span>
                       </Button>
                     </div>
@@ -510,32 +417,7 @@ export function SiteBuilder({
           </div>
           <div className={cn("space-y-3 p-4 pt-2", appearanceHeight && "min-h-0 flex-1 overflow-y-auto")}>
             <p className="text-xs font-medium text-zinc-500">{t("forms.theme")}</p>
-            <ColorField
-              label={t("forms.themePrimary")}
-              value={site.theme.primary}
-              onChange={(color) => patchSite({ ...site, theme: { ...site.theme, primary: color } })}
-            />
-            <ColorField
-              label={t("forms.themeBackground")}
-              value={site.theme.background}
-              onChange={(color) => patchSite({ ...site, theme: { ...site.theme, background: color } })}
-            />
-            <div className="space-y-1.5">
-              <Label>{t("forms.themeFont")}</Label>
-              <FontPicker
-                value={site.theme.body.font}
-                onChange={(font) =>
-                  patchSite({
-                    ...site,
-                    theme: {
-                      ...site.theme,
-                      heading: { ...site.theme.heading, font },
-                      body: { ...site.theme.body, font },
-                    },
-                  })
-                }
-              />
-            </div>
+            <SiteDesignPanel theme={site.theme} onChange={(theme) => patchSite({ ...site, theme })} />
           </div>
         </div>
       </aside>
@@ -547,10 +429,6 @@ export function SiteBuilder({
               <TabsTrigger value="visual">
                 <PanelsTopLeft />
                 {t("forms.viewVisual")}
-              </TabsTrigger>
-              <TabsTrigger value="flow">
-                <Workflow />
-                {t("forms.viewFlow")}
               </TabsTrigger>
               <TabsTrigger value="preview">
                 <Eye />
@@ -591,25 +469,97 @@ export function SiteBuilder({
 
         {view === "visual" && page ? (
           <div className="flex min-h-0 flex-1 flex-col" onClick={() => setBlockId(null)}>
-            <div className="flex items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2">
-              <Input
-                value={page.name}
-                onChange={(event) =>
-                  patchSite({
-                    ...site,
-                    pages: site.pages.map((item) => (item.id === page.id ? { ...item, name: event.target.value } : item)),
-                  })
+            <div className="flex items-end gap-1 overflow-x-auto overflow-y-hidden bg-zinc-100 bg-[linear-gradient(to_top,var(--color-zinc-200)_1px,transparent_1px)] px-2 pt-2">
+              {site.pages.map((item) => {
+                const active = item.id === page.id
+                const mark = (
+                  <>
+                    {item.id === site.entryPageId ? <Home className="size-3.5 shrink-0 text-zinc-400" /> : null}
+                    {item.kind === "form" ? <ClipboardList className="size-3.5 shrink-0 text-zinc-400" /> : null}
+                    {item.final ? <Flag className="size-3.5 shrink-0 text-zinc-400" /> : null}
+                  </>
+                )
+                if (active) {
+                  return (
+                    <div key={item.id} className="flex shrink-0 items-end">
+                      <div className="relative z-10 flex h-9 max-w-56 min-w-28 items-center gap-1.5 rounded-t-lg border border-b-white border-zinc-200 bg-white px-3">
+                        {mark}
+                        <Input
+                          value={item.name}
+                          aria-label={t("forms.pageName")}
+                          onChange={(event) =>
+                            patchSite({
+                              ...site,
+                              pages: site.pages.map((pageItem) =>
+                                pageItem.id === item.id ? { ...pageItem, name: event.target.value } : pageItem,
+                              ),
+                            })
+                          }
+                          className="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                        />
+                      </div>
+                      <div className="mb-1 ml-1">
+                        <ActionsMenu
+                          trigger="ellipsis"
+                          items={[
+                            { label: t("forms.setEntry"), icon: Home, onSelect: () => patchSite({ ...site, entryPageId: page.id }) },
+                            { label: t("forms.setFallback"), icon: Star, onSelect: () => patchSite({ ...site, fallbackPageId: page.id }) },
+                            {
+                              label: page.final ? t("forms.unsetFinal") : t("forms.setFinal"),
+                              icon: Flag,
+                              onSelect: () => toggleFinal(page.id),
+                            },
+                            {
+                              label: t("forms.duplicatePage"),
+                              icon: Copy,
+                              onSelect: () => {
+                                const next = duplicatePage(site, page.id)
+                                const added = next.pages[next.pages.length - 1]
+                                patchSite(next)
+                                if (added) setPageId(added.id)
+                              },
+                            },
+                            {
+                              label: t("forms.deletePage"),
+                              icon: Trash2,
+                              destructive: true,
+                              disabled: site.pages.length <= 1,
+                              onSelect: () => patchSite(removePage(site, page.id)),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )
                 }
-                className="h-8 max-w-xs"
-                aria-label={t("forms.pageName")}
-              />
-              {page.id === site.entryPageId ? <Badge variant="secondary">{t("forms.entryBadge")}</Badge> : null}
-              {page.id === site.fallbackPageId ? <Badge variant="secondary">{t("forms.fallbackBadge")}</Badge> : null}
-              {page.final ? <Badge variant="secondary">{t("forms.finalBadge")}</Badge> : null}
-              <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => toggleFinal(page.id)}>
-                <Flag className={cn("size-4", page.final && "fill-current")} />
-                {page.final ? t("forms.unsetFinal") : t("forms.setFinal")}
-              </Button>
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setPageId(item.id)
+                      setBlockId(null)
+                    }}
+                    className="flex h-8 max-w-48 shrink-0 items-center gap-1.5 rounded-t-lg px-3 text-sm text-zinc-500 hover:bg-white/70"
+                  >
+                    {mark}
+                    <span className="truncate">{item.name}</span>
+                  </button>
+                )
+              })}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("forms.addPage")} className="mb-1" />}
+                >
+                  <Plus />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => addPage("landing")}>{t("forms.pageLanding")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => addPage("form")}>{t("forms.pageForm")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => addPage("thanks")}>{t("forms.pageThanks")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => addPage("custom")}>{t("forms.pageCustom")}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <ScrollArea className="min-h-0 flex-1 overflow-hidden">
               <div className="min-h-full">
@@ -637,23 +587,6 @@ export function SiteBuilder({
               </div>
             </ScrollArea>
           </div>
-        ) : null}
-
-        {view === "flow" ? (
-          <ScrollArea className="min-h-0 flex-1 overflow-hidden">
-            <div className="mx-auto max-w-2xl p-6">
-              <SiteFlow
-                form={form}
-                site={site}
-                selectedPageId={page?.id ?? ""}
-                onSelectPage={(id) => {
-                  setPageId(id)
-                  setView("visual")
-                }}
-                onChange={patchSite}
-              />
-            </div>
-          </ScrollArea>
         ) : null}
 
         {view === "preview" ? (

@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
-import { answerFilled, type AnswerValue, type ApplicationForm, type FormAnswer, type FormQuestion } from "@/lib/mock-data/forms"
+import { SocialLinksField } from "@/components/forms/social-links-field"
+import { socialLinksFilled } from "@/lib/forms/social-links"
+import { answerAccepted, type AnswerValue, type ApplicationForm, type FormAnswer, type FormQuestion } from "@/lib/mock-data/forms"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -60,11 +62,11 @@ export function FormRunner({
   const question = form.questions[safeIndex]
   const progress = phase === "intro" ? 0 : total === 0 ? 0 : Math.round(((safeIndex + 1) / total) * 100)
   const value = question ? readAnswer(answers, question.id) : undefined
-  const missing = question ? question.required && !answerFilled(question, value) : false
+  const missing = question ? !answerAccepted(question, value) : false
 
   const goNext = () => {
     if (!question) return
-    if (question.required && !answerFilled(question, value)) {
+    if (!answerAccepted(question, value)) {
       setAttempted(true)
       return
     }
@@ -215,6 +217,9 @@ function QuestionStep({
           onKeyDown={(event) => onKeyDown(event)}
         />
       )}
+      {question.type === "social_links" && (
+        <SocialLinksField idPrefix={question.id} value={value} showInvalid={showError} onChange={onChange} />
+      )}
       {question.type === "number" && (
         <Input
           type="number"
@@ -266,7 +271,11 @@ function QuestionStep({
         </div>
       )}
 
-      {showError ? <p className="text-sm text-red-600">{t("forms.requiredHint")}</p> : null}
+      {showError && !(question.type === "social_links" && socialLinksFilled(value)) ? (
+        <p className="text-sm text-red-600">
+          {question.type === "social_links" ? t("forms.socialRequired") : t("forms.requiredHint")}
+        </p>
+      ) : null}
     </div>
   )
 }

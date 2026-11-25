@@ -261,7 +261,7 @@ Cada Bloco tem um "type" e campos próprios:
 - { "type": "banner", "title", "subtitle", "background": "#RRGGBB", "tone": "light" | "dark", "align": "left" | "center", "image": "url ou vazio", "ctaLabel", "action": "none" }  (tone "light" = texto claro sobre fundo escuro)
 - { "type": "heading", "text", "size": "md" | "lg", "align": "left" | "center" }
 - { "type": "text", "text", "align": "left" | "center" }
-- { "type": "features", "title", "items": [ { "title", "text" } ] }  (grade de 3 benefícios)
+- { "type": "features", "title", "items": [ { "title", "text" } ] }  (grade 2x2 de benefícios)
 - { "type": "bento", "title", "items": [ { "title", "text" } ] }  (grade assimétrica de 4-6 cards; o 1º é maior)
 - { "type": "steps", "title", "items": [ { "title", "text" } ] }  (passo a passo numerado automaticamente)
 - { "type": "stats", "items": [ { "title", "text" } ] }  (title é o número, ex "15%")

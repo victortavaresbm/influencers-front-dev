@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import { SitePlayer } from "@/components/forms/site-player"
 import { Button } from "@/components/ui/button"
 import { CREATORS } from "@/lib/mock-data/creators"
-import type { FormAnswer } from "@/lib/mock-data/forms"
 import { campaignAcceptsApplication } from "@/lib/campaign-access"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
@@ -29,7 +28,6 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
   const creator = CREATORS.find((item) => item.email === user?.email)
   const forms = useFormStore((state) => state.forms)
   const responses = useFormStore((state) => state.responses)
-  const submitResponse = useFormStore((state) => state.submitResponse)
   const campaigns = useCampaignStore((state) => state.campaigns)
   const addParticipant = useCampaignStore((state) => state.addParticipant)
   const form = forms.find((item) => item.id === formId && item.status === "publicado")
@@ -57,7 +55,10 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
   const alreadyIn = !!creator && (campaign?.participants.some((participant) => participant.creatorId === creator.id) ?? false)
   const alreadySubmitted = !!creator && responses.some((response) => response.formId === app.id && response.creatorId === creator.id)
   const isBrand = user?.role === "brand"
-  const canSubmit = user?.role === "creator" && !!creator && !closed && !alreadyIn && !alreadySubmitted
+  const identified = user?.role === "creator" && !!creator
+  // Brand funnels accept an anonymous lead. Campaign funnels still require a
+  // logged-in creator who is allowed to apply.
+  const canSubmit = !isBrand && !closed && !alreadyIn && !alreadySubmitted && (app.scope === "brand" || identified)
   const lockMessage = isBrand
     ? t("forms.previewMode")
     : !user
@@ -68,16 +69,8 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
           ? t("forms.closed")
           : undefined
 
-  const submit = (answers: FormAnswer[]) => {
-    if (!creator) return
-    const saved = submitResponse({
-      formId: app.id,
-      creatorId: creator.id,
-      creatorName: creator.name,
-      creatorHandle: creator.handle,
-      answers,
-    })
-    if (!saved || app.scope !== "campaign" || !app.campaignId) return
+  const submit = () => {
+    if (!creator || app.scope !== "campaign" || !app.campaignId) return
     addParticipant(app.campaignId, {
       creatorId: creator.id,
       creatorName: creator.name,
@@ -109,8 +102,14 @@ function Landing({ params }: { params: Promise<{ formId: string }> }) {
         alreadySubmitted={alreadySubmitted}
         locked={!canSubmit}
         lockMessage={lockMessage}
-        loginHref={!user ? `/login?return=${encodeURIComponent(`/lp/${form.id}`)}` : undefined}
+        loginHref={!user && app.scope === "campaign" ? `/login?return=${encodeURIComponent(`/lp/${form.id}`)}` : undefined}
         preview={isBrand}
+        persist={canSubmit}
+        respondent={
+          identified && creator
+            ? { sessionId: creator.id, creatorId: creator.id, creatorName: creator.name, creatorHandle: creator.handle }
+            : undefined
+        }
         onSubmit={submit}
         onDone={() => router.push("/creator/opportunities")}
       />

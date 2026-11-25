@@ -8,7 +8,9 @@ import { SOCIAL_NETWORK_LABEL, type SocialNetwork } from "@/lib/mock-data/campai
 import { useListStore } from "@/lib/stores/lists"
 import { SAVED_CREATOR_IDS } from "@/lib/mock-data/saved-creators"
 import { agencyById } from "@/lib/mock-data/agencies"
-import { type Creator, type CreatorNetwork } from "@/lib/mock-data/creators"
+import { CREATORS, type Creator, type CreatorNetwork } from "@/lib/mock-data/creators"
+import { CreatorHeatCard } from "@/components/forms/creator-heat-card"
+import { creatorHeat } from "@/lib/forms/creator-heat"
 import { answerText } from "@/lib/mock-data/forms"
 import { formPublicPath } from "@/lib/forms/brief-check"
 import { useFormStore } from "@/lib/stores/forms"
@@ -298,6 +300,8 @@ function FormAnswersPanel({ creatorId }: { creatorId: string }) {
       {mine.map((response) => {
         const form = brandForms.find((item) => item.id === response.formId)
         if (!form) return null
+        const creator = CREATORS.find((item) => item.id === creatorId)
+        const heat = creatorHeat(form, response, undefined, creator)
         return (
           <section key={response.id} className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
@@ -309,6 +313,7 @@ function FormAnswersPanel({ creatorId }: { creatorId: string }) {
                 {formatDateBR(response.submittedAt)}
               </time>
             </div>
+            <CreatorHeatCard heat={heat} />
             <div className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200">
               {form.questions.map((question) => {
                 const answer = response.answers.find((item) => item.questionId === question.id)

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo } from "react"
 import {
   Background,
   Controls,
+  Position,
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
@@ -50,7 +51,7 @@ function layout(graph: ReturnType<typeof siteFlow>, entryId: string) {
     const depth = layer.get(id) ?? (orphanLayer += 1)
     const row = perLayer.get(depth) ?? 0
     perLayer.set(depth, row + 1)
-    return { x: depth * 280 + 24, y: row * 132 + 24 }
+    return { x: depth * 360 + 24, y: row * 120 + 24 }
   }
   return position
 }
@@ -61,6 +62,8 @@ function toNodes(graph: ReturnType<typeof siteFlow>, entryId: string, selectedId
     id: node.id,
     position: position(node.id),
     data: { label: <NodeLabel node={node} /> },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
     selected: node.id === selectedId,
     style: {
       width: 200,
@@ -79,7 +82,6 @@ function NodeLabel({ node }: { node: ReturnType<typeof siteFlow>["nodes"][number
         {node.entry ? <Home className="size-3 text-zinc-400" /> : node.final ? <Flag className="size-3 text-emerald-600" /> : null}
         <span className="truncate text-sm font-medium text-zinc-900">{node.label || "—"}</span>
       </div>
-      <span className="text-[11px] text-zinc-400">{node.kind === "url" ? "URL" : node.pageKind}</span>
     </div>
   )
 }

@@ -8,7 +8,14 @@ import { useAuthStore } from "@/lib/stores/auth"
 import { useFormStore } from "@/lib/stores/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import type { FormTemplate } from "@/lib/mock-data/forms"
+import { MARKET_NAMES, MARKET_TEMPLATES, type MarketVariation } from "@/lib/mock-data/form-markets"
 import { SITE_TEMPLATES } from "@/lib/mock-data/form-templates"
+
+const VARIATION_KEY: Record<MarketVariation, MessageKey> = {
+  quiz: "forms.variation.quiz",
+  application: "forms.variation.application",
+  capture: "forms.variation.capture",
+}
 
 const STARTERS: { id: FormTemplate; titleKey: MessageKey; helpKey: MessageKey }[] = [
   { id: "blank", titleKey: "forms.templateBlank", helpKey: "forms.templateBlankHelp" },
@@ -29,6 +36,22 @@ export default function NewFunnelPage() {
       organizationName: user.organizationName,
       template,
       title: t(template === "creator" ? "forms.templateCreator" : template === "affiliate" ? "forms.templateAffiliate" : "forms.templateBlank"),
+    })
+    router.push(`/forms/${form.id}`)
+  }
+
+  const startFromMarket = (templateId: string) => {
+    if (!user) return
+    const template = MARKET_TEMPLATES.find((item) => item.id === templateId)
+    if (!template) return
+    const built = template.build()
+    const form = createForm({
+      organizationId: user.organizationId,
+      organizationName: user.organizationName,
+      template: "blank",
+      title: `${template.market} · ${t(VARIATION_KEY[template.variation])}`,
+      site: built.site,
+      questions: built.questions,
     })
     router.push(`/forms/${form.id}`)
   }
@@ -79,8 +102,36 @@ export default function NewFunnelPage() {
           </div>
         </section>
 
+        <section className="space-y-5">
+          <h2 className="text-sm font-semibold text-zinc-900">{t("forms.templateMarkets")}</h2>
+          {MARKET_NAMES.map((market) => (
+            <div key={market} className="space-y-2">
+              <h3 className="text-xs font-medium text-zinc-500">{market}</h3>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {MARKET_TEMPLATES.filter((template) => template.market === market).map((template) => (
+                  <Button
+                    key={template.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto items-start justify-start whitespace-normal px-4 py-4 text-left"
+                    onClick={() => startFromMarket(template.id)}
+                  >
+                    <span>
+                      <span className="flex items-center gap-2">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: template.accent }} />
+                        <span className="text-sm font-semibold text-zinc-900">{t(VARIATION_KEY[template.variation])}</span>
+                      </span>
+                      <span className="mt-1 block text-xs font-normal text-zinc-500">{template.tagline}</span>
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-zinc-900">{t("forms.startFromTemplate")}</h2>
+          <h2 className="text-sm font-semibold text-zinc-900">{t("forms.templateStyles")}</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {SITE_TEMPLATES.map((template) => (
               <Button

@@ -10,6 +10,7 @@ import {
   Hash,
   Link,
   ListChecks,
+  Share2,
   Mail,
   Phone,
   ToggleLeft,
@@ -31,13 +32,13 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { FormRunner } from "@/components/forms/form-runner"
+import { MatchWeightSelect } from "@/components/forms/match-weight-select"
 import {
   QUESTION_TYPES,
   createQuestion,
   isChoiceType,
   type ApplicationForm,
   type FormQuestion,
-  type MatchWeight,
   type QuestionType,
 } from "@/lib/mock-data/forms"
 import { useI18n, type MessageKey } from "@/lib/i18n"
@@ -51,6 +52,7 @@ export const TYPE_KEY: Record<QuestionType, MessageKey> = {
   yes_no: "forms.type.yesNo",
   number: "forms.type.number",
   link: "forms.type.link",
+  social_links: "forms.type.socialLinks",
   email: "forms.type.email",
   phone: "forms.type.phone",
   date: "forms.type.date",
@@ -65,6 +67,7 @@ export const TYPE_ICON: Record<QuestionType, LucideIcon> = {
   yes_no: ToggleLeft,
   number: Hash,
   link: Link,
+  social_links: Share2,
   email: Mail,
   phone: Phone,
   date: Calendar,
@@ -335,36 +338,14 @@ export function FormBuilder({
             </label>
             <div className="space-y-1.5">
               <Label>{t("forms.matchWeight")}</Label>
-              <Select
-                value={String(selected.match?.weight ?? 0)}
-                onValueChange={(value) => {
-                  if (value == null) return
-                  const weight = Number(value) as MatchWeight
+              <MatchWeightSelect
+                value={selected.match?.weight ?? 0}
+                onChange={(weight) =>
                   updateQuestion(selected.id, {
                     match: weight === 0 ? undefined : { weight, ideal: selected.match?.ideal },
                   })
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(value) =>
-                      value === "3"
-                        ? t("forms.matchHigh")
-                        : value === "2"
-                          ? t("forms.matchMid")
-                          : value === "1"
-                            ? t("forms.matchLow")
-                            : t("forms.matchNone")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">{t("forms.matchNone")}</SelectItem>
-                  <SelectItem value="1">{t("forms.matchLow")}</SelectItem>
-                  <SelectItem value="2">{t("forms.matchMid")}</SelectItem>
-                  <SelectItem value="3">{t("forms.matchHigh")}</SelectItem>
-                </SelectContent>
-              </Select>
+                }
+              />
             </div>
             {(selected.match?.weight ?? 0) > 0 && (
               <MatchIdeal question={selected} onChange={(ideal) => updateQuestion(selected.id, { match: { weight: selected.match?.weight ?? 1, ideal } })} />

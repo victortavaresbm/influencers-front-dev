@@ -378,6 +378,12 @@
   animation: pulseDot 1.5s ease-in-out infinite;
 }
 
+/* Page font covers every block, including controls that keep their own family. */
+.site-page,
+.site-page :where(*) {
+  font-family: var(--site-font);
+}
+
 /* ── Landing page (forms) animations ────────────────────────── */
 @property --site-beam-angle {
   syntax: "<angle>";

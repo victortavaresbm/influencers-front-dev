@@ -685,6 +685,15 @@ export const CAMPAIGNS: Campaign[] = [
       { network: "tiktok", handle: "@magaluTT" },
       { network: "youtube", handle: "@MagazineLuiza" },
     ],
+    doList: [
+      "Mostrar a casa real, com o antes e o depois",
+      "Usar o app para planejar o ambiente",
+      "Falar de decoração com dica prática",
+    ],
+    dontList: [
+      "Não tratar o app como anúncio solto",
+      "Não mostrar ambientes de luxo fora da realidade",
+    ],
     participants: [
       {
         creatorId: "c14",

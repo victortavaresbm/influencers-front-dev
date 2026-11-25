@@ -2,6 +2,7 @@
 
 import { FontPicker } from "@/components/forms/font-picker"
 import { ColorField } from "@/components/forms/site-inspector"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -17,8 +18,8 @@ import { useI18n, type MessageKey } from "@/lib/i18n"
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
-      <p className="text-sm font-semibold text-zinc-900">{title}</p>
+    <section className="space-y-3 border-t border-zinc-200 pt-3 first:border-t-0 first:pt-0">
+      <p className="text-xs font-medium text-zinc-500">{title}</p>
       {children}
     </section>
   )
@@ -98,15 +99,17 @@ function NumberRow({
 function TypographyFields({
   value,
   onChange,
+  onFontChange,
 }: {
   value: Typography
   onChange: (next: Typography) => void
+  onFontChange: (font: string) => void
 }) {
   const { t } = useI18n()
   return (
     <div className="space-y-3">
       <Row label={t("forms.themeFont")}>
-        <FontPicker value={value.font} onChange={(font) => onChange({ ...value, font })} />
+        <FontPicker value={value.font} onChange={onFontChange} />
       </Row>
       <ColorField label={t("forms.themeColor")} value={value.color} onChange={(color) => onChange({ ...value, color })} />
       <NumberRow label={t("forms.themeSize")} value={value.size} min={10} max={72} onChange={(size) => onChange({ ...value, size })} />
@@ -167,9 +170,15 @@ export function SiteDesignPanel({
 }) {
   const { t } = useI18n()
   const patch = (next: Partial<SiteTheme>) => onChange({ ...theme, ...next })
+  const setFont = (font: string) =>
+    onChange({
+      ...theme,
+      heading: { ...theme.heading, font },
+      body: { ...theme.body, font },
+    })
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
       <Section title={t("forms.designGeneral")}>
         <Choice
           label={t("forms.themeAlign")}
@@ -189,7 +198,7 @@ export function SiteDesignPanel({
       <Section title={t("forms.designHeader")}>
         <label className="flex items-center justify-between gap-2 text-sm text-zinc-700">
           {t("forms.themeProgress")}
-          <input type="checkbox" checked={theme.showProgress} onChange={(event) => patch({ showProgress: event.target.checked })} className="size-4 accent-zinc-900" />
+          <Checkbox checked={theme.showProgress} onCheckedChange={(checked) => patch({ showProgress: checked === true })} />
         </label>
         <Row label={t("forms.themeLogo")}>
           <Input value={theme.logo} placeholder="https://" onChange={(event) => patch({ logo: event.target.value })} />
@@ -220,11 +229,11 @@ export function SiteDesignPanel({
       </Section>
 
       <Section title={t("forms.designTypographyTitle")}>
-        <TypographyFields value={theme.heading} onChange={(heading) => patch({ heading })} />
+        <TypographyFields value={theme.heading} onChange={(heading) => patch({ heading })} onFontChange={setFont} />
       </Section>
 
       <Section title={t("forms.designTypographyBody")}>
-        <TypographyFields value={theme.body} onChange={(body) => patch({ body })} />
+        <TypographyFields value={theme.body} onChange={(body) => patch({ body })} onFontChange={setFont} />
       </Section>
     </div>
   )

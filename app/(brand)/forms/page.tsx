@@ -3,12 +3,19 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, Copy, FilePen, Pause, Play, Plus } from "lucide-react"
+import { Archive, ChevronDown, Copy, Plus } from "lucide-react"
 import { TopBar } from "@/components/layout/top-bar"
 import { FormCardPreview } from "@/components/forms/form-card-preview"
 import { ActionsMenu, type ActionMenuItem } from "@/components/ui/actions-menu"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
 import { useFormStore } from "@/lib/stores/forms"
@@ -107,20 +114,12 @@ function FunnelCard({
 
   const campaign = campaigns.find((item) => item.id === form.campaignId)
   const count = responses.filter((response) => response.formId === form.id).length
-  const meta = STATUS_META[form.status]
-
-  const setStatus = (status: FormStatus) => updateForm(form.id, { status })
+  const setStatus = (status: FormStatus) => {
+    if (status === "publicado" && !canPublish(form)) return
+    updateForm(form.id, { status })
+  }
 
   const items: ActionMenuItem[] = []
-  if (form.status !== "publicado") {
-    items.push({ label: t("forms.setActive"), icon: Play, disabled: !canPublish(form), onSelect: () => setStatus("publicado") })
-  }
-  if (form.status === "publicado") {
-    items.push({ label: t("forms.setInactive"), icon: Pause, onSelect: () => setStatus("inativo") })
-  }
-  if (form.status !== "rascunho") {
-    items.push({ label: t("forms.setDraft"), icon: FilePen, onSelect: () => setStatus("rascunho") })
-  }
   items.push({
     label: t("forms.duplicate"),
     icon: Copy,
@@ -133,21 +132,20 @@ function FunnelCard({
 
   return (
     <Card className="h-full gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
-      <Link
-        href={`/forms/${form.id}`}
-        className="group block rounded-t-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <div className="relative">
+      <div className="relative">
+        <Link
+          href={`/forms/${form.id}`}
+          className="group block rounded-t-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           <FormCardPreview form={form} />
-          <span className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium shadow-sm ring-1 ring-foreground/10">
-            <span className="size-2 rounded-full" style={{ background: meta.dot }} />
-            {t(meta.key)}
-          </span>
+          <CardHeader className="pt-4">
+            <CardTitle className="line-clamp-2 leading-snug group-hover:underline">{form.title}</CardTitle>
+          </CardHeader>
+        </Link>
+        <div className="absolute top-3 right-3 z-10">
+          <PageStatusMenu status={form.status} canActivate={canPublish(form)} onChange={setStatus} />
         </div>
-        <CardHeader className="pt-4">
-          <CardTitle className="line-clamp-2 leading-snug group-hover:underline">{form.title}</CardTitle>
-        </CardHeader>
-      </Link>
+      </div>
       <CardContent className="flex items-center justify-between gap-2 pt-2 pb-3">
         <p className="min-w-0 truncate text-xs text-muted-foreground">
           {t("forms.pagesCount", { count: form.site?.pages.length ?? 0 })}
@@ -158,5 +156,56 @@ function FunnelCard({
         <ActionsMenu trigger="ellipsis" items={items} />
       </CardContent>
     </Card>
+  )
+}
+
+const STATUS_ORDER: FormStatus[] = ["publicado", "inativo", "rascunho", "arquivado"]
+
+function PageStatusMenu({
+  status,
+  canActivate,
+  onChange,
+}: {
+  status: FormStatus
+  canActivate: boolean
+  onChange: (status: FormStatus) => void
+}) {
+  const { t } = useI18n()
+  const meta = STATUS_META[status]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full bg-background/90 px-2.5 font-medium shadow-sm"
+            aria-label={`${t("forms.changeStatus")}: ${t(meta.key)}`}
+          />
+        }
+      >
+        <span className="size-2 rounded-full" style={{ background: meta.dot }} />
+        {t(meta.key)}
+        <ChevronDown data-icon="inline-end" className="text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuRadioGroup
+          value={status}
+          onValueChange={(value) => {
+            if (!value || value === status) return
+            onChange(value as FormStatus)
+          }}
+        >
+          {STATUS_ORDER.map((item) => (
+            <DropdownMenuRadioItem key={item} value={item} disabled={item === "publicado" && !canActivate}>
+              <span className="size-2 rounded-full" style={{ background: STATUS_META[item].dot }} />
+              {t(STATUS_META[item].key)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

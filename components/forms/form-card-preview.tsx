@@ -94,6 +94,12 @@ function QuestionSketch({ question }: { question: FormQuestion }) {
             </div>
           ))}
         </div>
+      ) : question.type === "social_links" ? (
+        <div className="mt-1 space-y-1">
+          {["Instagram", "TikTok", "YouTube"].map((network) => (
+            <div key={network} className="h-4 rounded-md border border-zinc-200 bg-zinc-50" />
+          ))}
+        </div>
       ) : (
         <div className={cn("mt-1 rounded-md border border-zinc-200 bg-zinc-50", question.type === "long_text" ? "h-8" : "h-5")} />
       )}
