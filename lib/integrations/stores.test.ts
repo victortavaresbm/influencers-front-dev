@@ -46,8 +46,27 @@ describe("storeCards", () => {
   })
 
   it("ignora plataformas que a aba não mostra", () => {
-    const cards = storeCards([conn({ platform: "hotmart" })])
-    assert.deepEqual(Object.keys(cards).sort(), ["nuvemshop", "shopify"])
+    const cards = storeCards([conn({ platform: "woocommerce" })])
+    assert.deepEqual(Object.keys(cards).sort(), ["hotmart", "nuvemshop", "shopify"])
+  })
+})
+
+describe("storeCards com hotmart", () => {
+  it("hotmart pending oferece continuar a configuração", () => {
+    const cards = storeCards([conn({ platform: "hotmart", state: "pending" })])
+    assert.equal(cards.hotmart.state, "pending")
+    assert.equal(cards.hotmart.canResume, true)
+    assert.equal(cards.hotmart.canConnect, false)
+  })
+
+  it("loja OAuth pending não oferece continuar", () => {
+    assert.equal(storeCards([conn({ state: "pending" })]).nuvemshop.canResume, false)
+  })
+
+  it("hotmart sem conexão conecta, não continua", () => {
+    const card = storeCards([]).hotmart
+    assert.equal(card.canConnect, true)
+    assert.equal(card.canResume, false)
   })
 })
 
