@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node --test \".test-build/**/*.test.js\""
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@clerk/nextjs": "^7.10.9",
     "@faker-js/faker": "^10.6.0",
     "@tremor/react": "^3.18.7",
     "@xyflow/react": "^13.0.3",

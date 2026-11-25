@@ -1,11 +1,14 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n"
 import { useAuthStore } from "@/lib/stores/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RealSignIn } from "@/components/auth/real-sign-in"
+import { isRealUser } from "@/components/auth/clerk-bridge"
+import { clerkEnabled } from "@/lib/api/clerk"
 
 const QUICK_LOGINS = [
   { name: "Natura", email: "ana@natura.com.br", role: "brand" as const },
@@ -42,12 +45,19 @@ export default function LoginPage() {
 
   const goAfterLogin = (role?: "brand" | "creator") => {
     const returnTo = new URLSearchParams(window.location.search).get("return")
-    if (returnTo?.startsWith("/")) {
+    if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
       router.push(returnTo)
       return
     }
     router.push(role === "brand" ? "/dashboard" : "/creator/dashboard")
   }
+
+  // The Clerk modal signs in outside this form; ClerkBridge then sets the user.
+  const realUser = useAuthStore((s) => (isRealUser(s.user) ? s.user : null))
+  useEffect(() => {
+    if (realUser) goAfterLogin("brand")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realUser])
 
   const quickLogin = async (qEmail: string) => {
     setLoading(true)
@@ -84,6 +94,8 @@ export default function LoginPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{t("login.title")}</h1>
             <p className="mt-1 text-sm text-zinc-500">{t("login.subtitle")}</p>
           </div>
+
+          {clerkEnabled && <RealSignIn />}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">

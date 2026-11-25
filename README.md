@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Conta real e backend
+
+Sem variáveis, o app roda só com os logins de demonstração. Para entrar com conta real (Clerk) e chamar o gateway, crie `.env.local` (o git ignora `.env*`):
+
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...   # Clerk → API keys (instância de desenvolvimento)
+CLERK_SECRET_KEY=sk_test_...                    # Clerk → API keys; nunca commitar
+NEXT_PUBLIC_API_URL=https://api-dev.<domínio>   # gateway, sem barra no fim
+NEXT_PUBLIC_DEV_MARCA_ID=<uuid da Marca>        # opcional: Marca ativa inicial
+```
+
+- O token vai para o gateway pelo JWT template `gateway` do Clerk, cujo `aud` é o `CLERK_AUDIENCE` do gateway.
+- A origem do front (ex.: `http://localhost:3000`) precisa estar em `CORS_ALLOWED_ORIGINS` do gateway.
+- A Marca ativa também pode ser trocada em Configurações → Integrações.
+
+Testes unitários: `npm test`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
