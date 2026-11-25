@@ -11,6 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
 import { SiteBuilder } from "@/components/forms/site-builder"
+import { SiteDesignPanel } from "@/components/forms/site-design"
+import { SitePlayer } from "@/components/forms/site-player"
 import { answerText, canPublish, type ApplicationForm, type FormResponse, type FormStatus } from "@/lib/mock-data/forms"
 import { formPublicPath } from "@/lib/forms/brief-check"
 import { defaultSite } from "@/lib/mock-data/form-site"
@@ -185,7 +187,17 @@ export default function FunnelEditorPage({ params }: { params: Promise<{ id: str
           </TabsContent>
 
           <TabsContent value="design" className="min-h-0 overflow-auto pb-6">
-            <SlicePlaceholder title={t("forms.tabDesign")} />
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+              <SiteDesignPanel
+                theme={draft.site.theme}
+                onChange={(theme) => setDraft({ ...draft, site: { ...draft.site!, theme } })}
+              />
+              <div className="xl:sticky xl:top-4 xl:self-start">
+                <div className="overflow-hidden rounded-xl border border-zinc-200">
+                  <SitePlayer form={draft} preview />
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="leads" className="min-h-0 overflow-auto pb-6">

@@ -86,37 +86,112 @@ const BLOCK_KEY: Record<SiteBlock["type"], MessageKey> = {
   spacer: "forms.block.spacer",
 }
 
+const WIDTH_CLASS: Record<string, string> = { narrow: "max-w-xl", regular: "max-w-3xl", wide: "max-w-5xl" }
+const SPACING_CLASS: Record<string, string> = { tight: "py-1", regular: "py-5", relaxed: "py-10" }
+
 export function SiteShell({
   site,
   className,
+  progress,
   children,
 }: {
   site: FormSite
   className?: string
+  // Form-step progress (0–1) for the header progress bar; only the live runtime
+  // passes it.
+  progress?: number
   children: React.ReactNode
 }) {
-  const headingFont = site.theme.heading.font
-  const bodyFont = site.theme.body.font
+  const theme = site.theme
   useEffect(() => {
-    ensureGoogleFont(headingFont)
-    ensureGoogleFont(bodyFont)
-  }, [headingFont, bodyFont])
+    ensureGoogleFont(theme.heading.font)
+    ensureGoogleFont(theme.body.font)
+  }, [theme.heading.font, theme.body.font])
 
-  const lightPage = site.theme.background === "#ffffff"
+  const cssVars = {
+    "--site-primary": theme.primary,
+    "--site-radius": `${theme.radius}px`,
+    "--site-heading-font": siteFontFamily(theme.heading.font) ?? "inherit",
+    "--site-heading-color": theme.heading.color,
+    "--site-heading-weight": String(theme.heading.weight),
+    "--site-heading-line": String(theme.heading.lineHeight),
+  } as React.CSSProperties
+
   return (
     <div
-      className={cn("min-h-full font-sans", lightPage && "bg-white text-zinc-900", className)}
+      className={cn("relative min-h-full font-sans", className)}
       style={{
-        fontFamily: siteFontFamily(bodyFont),
-        ...(lightPage
-          ? {}
-          : {
-              background: site.theme.background,
-              color: "#fafafa",
-            }),
+        ...cssVars,
+        fontFamily: siteFontFamily(theme.body.font),
+        fontSize: theme.body.size,
+        lineHeight: theme.body.lineHeight,
+        color: theme.body.color,
+        textAlign: theme.align,
       }}
     >
-      {children}
+      <ThemeBackground theme={theme} />
+      <div className="relative z-10">
+        {theme.logo || theme.showProgress ? <ThemeHeader theme={theme} progress={progress} /> : null}
+        <div className={cn("mx-auto", WIDTH_CLASS[theme.width] ?? "max-w-3xl", SPACING_CLASS[theme.spacing] ?? "py-5")}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ThemeBackground({ theme }: { theme: FormSite["theme"] }) {
+  const base: React.CSSProperties = {}
+  if (theme.backgroundMode === "gradient") base.background = theme.backgroundGradient
+  else if (theme.backgroundMode === "image") {
+    base.backgroundImage = `url(${theme.backgroundImage})`
+    base.backgroundSize = "cover"
+    base.backgroundPosition = "center"
+  } else base.background = theme.background
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden" style={base}>
+      {theme.backgroundMode === "video" && theme.backgroundVideo ? (
+        <video className="absolute inset-0 size-full object-cover" src={theme.backgroundVideo} autoPlay muted loop playsInline />
+      ) : null}
+      <ThemeEffect effect={theme.backgroundEffect} />
+    </div>
+  )
+}
+
+function ThemeEffect({ effect }: { effect: FormSite["theme"]["backgroundEffect"] }) {
+  if (effect === "none") return null
+  if (effect === "dark") return <div className="absolute inset-0 bg-black/40" />
+  if (effect === "gradient") return <div className="absolute inset-0 bg-gradient-to-b from-black/5 to-black/60" />
+  if (effect === "blur") return <div className="absolute inset-0 backdrop-blur-md" />
+  // grain
+  return (
+    <div
+      className="absolute inset-0 opacity-[0.18] mix-blend-overlay"
+      style={{
+        backgroundImage:
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E\")",
+      }}
+    />
+  )
+}
+
+function ThemeHeader({ theme, progress }: { theme: FormSite["theme"]; progress?: number }) {
+  return (
+    <div className="sticky top-0 z-20 flex items-center gap-3 px-5 py-3">
+      {theme.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={theme.logo} alt="" className="h-7 w-auto shrink-0" />
+      ) : (
+        <span className="shrink-0" />
+      )}
+      {theme.showProgress ? (
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${Math.round((progress ?? 0) * 100)}%`, background: theme.primary }}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -385,7 +460,15 @@ function BlockView({
     return (
       <Reveal active={live}>
         <div className={cn("mx-auto max-w-3xl px-5 pt-8 sm:px-6 sm:pt-10", block.align === "center" && "text-center")}>
-          <h2 className={cn("font-semibold tracking-tight", block.size === "lg" ? "text-xl sm:text-3xl" : "text-lg sm:text-xl")}>
+          <h2
+            className={cn("tracking-tight", block.size === "lg" ? "text-xl sm:text-3xl" : "text-lg sm:text-xl")}
+            style={{
+              fontFamily: "var(--site-heading-font)",
+              color: "var(--site-heading-color)",
+              fontWeight: "var(--site-heading-weight)" as unknown as number,
+              lineHeight: "var(--site-heading-line)",
+            }}
+          >
             {block.text}
           </h2>
         </div>
@@ -451,8 +534,8 @@ function BlockView({
             className={cn("w-full sm:w-auto", live && block.style !== "outline" && "site-shine")}
             style={
               block.style === "outline"
-                ? { borderColor: primary, color: primary }
-                : { background: primary, borderColor: primary, color: "#fff" }
+                ? { borderColor: primary, color: primary, borderRadius: "var(--site-radius)" }
+                : { background: primary, borderColor: primary, color: "#fff", borderRadius: "var(--site-radius)" }
             }
             onClick={(event) => {
               if (!live) return
