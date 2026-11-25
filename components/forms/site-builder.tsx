@@ -122,9 +122,14 @@ function blockPreview(block: SiteBlock) {
 export function SiteBuilder({
   form,
   onChange,
+  pageId: controlledPageId,
+  onPageChange,
 }: {
   form: ApplicationForm
   onChange: (next: ApplicationForm) => void
+  // Optional controlled page selection (shared with the Fluxo tab).
+  pageId?: string
+  onPageChange?: (id: string) => void
 }) {
   const { t } = useI18n()
   const primary = ORG_LOGOS[form.organizationId]?.color ?? "#18181b"
@@ -137,7 +142,12 @@ export function SiteBuilder({
         .map((item) => ({ id: item.id, title: item.title })),
     [allForms, form.organizationId],
   )
-  const [pageId, setPageId] = useState(site.entryPageId)
+  const [internalPageId, setInternalPageId] = useState(site.entryPageId)
+  const pageId = controlledPageId ?? internalPageId
+  const setPageId = (id: string) => {
+    setInternalPageId(id)
+    onPageChange?.(id)
+  }
   const [blockId, setBlockId] = useState<string | null>(null)
   const [view, setView] = useState<BuilderView>("visual")
   const [device, setDevice] = useState<Device>("desktop")

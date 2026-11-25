@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
+import { FunnelFlow } from "@/components/forms/funnel-flow"
 import { SiteBuilder } from "@/components/forms/site-builder"
 import { SiteDesignPanel } from "@/components/forms/site-design"
 import { SitePlayer } from "@/components/forms/site-player"
@@ -43,6 +44,8 @@ export default function FunnelEditorPage({ params }: { params: Promise<{ id: str
   const [draft, setDraft] = useState<ApplicationForm | null>(null)
   const [loadedId, setLoadedId] = useState<string | null>(null)
   const [openResponse, setOpenResponse] = useState<FormResponse | null>(null)
+  const [tab, setTab] = useState("builder")
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
 
   if (stored && loadedId !== stored.id) {
     setLoadedId(stored.id)
@@ -142,7 +145,7 @@ export default function FunnelEditorPage({ params }: { params: Promise<{ id: str
       />
 
       <div className="flex min-h-0 flex-1 flex-col px-6 pt-4">
-        <Tabs defaultValue="builder" className="min-h-0 flex-1">
+        <Tabs value={tab} onValueChange={(value) => value && setTab(value)} className="min-h-0 flex-1">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <TabsList>
               <TabsTrigger value="builder">{t("forms.tabBuilder")}</TabsTrigger>
@@ -179,11 +182,24 @@ export default function FunnelEditorPage({ params }: { params: Promise<{ id: str
           </div>
 
           <TabsContent value="builder" className="-mx-6 flex min-h-0 flex-col overflow-hidden">
-            <SiteBuilder form={draft} onChange={setDraft} />
+            <SiteBuilder
+              form={draft}
+              onChange={setDraft}
+              pageId={selectedPageId ?? undefined}
+              onPageChange={setSelectedPageId}
+            />
           </TabsContent>
 
-          <TabsContent value="flow" className="min-h-0 overflow-auto pb-6">
-            <SlicePlaceholder title={t("forms.tabFlow")} />
+          <TabsContent value="flow" className="-mx-6 min-h-0 flex-1 overflow-hidden border-t border-zinc-200">
+            <FunnelFlow
+              site={draft.site}
+              selectedPageId={selectedPageId ?? draft.site.entryPageId}
+              onSelectPage={(id) => {
+                setSelectedPageId(id)
+                setTab("builder")
+              }}
+              onChange={(site) => setDraft({ ...draft, site })}
+            />
           </TabsContent>
 
           <TabsContent value="design" className="min-h-0 overflow-auto pb-6">
@@ -251,12 +267,3 @@ export default function FunnelEditorPage({ params }: { params: Promise<{ id: str
   )
 }
 
-function SlicePlaceholder({ title }: { title: string }) {
-  const { t } = useI18n()
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-zinc-200 py-20 text-center">
-      <p className="text-sm font-medium text-zinc-700">{title}</p>
-      <p className="text-xs text-zinc-400">{t("forms.sliceSoon")}</p>
-    </div>
-  )
-}
