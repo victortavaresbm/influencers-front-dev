@@ -43,7 +43,7 @@ import {
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
-const TYPE_KEY: Record<QuestionType, MessageKey> = {
+export const TYPE_KEY: Record<QuestionType, MessageKey> = {
   short_text: "forms.type.shortText",
   long_text: "forms.type.longText",
   single_choice: "forms.type.singleChoice",
@@ -57,7 +57,7 @@ const TYPE_KEY: Record<QuestionType, MessageKey> = {
   video_response: "forms.type.videoResponse",
 }
 
-const TYPE_ICON: Record<QuestionType, LucideIcon> = {
+export const TYPE_ICON: Record<QuestionType, LucideIcon> = {
   short_text: Type,
   long_text: AlignLeft,
   single_choice: CircleDot,
@@ -71,7 +71,7 @@ const TYPE_ICON: Record<QuestionType, LucideIcon> = {
   video_response: Video,
 }
 
-function QuestionTypeOption({ type }: { type: QuestionType }) {
+export function QuestionTypeOption({ type }: { type: QuestionType }) {
   const { t } = useI18n()
   const Icon = TYPE_ICON[type]
   return (

@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Copy,
   Eye,
+  Flag,
   GripVertical,
   Home,
   Monitor,
@@ -19,6 +20,8 @@ import {
   Workflow,
 } from "lucide-react"
 import { FontPicker } from "@/components/forms/font-picker"
+import { TYPE_ICON, TYPE_KEY } from "@/components/forms/form-builder"
+import { QuestionInspector } from "@/components/forms/question-inspector"
 import { SiteAiPanel } from "@/components/forms/site-ai-panel"
 import { BLOCK_ICON, BLOCK_KEY, SiteCanvas } from "@/components/forms/site-canvas"
 import { SiteFlow } from "@/components/forms/site-flow"
@@ -39,14 +42,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { ApplicationForm } from "@/lib/mock-data/forms"
+import { createQuestion, type ApplicationForm, type FormQuestion, type QuestionType } from "@/lib/mock-data/forms"
 import {
   BLOCK_GROUPS,
+  FIELD_PALETTE,
+  QUIZ_PALETTE,
   cloneBlock,
   createBlock,
   createPage,
   defaultSite,
   duplicatePage,
+  fieldBlock,
   insertBlock,
   mapBlock,
   moveBlock,
@@ -203,6 +209,52 @@ export function SiteBuilder({
     setView("visual")
   }
 
+  // Dropping a Form/Quiz item creates the backing question (source of truth) and
+  // a field block that points to it.
+  const addField = (type: QuestionType) => {
+    if (!page) return
+    const question = createQuestion(type)
+    const block = fieldBlock(question.id)
+    onChange({
+      ...form,
+      questions: [...form.questions, question],
+      site: insertBlock(site, page.id, block, blockId ?? undefined),
+    })
+    setBlockId(block.id)
+    setView("visual")
+  }
+
+  const updateQuestion = (id: string, patch: Partial<FormQuestion>) => {
+    onChange({
+      ...form,
+      questions: form.questions.map((question) => (question.id === id ? { ...question, ...patch } : question)),
+    })
+  }
+
+  // Removing a field block also drops its question (D2: no orphan questions).
+  const removeField = (block: Extract<SiteBlock, { type: "field" }>, onPage: string) => {
+    onChange({
+      ...form,
+      questions: form.questions.filter((question) => question.id !== block.questionId),
+      site: removeBlock(site, onPage, block.id),
+    })
+    setBlockId(null)
+  }
+
+  const toggleFinal = (id: string) => {
+    patchSite({
+      ...site,
+      pages: site.pages.map((item) => (item.id === id ? { ...item, final: !item.final } : item)),
+    })
+  }
+
+  // Create a blank page and return its id (used by "create page and link").
+  const createLinkedPage = () => {
+    const created = createPage("custom", t("forms.pageCustom"))
+    patchSite({ ...site, pages: [...site.pages, created] })
+    return created.id
+  }
+
   const applyTemplate = (next: FormSite) => {
     patchSite(next)
     setPageId(next.entryPageId)
@@ -223,7 +275,34 @@ export function SiteBuilder({
     setView("visual")
   }
 
-  const palette = BLOCK_GROUPS.map((group) => (
+  const fieldGroup = (titleKey: MessageKey, types: QuestionType[]) => (
+    <div className="space-y-2">
+      <p className="px-1 text-[11px] font-medium tracking-wide text-zinc-400 uppercase">{t(titleKey)}</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {types.map((type) => {
+          const Icon = TYPE_ICON[type]
+          return (
+            <Button
+              key={type}
+              type="button"
+              variant="outline"
+              className="h-auto flex-col items-center gap-1 px-2 py-2 text-[11px] font-normal"
+              onClick={() => addField(type)}
+            >
+              <Icon className="size-4" />
+              {t(TYPE_KEY[type])}
+            </Button>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const palette = (
+    <>
+      {fieldGroup("forms.group.formFields", FIELD_PALETTE.map((item) => item.type))}
+      {fieldGroup("forms.group.quiz", QUIZ_PALETTE)}
+      {BLOCK_GROUPS.map((group) => (
         <div key={group.id} className="space-y-2">
           <p className="px-1 text-[11px] font-medium tracking-wide text-zinc-400 uppercase">{t(GROUP_KEY[group.id])}</p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -244,7 +323,9 @@ export function SiteBuilder({
             })}
           </div>
         </div>
-      ))
+      ))}
+    </>
+  )
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden border-t border-zinc-200 bg-white">
@@ -284,6 +365,8 @@ export function SiteBuilder({
                     <span className="flex items-center gap-1">
                       {item.id === site.entryPageId ? (
                         <Home className="size-3 text-zinc-400" />
+                      ) : item.final ? (
+                        <Flag className="size-3 text-zinc-400" />
                       ) : item.kind === "form" ? (
                         <ClipboardList className="size-3 text-zinc-400" />
                       ) : null}
@@ -297,6 +380,11 @@ export function SiteBuilder({
                   items={[
                     { label: t("forms.setEntry"), icon: Home, onSelect: () => patchSite({ ...site, entryPageId: item.id }) },
                     { label: t("forms.setFallback"), icon: Star, onSelect: () => patchSite({ ...site, fallbackPageId: item.id }) },
+                    {
+                      label: item.final ? t("forms.unsetFinal") : t("forms.setFinal"),
+                      icon: Flag,
+                      onSelect: () => toggleFinal(item.id),
+                    },
                     {
                       label: t("forms.duplicatePage"),
                       icon: Copy,
@@ -507,6 +595,11 @@ export function SiteBuilder({
               />
               {page.id === site.entryPageId ? <Badge variant="secondary">{t("forms.entryBadge")}</Badge> : null}
               {page.id === site.fallbackPageId ? <Badge variant="secondary">{t("forms.fallbackBadge")}</Badge> : null}
+              {page.final ? <Badge variant="secondary">{t("forms.finalBadge")}</Badge> : null}
+              <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => toggleFinal(page.id)}>
+                <Flag className={cn("size-4", page.final && "fill-current")} />
+                {page.final ? t("forms.unsetFinal") : t("forms.setFinal")}
+              </Button>
             </div>
             <ScrollArea className="min-h-0 flex-1 overflow-hidden">
               <div className="min-h-full">
@@ -573,6 +666,27 @@ export function SiteBuilder({
               setBlockId(null)
             }}
           />
+        ) : selected && page && selected.type === "field" ? (
+          <ScrollArea className="min-h-0 flex-1 overflow-hidden">
+            <div className="p-4">
+              {(() => {
+                const fieldBlockSel = selected
+                const question = form.questions.find((item) => item.id === fieldBlockSel.questionId)
+                const questionIndex = form.questions.findIndex((item) => item.id === fieldBlockSel.questionId)
+                if (!question) {
+                  return <p className="text-sm text-zinc-500">{t("forms.fieldQuestionHint")}</p>
+                }
+                return (
+                  <QuestionInspector
+                    question={question}
+                    index={questionIndex}
+                    onChange={(patch) => updateQuestion(question.id, patch)}
+                    onDelete={() => removeField(fieldBlockSel, page.id)}
+                  />
+                )
+              })()}
+            </div>
+          </ScrollArea>
         ) : selected && page ? (
           <ScrollArea className="min-h-0 flex-1 overflow-hidden">
             <div className="p-4">
@@ -580,6 +694,7 @@ export function SiteBuilder({
                 site={site}
                 block={selected}
                 formOptions={formOptions}
+                onCreatePage={createLinkedPage}
                 onChange={(block) => patchSite(mapBlock(site, page.id, block.id, () => block))}
                 onDelete={() => {
                   patchSite(removeBlock(site, page.id, selected.id))

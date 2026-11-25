@@ -1,6 +1,6 @@
 "use client"
 
-import { Trash2 } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,12 +30,14 @@ export function SiteInspector({
   site,
   block,
   formOptions,
+  onCreatePage,
   onChange,
   onDelete,
 }: {
   site: FormSite
   block: SiteBlock
   formOptions?: { id: string; title: string }[]
+  onCreatePage?: () => string
   onChange: (block: SiteBlock) => void
   onDelete: () => void
 }) {
@@ -60,7 +62,14 @@ export function SiteInspector({
           <TabsTrigger value="content">{t("forms.contentTab")}</TabsTrigger>
         </TabsList>
         <TabsContent value="content">
-          <BlockFields pane="content" site={site} block={block} formOptions={formOptions} onChange={onChange} />
+          <BlockFields
+            pane="content"
+            site={site}
+            block={block}
+            formOptions={formOptions}
+            onCreatePage={onCreatePage}
+            onChange={onChange}
+          />
         </TabsContent>
         <TabsContent value="style">
           <BlockFields pane="style" site={site} block={block} onChange={onChange} />
@@ -75,16 +84,19 @@ function BlockFields({
   site,
   block,
   formOptions,
+  onCreatePage,
   onChange,
 }: {
   pane: "content" | "style"
   site: FormSite
   block: SiteBlock
   formOptions?: { id: string; title: string }[]
+  onCreatePage?: () => string
   onChange: (block: SiteBlock) => void
 }) {
   const { t } = useI18n()
-  const fields = pane === "content" ? contentFields(site, block, onChange, t, formOptions) : styleFields(site, block, onChange, t)
+  const fields =
+    pane === "content" ? contentFields(site, block, onChange, t, formOptions, onCreatePage) : styleFields(site, block, onChange, t)
   if (!fields) {
     return <p className="text-sm text-zinc-500">{t(pane === "content" ? "forms.contentEmpty" : "forms.styleEmpty")}</p>
   }
@@ -97,6 +109,7 @@ function contentFields(
   onChange: (block: SiteBlock) => void,
   t: ReturnType<typeof useI18n>["t"],
   formOptions?: { id: string; title: string }[],
+  onCreatePage?: () => string,
 ) {
   if (block.type === "banner") {
     return (
@@ -116,7 +129,7 @@ function contentFields(
         <Field label={t("forms.ctaLabel")}>
           <Input value={block.ctaLabel} onChange={(event) => onChange({ ...block, ctaLabel: event.target.value })} />
         </Field>
-        <ActionFields site={site} action={block.action} onChange={(action) => onChange({ ...block, action })} />
+        <ActionFields site={site} action={block.action} onCreatePage={onCreatePage} onChange={(action) => onChange({ ...block, action })} />
       </>
     )
   }
@@ -163,7 +176,7 @@ function contentFields(
         <Field label={t("forms.ctaLabel")}>
           <Input value={block.label} onChange={(event) => onChange({ ...block, label: event.target.value })} />
         </Field>
-        <ActionFields site={site} action={block.action} onChange={(action) => onChange({ ...block, action })} />
+        <ActionFields site={site} action={block.action} onCreatePage={onCreatePage} onChange={(action) => onChange({ ...block, action })} />
       </>
     )
   }
@@ -177,7 +190,7 @@ function contentFields(
         <Field label={t("forms.ctaLabel")}>
           <Input value={block.ctaLabel} onChange={(event) => onChange({ ...block, ctaLabel: event.target.value })} />
         </Field>
-        <ActionFields site={site} action={block.action} onChange={(action) => onChange({ ...block, action })} />
+        <ActionFields site={site} action={block.action} onCreatePage={onCreatePage} onChange={(action) => onChange({ ...block, action })} />
       </>
     )
   }
@@ -394,10 +407,12 @@ function styleFields(
 function ActionFields({
   site,
   action,
+  onCreatePage,
   onChange,
 }: {
   site: FormSite
   action: SiteAction
+  onCreatePage?: () => string
   onChange: (action: SiteAction) => void
 }) {
   const { t } = useI18n()
@@ -419,12 +434,26 @@ function ActionFields({
         ]}
       />
       {kind === "page" ? (
-        <SelectField
-          label={t("forms.actionPageValue")}
-          value={action.pageId}
-          onChange={(pageId) => onChange({ kind: "page", pageId })}
-          options={site.pages.map((page) => ({ value: page.id, label: page.name }))}
-        />
+        <>
+          <SelectField
+            label={t("forms.actionPageValue")}
+            value={action.pageId}
+            onChange={(pageId) => onChange({ kind: "page", pageId })}
+            options={site.pages.map((page) => ({ value: page.id, label: page.name }))}
+          />
+          {onCreatePage ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => onChange({ kind: "page", pageId: onCreatePage() })}
+            >
+              <Plus />
+              {t("forms.actionCreatePage")}
+            </Button>
+          ) : null}
+        </>
       ) : null}
       {kind === "url" ? (
         <Field label={t("forms.actionUrlValue")}>
