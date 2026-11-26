@@ -10,7 +10,6 @@ import { useI18n } from "@/lib/i18n"
 import { startCircleThemeTransition } from "@/components/lightswind/toggle-theme"
 import { usePreferencesStore, type Locale, type Theme } from "@/lib/stores/preferences"
 import { CreatorLevelsPanel } from "@/components/settings/creator-levels-panel"
-import { ActiveMarca } from "@/components/settings/active-marca"
 import { StoreIntegrations } from "@/components/settings/store-integrations"
 import { InstagramIntegration } from "@/components/meta-discovery/instagram-integration"
 import { useAuthStore } from "@/lib/stores/auth"
@@ -162,7 +161,6 @@ export default function SettingsPage() {
             </>
           ) : (
             <>
-            {role === "brand" && <ActiveMarca />}
             {role === "brand" && <InstagramIntegration />}
             {role === "brand" && <StoreIntegrations />}
             <div className="grid gap-3 sm:grid-cols-2">

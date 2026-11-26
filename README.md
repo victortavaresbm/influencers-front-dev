@@ -28,12 +28,12 @@ Sem variáveis, o app roda só com os logins de demonstração. Para entrar com 
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...   # Clerk → API keys (instância de desenvolvimento)
 CLERK_SECRET_KEY=sk_test_...                    # Clerk → API keys; nunca commitar
 NEXT_PUBLIC_API_URL=https://api-dev.<domínio>   # gateway, sem barra no fim
-NEXT_PUBLIC_DEV_MARCA_ID=<uuid da Marca>        # opcional: Marca ativa inicial
 ```
 
 - O token vai para o gateway pelo JWT template `gateway` do Clerk, cujo `aud` é o `CLERK_AUDIENCE` do gateway.
 - A origem do front (ex.: `http://localhost:3000`) precisa estar em `CORS_ALLOWED_ORIGINS` do gateway.
-- A Marca ativa também pode ser trocada em Configurações → Integrações.
+- Depois do login real, o painel carrega as Marcas da conta (`GET /v1/identity/me/brands`) e os convites pendentes para o e-mail dela (`GET /v1/identity/me/members/invitations`). Com uma Marca, entra direto; com mais de uma, abre na última usada ou no seletor, e a troca fica no topo da barra lateral. O `X-Marca-Id` sai da Marca escolhida.
+- Primeira Marca: o Admin da plataforma cria a Marca (`POST /v1/identity/admin/brands`) com o e-mail do Dono. O Dono entra com esse e-mail, vê o convite na tela "Você ainda não faz parte de nenhuma Marca" e aceita.
 
 Testes unitários: `npm test`.
 
