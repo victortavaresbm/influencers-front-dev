@@ -11,6 +11,9 @@ const KNOWN: Record<string, MessageKey> = {
   network_error: "api.error.network",
   authorization_unavailable: "api.error.authorizationUnavailable",
   token_invalid: "api.error.notSignedIn",
+  hotmart_credentials_rejected: "api.error.hotmartCredentialsRejected",
+  store_already_connected: "api.error.storeAlreadyConnected",
+  hotmart_unavailable: "api.error.hotmartUnavailable",
 }
 
 type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string

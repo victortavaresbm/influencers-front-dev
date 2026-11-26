@@ -1,12 +1,13 @@
 "use client"
-import { useEffect, useState } from "react"
-import { Store, type LucideIcon } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Flame, Store, type LucideIcon } from "lucide-react"
 import { SiShopify } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { HotmartConnectDialog } from "@/components/settings/hotmart-connect-dialog"
 import { toast } from "@/components/ui/toast"
 import { apiErrorMessage } from "@/lib/api/errors"
 import { useApi } from "@/lib/api/use-api"
@@ -24,6 +25,7 @@ import {
 const PLATFORMS: { id: StorePlatform; name: string; icon: LucideIcon | IconType }[] = [
   { id: "nuvemshop", name: "Nuvemshop", icon: Store },
   { id: "shopify", name: "Shopify", icon: SiShopify },
+  { id: "hotmart", name: "Hotmart", icon: Flame },
 ]
 
 const STATE_LABEL: Record<StoreCard["state"], MessageKey> = {
@@ -37,6 +39,8 @@ const CONNECTIONS = "/v1/sales/marca/connections"
 
 // Nuvemshop and Shopify through the sales service: connect sends the browser
 // to the store's authorization page; the store comes back to /settings.
+// Hotmart has no OAuth: connect opens the guide where the Marca pastes the
+// credentials and registers the webhook by hand.
 export function StoreIntegrations() {
   const { t } = useI18n()
   const { signedIn, marcaId, request } = useApi()
@@ -45,6 +49,7 @@ export function StoreIntegrations() {
   const [busy, setBusy] = useState<StorePlatform | null>(null)
   const [shop, setShop] = useState("")
   const [shopInvalid, setShopInvalid] = useState(false)
+  const [hotmart, setHotmart] = useState<"closed" | "new" | "resume">("closed")
 
   const [reloads, setReloads] = useState(0)
   const reload = () => setReloads((n) => n + 1)
@@ -77,9 +82,16 @@ export function StoreIntegrations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const hotmartConnected = useCallback(() => {
+    toast.add({ type: "success", title: t("hotmart.connected") })
+    setHotmart("closed")
+    reload()
+  }, [t])
+
   const fail = (err: unknown) => toast.add({ type: "error", title: t("settings.storeConnectFailed"), description: apiErrorMessage(t, err) })
 
   const connect = async (platform: StorePlatform) => {
+    if (platform === "hotmart") return setHotmart("new")
     let body: { shop: string } | undefined
     if (platform === "shopify") {
       const domain = normalizeShopifyDomain(shop)
@@ -103,7 +115,12 @@ export function StoreIntegrations() {
     setBusy(platform)
     try {
       await request("POST", `${CONNECTIONS}/${connectionId}/disconnect`)
-      toast.add({ type: "success", title: t("settings.storeDisconnected") })
+      toast.add({
+        type: "success",
+        title: t("settings.storeDisconnected"),
+        // Hotmart is not told: the deliveries keep coming until the URL is deleted there.
+        description: platform === "hotmart" ? t("hotmart.disconnectedHelp") : undefined,
+      })
       reload()
     } catch (err) {
       fail(err)
@@ -130,7 +147,9 @@ export function StoreIntegrations() {
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700">
                   <Icon size={18} />
                 </span>
-                <Badge variant="outline">{t(STATE_LABEL[card.state])}</Badge>
+                <Badge variant="outline">
+                  {t(card.canResume ? "settings.hotmartPending" : STATE_LABEL[card.state])}
+                </Badge>
               </div>
               <h2 className="mt-3 text-sm font-semibold text-zinc-900">{name}</h2>
               <p className="mt-1 text-sm text-zinc-500">
@@ -155,6 +174,11 @@ export function StoreIntegrations() {
                     {t(card.state === "credential_error" ? "settings.storeReconnect" : "settings.connectName", { name })}
                   </Button>
                 )}
+                {card.canResume && (
+                  <Button size="sm" disabled={!ready || busy !== null} onClick={() => setHotmart("resume")}>
+                    {t("hotmart.resume")}
+                  </Button>
+                )}
                 {card.connectionId && (
                   <Button
                     variant="outline"
@@ -170,6 +194,17 @@ export function StoreIntegrations() {
           )
         })}
       </div>
+      <HotmartConnectDialog
+        open={hotmart !== "closed"}
+        resuming={hotmart === "resume"}
+        onOpenChange={(open) => {
+          if (open) return
+          setHotmart("closed")
+          // A connection created before closing shows up as pending, with "continue".
+          reload()
+        }}
+        onConnected={hotmartConnected}
+      />
     </div>
   )
 }

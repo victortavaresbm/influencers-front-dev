@@ -13,8 +13,12 @@ export interface ConnectionView {
   lastEventAt: string | null
 }
 
-export const STORE_PLATFORMS = ["nuvemshop", "shopify"] as const
+export const STORE_PLATFORMS = ["nuvemshop", "shopify", "hotmart"] as const
 export type StorePlatform = (typeof STORE_PLATFORMS)[number]
+
+// Platforms whose webhook the Marca registers by hand: a pending connection
+// there waits on the Marca, not on the store, so the guide can be resumed.
+const MANUAL_WEBHOOK: readonly StorePlatform[] = ["hotmart"]
 
 export interface StoreCard {
   state: Exclude<ConnectionState, "disconnected"> | "not_connected"
@@ -22,6 +26,7 @@ export interface StoreCard {
   connectionId: string | null
   // A store that refused the credential is connected again, not first.
   canConnect: boolean
+  canResume: boolean
 }
 
 // The latest connection that is not disconnected; a Marca keeps the history
@@ -38,8 +43,9 @@ export function storeCards(connections: ConnectionView[]): Record<StorePlatform,
           storeLabel: live.storeIdentifier,
           connectionId: live.id,
           canConnect: live.state === "credential_error",
+          canResume: live.state === "pending" && MANUAL_WEBHOOK.includes(platform),
         }
-      : { state: "not_connected", storeLabel: null, connectionId: null, canConnect: true }
+      : { state: "not_connected", storeLabel: null, connectionId: null, canConnect: true, canResume: false }
   }
   return cards
 }
