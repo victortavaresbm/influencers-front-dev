@@ -30,7 +30,7 @@ CLERK_SECRET_KEY=sk_test_...                    # Clerk → API keys; nunca comm
 NEXT_PUBLIC_API_URL=https://api-dev.<domínio>   # gateway, sem barra no fim
 ```
 
-- O token vai para o gateway pelo JWT template `gateway` do Clerk, cujo `aud` é o `CLERK_AUDIENCE` do gateway.
+- O front manda ao gateway o token de sessão do Clerk, que traz o `fva` (segundo fator, exigido em `/admin/*`). Em Clerk → Sessions → Customize session token, o `aud` precisa ser o `CLERK_AUDIENCE` do gateway (ex.: `{"aud": "gateway"}`). JWT templates não levam o `fva`.
 - A origem do front (ex.: `http://localhost:3000`) precisa estar em `CORS_ALLOWED_ORIGINS` do gateway.
 - Depois do login real, o painel carrega as Marcas da conta (`GET /v1/identity/me/brands`) e os convites pendentes para o e-mail dela (`GET /v1/identity/me/members/invitations`). Com uma Marca, entra direto; com mais de uma, abre na última usada ou no seletor, e a troca fica no topo da barra lateral. O `X-Marca-Id` sai da Marca escolhida.
 - Primeira Marca: o Admin da plataforma cria a Marca (`POST /v1/identity/admin/brands`) com o e-mail do Dono. O Dono entra com esse e-mail, vê o convite na tela "Você ainda não faz parte de nenhuma Marca" e aceita.

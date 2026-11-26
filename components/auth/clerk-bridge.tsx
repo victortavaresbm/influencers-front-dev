@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useAuth, useClerk, useUser } from "@clerk/nextjs"
 import { ApiAuthProvider, type ApiAuth } from "@/lib/api/use-api"
-import { GATEWAY_TOKEN_TEMPLATE, REAL_USER_PREFIX } from "@/lib/api/clerk"
+import { REAL_USER_PREFIX } from "@/lib/api/clerk"
 import { refreshMemberships, useActiveBrand, useMarcaStore } from "@/lib/api/marca"
 import type { MyBrand } from "@/lib/api/me"
 import { useAuthStore } from "@/lib/stores/auth"
@@ -59,7 +59,7 @@ export function ClerkBridge({ children }: { children: React.ReactNode }) {
       useAuthStore.setState({
         user: toBrandUser(user.id, name, user.primaryEmailAddress?.emailAddress ?? "", user.imageUrl),
       })
-      void refreshMemberships(() => getToken({ template: GATEWAY_TOKEN_TEMPLATE }))
+      void refreshMemberships(() => getToken())
     } else if (!isSignedIn && isRealUser(current)) {
       useAuthStore.getState().logout()
     }
@@ -85,7 +85,10 @@ export function ClerkBridge({ children }: { children: React.ReactNode }) {
   const auth = useMemo<ApiAuth>(
     () => ({
       signedIn: Boolean(isSignedIn),
-      getToken: () => (isSignedIn ? getToken({ template: GATEWAY_TOKEN_TEMPLATE }) : Promise.resolve(null)),
+      // The session token, not a JWT template: only it carries fva, the second
+      // factor the gateway requires on /admin/*. Its aud is set in Clerk
+      // (Customize session token) to the gateway's CLERK_AUDIENCE.
+      getToken: () => (isSignedIn ? getToken() : Promise.resolve(null)),
     }),
     [isSignedIn, getToken]
   )

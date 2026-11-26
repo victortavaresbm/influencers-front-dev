@@ -1,5 +1,5 @@
 // Gateway client: pure functions, so they run under `node --test` without Next.
-// Every call carries the Clerk token of the "gateway" JWT template and, on
+// Every call carries the Clerk session token (aud = the gateway) and, on
 // Marca-scoped routes, the active Marca. The gateway answers errors as
 // problem+json; callers branch on ApiError.code.
 
