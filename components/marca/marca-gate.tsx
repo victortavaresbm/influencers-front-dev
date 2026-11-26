@@ -17,6 +17,7 @@ export function MarcaGate() {
   const { t } = useI18n()
   const api = useApi()
   const status = useMarcaStore((state) => state.status)
+  const error = useMarcaStore((state) => state.error)
   const brands = useMarcaStore((state) => state.brands)
   const invitations = useMarcaStore((state) => state.invitations)
   const select = useMarcaStore((state) => state.select)
@@ -43,6 +44,7 @@ export function MarcaGate() {
     body = (
       <>
         <p className="text-sm text-zinc-500">{t("marca.loadFailed")}</p>
+        <p className="mt-1 text-xs text-zinc-400">{apiErrorMessage(t, error)}</p>
         <Button className="mt-4" variant="outline" onClick={() => void refreshMemberships(api.getToken)}>
           {t("marca.retry")}
         </Button>
@@ -96,16 +98,19 @@ export function MarcaGate() {
             </ul>
           </>
         )}
-        <Button className="mt-6" variant="ghost" size="sm" onClick={logout}>
-          {t("nav.logout")}
-        </Button>
       </>
     )
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
-      <Card className="w-full max-w-md p-6">{body}</Card>
+      <Card className="w-full max-w-md p-6">
+        {body}
+        {/* Always a way out: the login page sends a real session back here. */}
+        <Button className="mt-6" variant="ghost" size="sm" onClick={logout}>
+          {t("nav.logout")}
+        </Button>
+      </Card>
     </div>
   )
 }
