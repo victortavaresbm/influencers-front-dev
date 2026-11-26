@@ -12,6 +12,7 @@ import { usePreferencesStore, type Locale, type Theme } from "@/lib/stores/prefe
 import { CreatorLevelsPanel } from "@/components/settings/creator-levels-panel"
 import { ActiveMarca } from "@/components/settings/active-marca"
 import { StoreIntegrations } from "@/components/settings/store-integrations"
+import { InstagramIntegration } from "@/components/meta-discovery/instagram-integration"
 import { useAuthStore } from "@/lib/stores/auth"
 import { Check, Medal, Moon, Plug, SlidersHorizontal, Sun, type LucideIcon } from "lucide-react"
 import { SiFacebook, SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
@@ -162,6 +163,7 @@ export default function SettingsPage() {
           ) : (
             <>
             {role === "brand" && <ActiveMarca />}
+            {role === "brand" && <InstagramIntegration />}
             {role === "brand" && <StoreIntegrations />}
             <div className="grid gap-3 sm:grid-cols-2">
               {INTEGRATIONS.map((item) => {

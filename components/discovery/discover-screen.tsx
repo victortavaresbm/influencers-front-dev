@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { QuotaBanner } from "@/components/discovery/quota-banner"
 import { DiscoverPanel } from "@/components/discovery/discover-panel"
@@ -137,6 +138,9 @@ export function DiscoverScreen({ platform }: { platform: Platform }) {
     <div className="flex h-screen min-h-0 max-h-screen flex-1 flex-col overflow-hidden">
       <TopBar title={t("pages.discovery")} subtitle="Busca" />
       <QuotaBanner />
+      <Link href="/discovery/meta" className="border-b border-zinc-200 bg-sky-50 px-6 py-2 text-xs font-medium text-sky-800 hover:underline">
+        Testar busca real no Creator Marketplace da Meta →
+      </Link>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {ready ? (

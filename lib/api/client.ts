@@ -6,12 +6,16 @@
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
+  // The problem+json body, when there was one: detail and extension members
+  // such as price/balance of insufficient_coins.
+  readonly problem?: Record<string, unknown>
 
-  constructor(status: number, code: string, message?: string) {
+  constructor(status: number, code: string, message?: string, problem?: Record<string, unknown>) {
     super(message ?? code)
     this.name = "ApiError"
     this.status = status
     this.code = code
+    this.problem = problem
   }
 }
 
@@ -56,7 +60,7 @@ export async function parseError(res: Response): Promise<ApiError> {
   try {
     const problem = (await res.json()) as { code?: unknown; title?: unknown }
     if (typeof problem.code === "string" && problem.code) {
-      return new ApiError(res.status, problem.code, typeof problem.title === "string" ? problem.title : undefined)
+      return new ApiError(res.status, problem.code, typeof problem.title === "string" ? problem.title : undefined, problem as Record<string, unknown>)
     }
   } catch {
     // Not JSON: a proxy page or an empty body.
