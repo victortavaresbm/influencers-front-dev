@@ -20,6 +20,7 @@ import {
 import { useI18n, type MessageKey } from "@/lib/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarIconLink } from "@/components/layout/sidebar-icon"
+import { MarcaSwitcher } from "@/components/marca/marca-switcher"
 import { brandCreatorIds } from "@/lib/discovery/scope"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useCampaignStore } from "@/lib/stores/campaigns"
@@ -73,6 +74,7 @@ export function BrandSidebar() {
         <Link href="/dashboard" aria-label="WeSell" className="mb-6 flex size-8 items-center justify-center overflow-hidden rounded-full bg-black">
           <img src="/logos/wesell.png" alt="" className="h-auto w-[22px]" />
         </Link>
+        <MarcaSwitcher />
 
         <nav className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">
           {NAV.map(({ href, icon, labelKey }) => (

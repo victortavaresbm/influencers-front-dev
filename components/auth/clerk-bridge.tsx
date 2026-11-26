@@ -3,11 +3,14 @@ import { useEffect, useMemo, useRef } from "react"
 import { useAuth, useClerk, useUser } from "@clerk/nextjs"
 import { ApiAuthProvider, type ApiAuth } from "@/lib/api/use-api"
 import { GATEWAY_TOKEN_TEMPLATE, REAL_USER_PREFIX } from "@/lib/api/clerk"
+import { refreshMemberships, useActiveBrand, useMarcaStore } from "@/lib/api/marca"
+import type { MyBrand } from "@/lib/api/me"
 import { useAuthStore } from "@/lib/stores/auth"
 import { MOCK_USERS, nameInitials, type MockUser } from "@/lib/mock-data/users"
 
 // Screens not wired to the backend yet read mock data by organization, so the
-// real account borrows the first demo brand's organization for them.
+// real account keeps the first demo brand's organization id for them. Name
+// and logo come from the active Marca.
 const demoBrand = MOCK_USERS.find((user) => user.role === "brand")
 
 function toBrandUser(id: string, name: string, email: string, photo?: string): MockUser {
@@ -20,9 +23,17 @@ function toBrandUser(id: string, name: string, email: string, photo?: string): M
     avatar: nameInitials(name),
     photo,
     organizationId: demoBrand?.organizationId ?? "org1",
-    organizationName: demoBrand?.organizationName ?? "",
-    orgLogo: demoBrand?.orgLogo,
+    organizationName: "",
+    orgLogo: undefined,
     plan: demoBrand?.plan,
+  }
+}
+
+function withBrand(user: MockUser, brand: MyBrand | null): MockUser {
+  return {
+    ...user,
+    organizationName: brand ? brand.branding.name || brand.name : "",
+    orgLogo: brand?.branding.logoUrl || undefined,
   }
 }
 
@@ -48,10 +59,19 @@ export function ClerkBridge({ children }: { children: React.ReactNode }) {
       useAuthStore.setState({
         user: toBrandUser(user.id, name, user.primaryEmailAddress?.emailAddress ?? "", user.imageUrl),
       })
+      void refreshMemberships(() => getToken({ template: GATEWAY_TOKEN_TEMPLATE }))
     } else if (!isSignedIn && isRealUser(current)) {
       useAuthStore.getState().logout()
     }
-  }, [isLoaded, isSignedIn, user])
+    if (!isSignedIn) useMarcaStore.getState().reset()
+  }, [isLoaded, isSignedIn, user, getToken])
+
+  // The panel shows the active Marca's name and logo.
+  const activeBrand = useActiveBrand()
+  useEffect(() => {
+    const current = useAuthStore.getState().user
+    if (current && isRealUser(current)) useAuthStore.setState({ user: withBrand(current, activeBrand) })
+  }, [activeBrand])
 
   // The app's logout clears the store; end the Clerk session with it.
   useEffect(

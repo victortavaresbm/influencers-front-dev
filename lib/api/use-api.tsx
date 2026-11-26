@@ -26,5 +26,8 @@ export function useApi() {
       ),
     [auth, marcaId]
   )
-  return useMemo(() => ({ signedIn: auth.signedIn, marcaId, request }), [auth.signedIn, marcaId, request])
+  return useMemo(
+    () => ({ signedIn: auth.signedIn, marcaId, request, getToken: auth.getToken }),
+    [auth.signedIn, marcaId, request, auth.getToken]
+  )
 }
