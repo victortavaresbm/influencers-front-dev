@@ -16,6 +16,7 @@ import {
   Search,
   ShoppingBag,
   Users,
+  Ticket,
   type LucideIcon,
 } from "lucide-react"
 import { useI18n, type MessageKey } from "@/lib/i18n"
@@ -33,6 +34,7 @@ const NAV: { href: string; icon: LucideIcon; labelKey: MessageKey }[] = [
   { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
   { href: "/discovery", icon: Search, labelKey: "nav.discovery" },
   { href: "/campaigns", icon: Megaphone, labelKey: "nav.campaigns" },
+  { href: "/coupons", icon: Ticket, labelKey: "nav.coupons" },
   { href: "/seeding", icon: Gift, labelKey: "nav.seeding" },
   { href: "/calendar", icon: CalendarDays, labelKey: "nav.calendar" },
   { href: "/crm", icon: Users, labelKey: "nav.prm" },
