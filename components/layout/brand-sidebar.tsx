@@ -14,6 +14,7 @@ import {
   Milestone,
   Radio,
   Search,
+  ShoppingBag,
   Users,
   type LucideIcon,
 } from "lucide-react"
@@ -40,6 +41,7 @@ const NAV: { href: string; icon: LucideIcon; labelKey: MessageKey }[] = [
   { href: "/monitoring", icon: Radio, labelKey: "nav.monitoring" },
   { href: "/benchmark", icon: Gauge, labelKey: "nav.tracking" },
   { href: "/journeys", icon: Milestone, labelKey: "nav.journeys" },
+  { href: "/sales", icon: ShoppingBag, labelKey: "nav.sales" },
   { href: "/financial", icon: CircleDollarSign, labelKey: "nav.financial" },
 ]
 
