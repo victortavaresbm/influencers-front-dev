@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Copy, Eye, EyeOff, Loader2 } from "lucide-react"
+import { ArrowRight, Check, Copy, ExternalLink as ExternalLinkIcon, Eye, EyeOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -8,9 +8,11 @@ import { toast } from "@/components/ui/toast"
 import { apiErrorCode, apiErrorMessage } from "@/lib/api/errors"
 import { useApi } from "@/lib/api/use-api"
 import { useI18n } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
 import {
   HOTMART_EVENTS,
-  guideSteps,
+  HOTMART_LINKS,
+  credentialsFilled,
   nextActivationCheck,
   parseBasic,
   validateHotmartForm,
@@ -22,9 +24,8 @@ import type { ConnectionState, ConnectionView } from "@/lib/integrations/stores"
 
 const CONNECTIONS = "/v1/sales/marca/connections"
 
-// The Hotmart guide: credentials and hottok (steps 1–2, one form), the webhook
-// URL to register (3) and the wait for Hotmart's test delivery (4). Nothing
-// typed here is persisted: it lives in this component and is gone on close.
+// The Hotmart guide in 4 steps: credentials, hottok (connects), webhook and
+// test. Nothing typed is persisted: it is gone when the dialog closes.
 export function HotmartConnectDialog({
   open,
   resuming,
@@ -39,7 +40,7 @@ export function HotmartConnectDialog({
   const { t } = useI18n()
   return (
     <Dialog open={open} onOpenChange={(next) => onOpenChange(next)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("hotmart.title")}</DialogTitle>
           {resuming && <DialogDescription>{t("hotmart.resumeHelp")}</DialogDescription>}
@@ -50,18 +51,21 @@ export function HotmartConnectDialog({
   )
 }
 
-type Phase = "credentials" | "webhook" | "confirm"
+type Phase = 1 | 2 | 3 | 4
 type Outcome = "waiting" | "timeout" | "failed"
 
 const EMPTY: HotmartForm = { clientId: "", clientSecret: "", hottok: "" }
 
+const STEPS = ["hotmart.step1", "hotmart.step2", "hotmart.step3", "hotmart.step4"] as const
+
 function HotmartGuide({ onConnected }: { onConnected: () => void }) {
   const { t } = useI18n()
   const { request } = useApi()
-  const [phase, setPhase] = useState<Phase>("credentials")
+  const [phase, setPhase] = useState<Phase>(1)
   const [form, setForm] = useState<HotmartForm>(EMPTY)
   const [errors, setErrors] = useState<Partial<Record<keyof HotmartForm, HotmartFieldError>>>({})
   const [basic, setBasic] = useState<"idle" | "filled" | "invalid">("idle")
+  const [manual, setManual] = useState(false)
   const [rejected, setRejected] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -76,10 +80,8 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
     connected.current = onConnected
   }, [onConnected])
 
-  // Step 4: one check at a time, chained, bounded by nextActivationCheck.
-  // Closing the guide unmounts this component and stops the chain.
   useEffect(() => {
-    if (phase !== "confirm" || !connectionId) return
+    if (phase !== 4 || !connectionId) return
     let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const started = Date.now()
@@ -125,16 +127,19 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
     setForm(values)
     setErrors(found)
     setSubmitError(null)
-    if (Object.keys(found).length > 0) return
+    if (found.clientId || found.clientSecret) return setPhase(1)
+    if (found.hottok) return
     setBusy(true)
     try {
       const answer = await request<HotmartConnectionView>("POST", `${CONNECTIONS}/hotmart`, values)
       setView(answer)
       setForm(EMPTY)
-      setPhase("webhook")
+      setPhase(3)
     } catch (err) {
-      setRejected(apiErrorCode(err) === "hotmart_credentials_rejected")
+      const credentialsRejected = apiErrorCode(err) === "hotmart_credentials_rejected"
+      setRejected(credentialsRejected)
       setSubmitError(apiErrorMessage(t, err))
+      if (credentialsRejected) setPhase(1)
     } finally {
       setBusy(false)
     }
@@ -152,157 +157,290 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
   const fieldError = (field: keyof HotmartForm) =>
     errors[field] ? t(errors[field] === "too_long" ? "hotmart.fieldTooLong" : "hotmart.fieldRequired") : null
 
-  if (phase === "credentials") {
-    return (
-      <form
-        className="space-y-5"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void submit()
-        }}
-      >
-        <Step n={1} title={t("hotmart.credentialsTitle")} help={t("hotmart.credentialsHelp")}>
-          <Field label={t("hotmart.basic")}>
-            <Input
-              type="password"
-              autoComplete="off"
-              aria-label={t("hotmart.basic")}
-              aria-invalid={basic === "invalid"}
-              placeholder="Basic …"
-              onChange={(event) => pasteBasic(event.target.value)}
-            />
-            {basic === "invalid" && <p className="text-xs text-red-600">{t("hotmart.basicInvalid")}</p>}
-            {basic === "filled" && <p className="text-xs text-emerald-700">{t("hotmart.basicFilled")}</p>}
-          </Field>
-          <Field label={t("hotmart.clientId")} error={fieldError("clientId")}>
-            <Input
-              autoComplete="off"
-              aria-label={t("hotmart.clientId")}
-              aria-invalid={Boolean(errors.clientId) || rejected}
-              value={form.clientId}
-              onChange={(event) => setField("clientId", event.target.value)}
-            />
-          </Field>
-          <Field label={t("hotmart.clientSecret")} error={fieldError("clientSecret")}>
-            <SecretInput
-              label={t("hotmart.clientSecret")}
-              invalid={Boolean(errors.clientSecret) || rejected}
-              value={form.clientSecret}
-              onChange={(value) => setField("clientSecret", value)}
-            />
-          </Field>
-        </Step>
-        <Step n={2} title={t("hotmart.hottokTitle")} help={t("hotmart.hottokHelp")}>
-          <Field label={t("hotmart.hottok")} error={fieldError("hottok")}>
-            <SecretInput
-              label={t("hotmart.hottok")}
-              invalid={Boolean(errors.hottok)}
-              value={form.hottok}
-              onChange={(value) => setField("hottok", value)}
-            />
-          </Field>
-        </Step>
-        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-        <DialogFooter>
-          <Button type="submit" disabled={busy}>
-            {busy && <Loader2 className="animate-spin" />}
-            {t("hotmart.connect")}
-          </Button>
-        </DialogFooter>
-      </form>
+  let body: ReactNode
+  let footer: ReactNode
+  if (phase === 1) {
+    body = (
+      <>
+        <Instructions
+          items={[
+            <>
+              {t("hotmart.s1.open")} <ExternalLink href={HOTMART_LINKS.tools}>{t("hotmart.openTools")}</ExternalLink>
+            </>,
+            t("hotmart.s1.create"),
+            t("hotmart.s1.copy"),
+          ]}
+          help={HOTMART_LINKS.credentialsHelp}
+        />
+        <Field label={t("hotmart.basic")}>
+          <Input
+            autoFocus
+            type="password"
+            autoComplete="off"
+            aria-label={t("hotmart.basic")}
+            aria-invalid={basic === "invalid" || rejected}
+            placeholder="Basic …"
+            onChange={(event) => pasteBasic(event.target.value)}
+          />
+          {basic === "invalid" && <p className="text-xs text-red-600">{t("hotmart.basicInvalid")}</p>}
+          {basic === "filled" && (
+            <p className="flex items-center gap-1 text-xs text-emerald-700">
+              <Check className="size-3.5" />
+              {t("hotmart.basicFilled")}
+            </p>
+          )}
+        </Field>
+        {rejected && submitError && <p className="text-sm text-red-600">{submitError}</p>}
+        <button type="button" className="cursor-pointer text-xs text-zinc-500 underline underline-offset-2" onClick={() => setManual((m) => !m)}>
+          {t(manual ? "hotmart.manualHide" : "hotmart.manualShow")}
+        </button>
+        {manual && (
+          <div className="space-y-3">
+            <Field label={t("hotmart.clientId")} error={fieldError("clientId")}>
+              <Input
+                autoComplete="off"
+                aria-label={t("hotmart.clientId")}
+                aria-invalid={Boolean(errors.clientId) || rejected}
+                value={form.clientId}
+                onChange={(event) => setField("clientId", event.target.value)}
+              />
+            </Field>
+            <Field label={t("hotmart.clientSecret")} error={fieldError("clientSecret")}>
+              <SecretInput
+                label={t("hotmart.clientSecret")}
+                invalid={Boolean(errors.clientSecret) || rejected}
+                value={form.clientSecret}
+                onChange={(value) => setField("clientSecret", value)}
+              />
+            </Field>
+          </div>
+        )}
+      </>
     )
-  }
-
-  if (phase === "webhook" && view) {
-    return (
-      <div className="space-y-5">
-        <Step n={3} title={t("hotmart.webhookTitle")}>
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-600">
-            {guideSteps(view.guide).map((step) => (
-              <li key={`${step.step}-${step.code}`}>{t(step.key)}</li>
-            ))}
-          </ol>
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-md bg-zinc-100 px-2 py-1.5 font-mono text-xs text-zinc-800">
-              {view.webhookUrl}
-            </code>
-            <Button type="button" variant="outline" size="sm" onClick={() => void copy(view.webhookUrl)}>
-              <Copy />
-              {t("hotmart.copyUrl")}
+    footer = (
+      <Button type="button" disabled={!credentialsFilled(form)} onClick={() => setPhase(2)}>
+        {t("hotmart.next")}
+        <ArrowRight data-icon="inline-end" />
+      </Button>
+    )
+  } else if (phase === 2) {
+    body = (
+      <>
+        <Instructions
+          items={[
+            <>
+              {t("hotmart.s2.open")} <ExternalLink href={HOTMART_LINKS.tools}>{t("hotmart.openTools")}</ExternalLink>
+            </>,
+            t("hotmart.s2.copy"),
+          ]}
+          help={HOTMART_LINKS.webhookHelp}
+        />
+        <Field label={t("hotmart.hottok")} error={fieldError("hottok")}>
+          <SecretInput
+            label={t("hotmart.hottok")}
+            invalid={Boolean(errors.hottok)}
+            value={form.hottok}
+            onChange={(value) => setField("hottok", value)}
+          />
+        </Field>
+        {submitError && !rejected && <p className="text-sm text-red-600">{submitError}</p>}
+        <p className="text-xs text-zinc-500">{t("hotmart.s2.validates")}</p>
+      </>
+    )
+    footer = (
+      <>
+        <Button type="button" variant="outline" onClick={() => setPhase(1)}>
+          {t("hotmart.back")}
+        </Button>
+        <Button type="button" disabled={busy || !form.hottok.trim()} onClick={() => void submit()}>
+          {busy && <Loader2 className="animate-spin" />}
+          {t("hotmart.connect")}
+        </Button>
+      </>
+    )
+  } else if (phase === 3 && view) {
+    body = (
+      <>
+        <Instructions
+          items={[
+            <>
+              {t("hotmart.s3.open")} <ExternalLink href={HOTMART_LINKS.tools}>{t("hotmart.openTools")}</ExternalLink>
+            </>,
+            t("hotmart.s3.paste"),
+            t("hotmart.s3.events"),
+            t("hotmart.s3.save"),
+          ]}
+          help={HOTMART_LINKS.webhookHelp}
+        />
+        <CopyRow label={t("hotmart.webhookTitle")} value={view.webhookUrl} onCopy={copy} copyLabel={t("hotmart.copyUrl")} />
+        <p className="text-xs text-amber-700">{t("hotmart.webhookSecret")}</p>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-zinc-700">{t("hotmart.events")}</p>
+            <Button type="button" variant="ghost" size="xs" onClick={() => void copy(HOTMART_EVENTS.join("\n"))}>
+              <Copy data-icon="inline-start" />
+              {t("hotmart.copyAll")}
             </Button>
           </div>
-          <p className="text-xs text-amber-700">{t("hotmart.webhookSecret")}</p>
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-zinc-700">{t("hotmart.events")}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {HOTMART_EVENTS.map((event) => (
-                <Button
-                  key={event}
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  aria-label={t("hotmart.copy", { value: event })}
-                  onClick={() => void copy(event)}
-                >
-                  <span className="font-mono">{event}</span>
-                  <Copy data-icon="inline-end" />
-                </Button>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-1.5">
+            {HOTMART_EVENTS.map((event) => (
+              <Button
+                key={event}
+                type="button"
+                variant="outline"
+                size="xs"
+                aria-label={t("hotmart.copy", { value: event })}
+                onClick={() => void copy(event)}
+              >
+                <span className="font-mono">{event}</span>
+                <Copy data-icon="inline-end" />
+              </Button>
+            ))}
           </div>
-        </Step>
-        <DialogFooter>
-          <Button type="button" onClick={() => {
+        </div>
+      </>
+    )
+    footer = (
+      <Button
+        type="button"
+        onClick={() => {
+          setOutcome("waiting")
+          setPhase(4)
+        }}
+      >
+        {t("hotmart.s3.done")}
+        <ArrowRight data-icon="inline-end" />
+      </Button>
+    )
+  } else {
+    body = (
+      <>
+        <Instructions items={[t("hotmart.s4.test")]} />
+        <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+          {outcome === "waiting" && (
+            <>
+              <Loader2 className="size-5 shrink-0 animate-spin text-zinc-500" />
+              <p className="text-sm text-zinc-700">{t("hotmart.waiting")}</p>
+            </>
+          )}
+          {outcome === "timeout" && <p className="text-sm text-amber-700">{t("hotmart.timeout")}</p>}
+          {outcome === "failed" && <p className="text-sm text-red-600">{t("hotmart.failed")}</p>}
+        </div>
+      </>
+    )
+    footer = (
+      <>
+        <Button type="button" variant="outline" onClick={() => setPhase(outcome === "failed" ? 1 : 3)}>
+          {t("hotmart.back")}
+        </Button>
+        {outcome === "timeout" && (
+          <Button
+            type="button"
+            onClick={() => {
               setOutcome("waiting")
-              setPhase("confirm")
-            }}>
-            {t("hotmart.next")}
+              setAttempt((n) => n + 1)
+            }}
+          >
+            {t("hotmart.retry")}
           </Button>
-        </DialogFooter>
-      </div>
+        )}
+      </>
     )
   }
 
   return (
     <div className="space-y-5">
-      <Step n={4} title={t("hotmart.confirmTitle")}>
-        {outcome === "waiting" && (
-          <p className="flex items-center gap-2 text-sm text-zinc-600">
-            <Loader2 className="size-4 shrink-0 animate-spin" />
-            {t("hotmart.waiting")}
-          </p>
-        )}
-        {outcome === "timeout" && <p className="text-sm text-amber-700">{t("hotmart.timeout")}</p>}
-        {outcome === "failed" && <p className="text-sm text-red-600">{t("hotmart.failed")}</p>}
-      </Step>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => setPhase(outcome === "failed" ? "credentials" : "webhook")}>
-          {t("hotmart.back")}
-        </Button>
-        {outcome === "timeout" && (
-          <Button type="button" onClick={() => {
-              setOutcome("waiting")
-              setAttempt((n) => n + 1)
-            }}>
-            {t("hotmart.retry")}
-          </Button>
-        )}
-      </DialogFooter>
+      <Stepper current={phase} />
+      <div className="space-y-4">
+        <h3 className="text-base font-semibold text-zinc-900">{t(STEPS[phase - 1])}</h3>
+        {body}
+      </div>
+      <DialogFooter>{footer}</DialogFooter>
     </div>
   )
 }
 
-function Step({ n, title, help, children }: { n: number; title: string; help?: string; children: ReactNode }) {
+function Stepper({ current }: { current: Phase }) {
   const { t } = useI18n()
   return (
-    <section className="space-y-3">
-      <div>
-        <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase">{t("hotmart.stepOf", { n })}</p>
-        <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
-        {help && <p className="mt-1 text-sm text-zinc-600">{help}</p>}
-      </div>
+    <ol className="flex items-start" aria-label={t("hotmart.stepOf", { n: current })}>
+      {STEPS.map((key, index) => {
+        const n = index + 1
+        const done = n < current
+        const active = n === current
+        return (
+          <li key={key} className="flex flex-1 flex-col items-center gap-1.5 text-center" aria-current={active ? "step" : undefined}>
+            <div className="flex w-full items-center">
+              <span className={cn("h-px flex-1", index === 0 ? "bg-transparent" : done || active ? "bg-zinc-900" : "bg-zinc-200")} />
+              <span
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                  done && "bg-zinc-900 text-white",
+                  active && "bg-zinc-900 text-white ring-4 ring-zinc-200",
+                  !done && !active && "border border-zinc-300 text-zinc-500"
+                )}
+              >
+                {done ? <Check className="size-3.5" /> : n}
+              </span>
+              <span className={cn("h-px flex-1", index === STEPS.length - 1 ? "bg-transparent" : done ? "bg-zinc-900" : "bg-zinc-200")} />
+            </div>
+            <span className={cn("text-[11px] leading-tight", active ? "font-medium text-zinc-900" : "text-zinc-500")}>{t(key)}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function Instructions({ items, help }: { items: ReactNode[]; help?: string }) {
+  const { t } = useI18n()
+  return (
+    <div className="space-y-2">
+      <ol className="space-y-2">
+        {items.map((item, index) => (
+          <li key={index} className="flex gap-2.5 text-sm text-zinc-700">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-semibold text-zinc-600">
+              {index + 1}
+            </span>
+            <span className="min-w-0 pt-px">{item}</span>
+          </li>
+        ))}
+      </ol>
+      {help && (
+        <ExternalLink href={help} className="text-xs text-zinc-500">
+          {t("hotmart.howTo")}
+        </ExternalLink>
+      )}
+    </div>
+  )
+}
+
+function ExternalLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn("inline-flex items-center gap-1 font-medium text-zinc-900 underline underline-offset-2", className)}
+    >
       {children}
-    </section>
+      <ExternalLinkIcon className="size-3" />
+    </a>
+  )
+}
+
+function CopyRow({ label, value, copyLabel, onCopy }: { label: string; value: string; copyLabel: string; onCopy: (value: string) => void }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-zinc-700">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-md bg-zinc-100 px-2 py-1.5 font-mono text-xs text-zinc-800">{value}</code>
+        <Button type="button" variant="outline" size="sm" onClick={() => onCopy(value)}>
+          <Copy />
+          {copyLabel}
+        </Button>
+      </div>
+    </div>
   )
 }
 

@@ -102,3 +102,17 @@ export function nextActivationCheck(state: ConnectionState, elapsedMs: number): 
   if (state !== "pending") return { done: "failed" }
   return elapsedMs >= ACTIVATION_LIMIT_MS ? { done: "timeout" } : { waitMs: ACTIVATION_POLL_MS }
 }
+
+// Where each step sends the Marca. Hotmart has no documented deep links into
+// Ferramentas; the help articles are the official ones.
+export const HOTMART_LINKS = {
+  tools: "https://app.hotmart.com/tools",
+  credentialsHelp:
+    "https://help.hotmart.com/pt-br/article/4403617024013/como-utilizo-as-apis-da-hotmart-e-o-hotmart-developers-para-integrar-meu-negocio-",
+  webhookHelp: "https://help.hotmart.com/pt-br/article/como-configurar-sua-api-atraves-do-webhook-postback-/360001491352",
+} as const
+
+// Step 1 is done once both credentials are there (typed or filled by the Basic).
+export function credentialsFilled(form: Pick<HotmartForm, "clientId" | "clientSecret">) {
+  return form.clientId.trim() !== "" && form.clientSecret.trim() !== ""
+}

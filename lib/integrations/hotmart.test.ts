@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { guideSteps, nextActivationCheck, parseBasic, validateHotmartForm } from "./hotmart"
+import { guideSteps, nextActivationCheck, parseBasic, validateHotmartForm, credentialsFilled } from "./hotmart"
 
 const b64 = (text: string) => Buffer.from(text, "utf8").toString("base64")
 
@@ -81,5 +81,13 @@ describe("nextActivationCheck", () => {
   it("credential_error ou disconnected encerra com erro", () => {
     assert.deepEqual(nextActivationCheck("credential_error", 1000), { done: "failed" })
     assert.deepEqual(nextActivationCheck("disconnected", 1000), { done: "failed" })
+  })
+})
+
+describe("credentialsFilled", () => {
+  it("libera o passo 1 só com Client ID e Client Secret", () => {
+    assert.equal(credentialsFilled({ clientId: "id", clientSecret: "secret" }), true)
+    assert.equal(credentialsFilled({ clientId: " ", clientSecret: "secret" }), false)
+    assert.equal(credentialsFilled({ clientId: "id", clientSecret: "" }), false)
   })
 })
