@@ -1,5 +1,5 @@
 "use client"
-import { useMemo } from "react"
+import { startTransition, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { CalendarDays, CircleDollarSign, LayoutDashboard, Megaphone, Search, type LucideIcon } from "lucide-react"
@@ -32,10 +32,13 @@ export function CreatorSidebar() {
   const { selected } = usePartnerCommunity()
   const user = useAuthStore((s) => s.user)
   const campaigns = useCampaignStore((s) => s.campaigns)
-  const today = todayIso()
+  const [today, setToday] = useState<string | null>(null)
+  useEffect(() => {
+    startTransition(() => setToday(todayIso()))
+  }, [])
   const creatorId = CREATORS.find((creator) => creator.email === user?.email)?.id
   const todayHealth = useMemo(() => {
-    if (!creatorId) return null
+    if (!creatorId || !today) return null
     const slots = buildSchedule(campaigns, today).filter((slot) => slot.creatorId === creatorId)
     return scheduleAttention(slots, today)
   }, [campaigns, creatorId, today])

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlignLeft, WandSparkles } from "lucide-react"
+import { AlignLeft, CheckSquare, WandSparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -165,6 +165,20 @@ export function Choice<T extends string>({
   )
 }
 
+function MultiSelectHint({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium tracking-wide text-zinc-500",
+        className,
+      )}
+    >
+      <CheckSquare className="size-3" aria-hidden />
+      Múltipla escolha
+    </span>
+  )
+}
+
 export function MultiChoice<T extends string>({
   values,
   placeholder,
@@ -183,7 +197,7 @@ export function MultiChoice<T extends string>({
   const picked = options.filter((option) => values.includes(option.id))
   const [open, setOpen] = useAiMenu(field)
   return (
-    <span className="inline-flex align-middle">
+    <span className="mx-1 inline-flex flex-wrap items-center gap-1.5 align-middle">
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger
           data-ai-field={field}
@@ -194,7 +208,7 @@ export function MultiChoice<T extends string>({
               data-ai-field={field}
               aria-pressed={picked.length > 0}
               className={cn(
-                "mx-1 inline-flex !h-auto flex-wrap items-center gap-1.5 !whitespace-normal bg-transparent p-0 hover:bg-transparent",
+                "inline-flex !h-auto flex-wrap items-center gap-1.5 !whitespace-normal bg-transparent p-0 hover:bg-transparent",
                 pulse && picked.length > 0 && "animate-in zoom-in-95 duration-500",
               )}
             />
@@ -218,6 +232,9 @@ export function MultiChoice<T extends string>({
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" sideOffset={8} className="!w-96 p-2">
+          <div className="mb-1.5 px-2.5 pt-1">
+            <MultiSelectHint />
+          </div>
           {options.map((option) => (
             <DropdownMenuCheckboxItem
               key={option.id}
@@ -232,6 +249,7 @@ export function MultiChoice<T extends string>({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+      <MultiSelectHint />
     </span>
   )
 }
@@ -247,27 +265,160 @@ export function YesNo({ value, onChange, pulse, field }: { value?: boolean; onCh
 
 export function AgePills({ values, options, onToggle, pulse, field }: { values: string[]; options: string[]; onToggle: (value: string) => void; pulse?: boolean; field?: string }) {
   return (
-    <div data-ai-field={field} className="flex flex-wrap gap-2">
-      {options.map((option) => {
-        const selected = values.includes(option)
-        return (
-          <Button
-            key={option}
-            type="button"
-            variant="ghost"
-            aria-pressed={selected}
-            data-ai-option={option}
-            onClick={() => onToggle(option)}
-            className={cn(
-              "h-10 rounded-full px-4 text-sm font-semibold",
-              selected ? "bg-zinc-900 text-white hover:bg-zinc-900 hover:text-white" : "border border-dashed border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50",
-              pulse && selected && "animate-in zoom-in-95 duration-500",
-            )}
-          >
-            {option}
-          </Button>
-        )
-      })}
+    <div className="space-y-2">
+      <MultiSelectHint />
+      <div data-ai-field={field} className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const selected = values.includes(option)
+          return (
+            <Button
+              key={option}
+              type="button"
+              variant="ghost"
+              aria-pressed={selected}
+              data-ai-option={option}
+              onClick={() => onToggle(option)}
+              className={cn(
+                "h-10 rounded-full px-4 text-sm font-semibold",
+                selected ? "bg-zinc-900 text-white hover:bg-zinc-900 hover:text-white" : "border border-dashed border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50",
+                pulse && selected && "animate-in zoom-in-95 duration-500",
+              )}
+            >
+              {option}
+            </Button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function OptionCard<T extends string>({
+  option,
+  selected,
+  onSelect,
+  pulse,
+}: {
+  option: ChoiceOption<T>
+  selected: boolean
+  onSelect: () => void
+  pulse?: boolean
+}) {
+  const Icon = option.icon
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      data-ai-option={option.id}
+      onClick={onSelect}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-2xl border bg-white px-4 py-3.5 text-left transition-colors",
+        selected
+          ? "border-zinc-900 ring-1 ring-zinc-900"
+          : "border-zinc-200 hover:border-zinc-400",
+        pulse && selected && "animate-in zoom-in-95 duration-500",
+      )}
+    >
+      {Icon ? (
+        <span
+          className={cn(
+            "flex size-11 shrink-0 items-center justify-center rounded-xl",
+            selected ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700",
+          )}
+        >
+          <Icon className={cn("size-4", !selected && option.iconClassName)} />
+        </span>
+      ) : option.mark ? (
+        <span
+          className={cn(
+            "flex size-11 shrink-0 items-center justify-center rounded-xl text-base",
+            selected ? "bg-zinc-900 text-white" : "bg-zinc-100",
+          )}
+        >
+          {option.mark}
+        </span>
+      ) : null}
+      <span className="min-w-0 pt-0.5">
+        <span className="block text-sm font-semibold text-zinc-900">{option.label}</span>
+        {option.description ? (
+          <span className="mt-0.5 block text-xs leading-5 text-zinc-500">{option.description}</span>
+        ) : null}
+      </span>
+    </button>
+  )
+}
+
+export function ChoiceCards<T extends string>({
+  value,
+  options,
+  onPick,
+  pulse,
+  field,
+  columns = 3,
+}: {
+  value?: T
+  options: ChoiceOption<T>[]
+  onPick: (id: T) => void
+  pulse?: boolean
+  field?: string
+  columns?: 2 | 3
+}) {
+  return (
+    <div
+      data-ai-field={field}
+      className={cn(
+        "grid gap-3",
+        columns === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3",
+      )}
+    >
+      {options.map((option) => (
+        <OptionCard
+          key={option.id}
+          option={option}
+          selected={value === option.id}
+          onSelect={() => onPick(option.id)}
+          pulse={pulse}
+        />
+      ))}
+    </div>
+  )
+}
+
+export function MultiChoiceCards<T extends string>({
+  values,
+  options,
+  onToggle,
+  pulse,
+  field,
+  columns = 2,
+}: {
+  values: T[]
+  options: ChoiceOption<T>[]
+  onToggle: (id: T) => void
+  pulse?: boolean
+  field?: string
+  columns?: 2 | 3
+}) {
+  return (
+    <div className="space-y-2">
+      <MultiSelectHint />
+      <div
+        data-ai-field={field}
+        className={cn(
+          "grid gap-3",
+          columns === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3",
+        )}
+      >
+        {options.map((option) => (
+          <OptionCard
+            key={option.id}
+            option={option}
+            selected={values.includes(option.id)}
+            onSelect={() => onToggle(option.id)}
+            pulse={pulse}
+          />
+        ))}
+      </div>
     </div>
   )
 }

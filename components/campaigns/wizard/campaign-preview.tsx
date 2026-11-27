@@ -13,9 +13,9 @@ import { Markdown } from "@/components/ui/markdown"
 import { Separator } from "@/components/ui/separator"
 import { visibilityLabel } from "@/lib/campaign-access"
 import { contentFormatByValue } from "@/lib/campaign-types"
-import { COMMERCIAL_TERMS, strategyLabel, tacticLabel } from "@/lib/campaigns/shape"
+import { COMMERCIAL_TERMS, formatBannerOfferLabel, strategyLabel, tacticLabel } from "@/lib/campaigns/shape"
 import { TIERS } from "@/lib/audience-tiers"
-import { formatDateRangeBR } from "@/lib/dates"
+import { formatDateBR, formatDateRangeBR } from "@/lib/dates"
 import { useI18n } from "@/lib/i18n"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { isSocialNetwork, normalizeMentions, SOCIAL_NETWORK_LABEL, type SocialNetwork } from "@/lib/mock-data/campaigns"
@@ -76,8 +76,12 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
   const terms = COMMERCIAL_TERMS.filter((term) => draft.commercialTerms?.includes(term.id))
   const goals = (draft.successTargets ?? []).flatMap((item) => {
     const metric = successMetricById(item.metric)
-    if (!metric || !item.target) return []
-    return [{ id: item.metric, label: metric.label, value: formatSuccessTarget(metric, item.target) }]
+    if (!metric) return []
+    return [{
+      id: item.metric,
+      label: metric.label,
+      value: item.target > 0 ? formatSuccessTarget(metric, item.target) : "Acompanhar",
+    }]
   })
   const compact = device === "mobile"
 
@@ -85,7 +89,9 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
     <div className={cn("space-y-3", compact ? "p-3" : "p-0")}>
       <Card className="overflow-hidden p-0">
         {draft.coverImage ? (
-          <div className="aspect-[2/1] max-h-52 w-full bg-cover bg-center" style={{ backgroundImage: `url(${draft.coverImage})` }} role="img" aria-label="Banner da campanha" />
+          <div className={cn("mx-auto w-full overflow-hidden bg-zinc-100", compact ? "max-w-[11rem]" : "max-w-[14rem]")}>
+            <img src={draft.coverImage} alt="Banner da campanha" className="aspect-video w-full object-cover" />
+          </div>
         ) : null}
         <div className="space-y-3 p-5">
           <p className="text-xs font-medium tracking-wide text-zinc-400 uppercase">{draft.niche || "Nicho a definir"}</p>
@@ -105,7 +111,19 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
         {[
           { label: "Orçamento", value: money(draft.budget) },
           { label: "Creators", value: draft.maxInfluencers ? String(draft.maxInfluencers) : "A definir" },
-          { label: "No banner", value: draft.perInfluencerFee === "contact" ? "Entre em contato" : money(typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : undefined) },
+          {
+            label: "No banner",
+            value: formatBannerOfferLabel({
+              bannerOffer: draft.bannerOffer,
+              bannerShowItems: draft.bannerShowItems,
+              perInfluencerFee: draft.perInfluencerFee,
+              fixedFeePerPost: draft.fixedFeePerPost,
+              commissionPercent: draft.commissionPercent,
+              commissionFixed: draft.commissionFixed,
+              commission: draft.commission,
+              commissionModes: draft.commissionModes,
+            }),
+          },
         ].map((item) => (
           <Card key={item.label} size="sm" className="gap-1 px-3 py-3">
             <p className="text-xs text-zinc-400">{item.label}</p>
@@ -119,11 +137,23 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
           <div className={cn("grid gap-3", !compact && "sm:grid-cols-2")}>
             <div>
               <p className="text-xs text-zinc-400">Campanha</p>
-              <p className="text-sm text-zinc-800">{formatDateRangeBR(draft.startDate, draft.endDate, "Datas opcionais")}</p>
+              <p className="text-sm text-zinc-800">
+                {draft.endDateNotApplicable
+                  ? draft.startDate
+                    ? `${formatDateBR(draft.startDate)} → Campanha perpétua`
+                    : "Campanha perpétua (sem data de encerramento)"
+                  : formatDateRangeBR(draft.startDate, draft.endDate, "Datas opcionais")}
+              </p>
             </div>
             <div>
               <p className="text-xs text-zinc-400">Candidatura</p>
-              <p className="text-sm text-zinc-800">{formatDateRangeBR(draft.applicationStart, draft.applicationEnd, "Sem período")}</p>
+              <p className="text-sm text-zinc-800">
+                {draft.applicationEndNotApplicable
+                  ? draft.applicationStart
+                    ? `${formatDateBR(draft.applicationStart)} → Sem encerramento`
+                    : "Sem data de encerramento"
+                  : formatDateRangeBR(draft.applicationStart, draft.applicationEnd, "Sem período")}
+              </p>
             </div>
           </div>
         </Section>
@@ -147,7 +177,9 @@ export function CampaignPreview({ draft, form }: { draft: WizardDraft; form?: Ap
             ...networks.map((network) => SOCIAL_NETWORK_LABEL[network]),
             ...tiers.map((tier) => tier.label),
             ...(draft.targetNiches ?? []),
-            draft.minEngagement ? `${String(draft.minEngagement).replace(".", ",")}%` : undefined,
+            typeof draft.minEngagement === "number"
+              ? `${String(draft.minEngagement).replace(".", ",")}%`
+              : undefined,
           ].filter((item): item is string => Boolean(item))} />
           {people(draft.minFollowers) || people(draft.maxFollowers) ? (
             <p className="text-sm text-zinc-600">De {people(draft.minFollowers) ?? "—"} a {people(draft.maxFollowers) ?? "—"} seguidores.</p>

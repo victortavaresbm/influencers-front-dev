@@ -117,7 +117,7 @@ export function LocationField({
             >
               <span className="truncate">{place.label}</span>
               <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-zinc-400">
-                {place.kind === "state" ? "Estado" : "Cidade"}
+                {place.kind === "country" ? "País" : place.kind === "state" ? "Estado" : "Cidade"}
               </span>
             </Button>
           ))}

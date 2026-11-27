@@ -1,9 +1,10 @@
 import { TIERS } from "@/lib/audience-tiers"
 import { contentFormatByValue } from "@/lib/campaign-types"
-import { COMMERCIAL_TERMS, STRATEGIES, TACTICS } from "@/lib/campaigns/shape"
+import { COMMERCIAL_TERMS, STRATEGIES, TACTICS, formatBannerOfferLabel, nicheLabel as labelOfNiche } from "@/lib/campaigns/shape"
 import type { WizardStepId } from "@/lib/campaigns/wizard-steps"
 import { SOCIAL_NETWORK_LABEL } from "@/lib/mock-data/campaigns"
 import { stripMarkdown } from "@/lib/markdown"
+import { isBudgetNotApplicable } from "@/lib/campaigns/wizard-flow"
 import type { WizardDraft } from "@/lib/stores/campaigns"
 
 function money(value?: number) {
@@ -23,12 +24,14 @@ export function stepSummary(id: WizardStepId, draft: WizardDraft): string | null
     return `O site ${draft.brandWebsite.trim()} fica guardado. Sem acompanhamento, você preenche as próximas etapas à mão.`
   }
   if (id === "identity") {
-    if (!draft.name?.trim() && !draft.niche) return "Nome e nicho são o que o creator vê primeiro na vitrine."
+    const niches = draft.niches?.length ? draft.niches : draft.niche ? [draft.niche] : []
+    if (!draft.name?.trim() && !niches.length) return "Nome e nicho são o que o creator vê primeiro na vitrine."
     const name = draft.name?.trim()
-    const niche = draft.niche
-    if (name && niche) return `${name} entra na vitrine como campanha de ${niche}.`
-    if (name) return `${name} é o título que aparece no convite e na vitrine.`
-    return `O nicho ${draft.niche} organiza a campanha entre as outras da marca.`
+    const nicheText = niches.length ? list(niches.map((item) => labelOfNiche(item) || item)) : ""
+    const perpetual = draft.endDateNotApplicable ? " Campanha perpétua: sem data de encerramento até você fechar manualmente." : ""
+    if (name && nicheText) return `${name} entra na vitrine como campanha de ${nicheText}.${perpetual}`
+    if (name) return `${name} é o título que aparece no convite e na vitrine.${perpetual}`
+    return `O nicho ${nicheText} organiza a campanha entre as outras da marca.${perpetual}`
   }
   if (id === "strategy") {
     const strategy = STRATEGIES.find((item) => item.id === draft.strategy)
@@ -57,7 +60,11 @@ export function stepSummary(id: WizardStepId, draft: WizardDraft): string | null
       networks.length ? `ativos em ${list(networks)}` : "",
       tiers.length ? `no porte ${list(tiers)}` : "",
       draft.targetNiches?.length ? `do nicho ${list(draft.targetNiches)}` : "",
-      draft.minEngagement ? `com pelo menos ${String(draft.minEngagement).replace(".", ",")}% de engajamento` : "",
+      typeof draft.minEngagement === "number"
+        ? draft.minEngagement > 0
+          ? `com pelo menos ${String(draft.minEngagement).replace(".", ",")}% de engajamento`
+          : "com engajamento mínimo de 0%"
+        : "",
     ].filter(Boolean)
     if (!parts.length) return "O creator ideal descreve quem pode se candidatar. Requisitos marcados depois bloqueiam quem não combina."
     return `A campanha procura ${parts.join(", ")}.`
@@ -81,26 +88,48 @@ export function stepSummary(id: WizardStepId, draft: WizardDraft): string | null
   if (id === "terms") {
     const terms = COMMERCIAL_TERMS.filter((item) => draft.commercialTerms?.includes(item.id)).map((item) => item.label.toLowerCase())
     if (!terms.length) return "A condição comercial abre o bloco correspondente no orçamento."
-    return `A campanha paga com ${list(terms)}. Cada condição escolhida pede o valor dela no próximo passo.`
+    const hasFixo = draft.commercialTerms?.includes("fixo")
+    const teto = !hasFixo
+      ? ""
+      : isBudgetNotApplicable(draft)
+        ? " Sem teto de campanha."
+        : money(draft.budget) || draft.maxInfluencers
+          ? ` Teto${money(draft.budget) ? ` de ${money(draft.budget)}` : ""}${draft.maxInfluencers ? ` para até ${draft.maxInfluencers} influencers` : ""}.`
+          : ""
+    return `A campanha paga com ${list(terms)}.${teto || " Cada condição escolhida pede o valor dela no próximo passo."}`
   }
   if (id === "budget") {
-    const feeAmount = money(typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : undefined)
+    const bannerLabel = formatBannerOfferLabel({
+      bannerOffer: draft.bannerOffer,
+      bannerShowItems: draft.bannerShowItems,
+      perInfluencerFee: draft.perInfluencerFee,
+      fixedFeePerPost: draft.fixedFeePerPost,
+      commissionPercent: draft.commissionPercent,
+      commissionFixed: draft.commissionFixed,
+      commission: draft.commission,
+      commissionModes: draft.commissionModes,
+    })
     const fee =
-      draft.perInfluencerFee === "contact"
-        ? "Entre em contato no banner do marketplace"
-        : feeAmount
-          ? `${feeAmount} no banner do marketplace`
+      bannerLabel === "—" || bannerLabel === "Entre em contato"
+        ? bannerLabel === "Entre em contato"
+          ? "Entre em contato no banner do marketplace"
           : ""
+        : `${bannerLabel} no banner do marketplace para os influenciadores`
     const bits = [
-      money(draft.budget) ? `teto de ${money(draft.budget)}` : "",
-      draft.maxInfluencers ? `até ${draft.maxInfluencers} influencers` : "",
-      draft.commission?.mode === "percent" && draft.commission.value ? `comissão de ${draft.commission.value}%` : "",
-      draft.commission?.mode === "fixed" && draft.commission.value ? `comissão de ${money(draft.commission.value)}` : "",
-      draft.commission?.mode === "contract" ? "comissão em contrato" : "",
+      (draft.commissionModes?.includes("percent") || draft.commission?.mode === "percent") && (draft.commissionPercent ?? draft.commission?.value)
+        ? `comissão de ${draft.commissionPercent ?? draft.commission?.value}%`
+        : "",
+      (draft.commissionModes?.includes("fixed") || draft.commission?.mode === "fixed") && (draft.commissionFixed ?? (draft.commission?.mode === "fixed" ? draft.commission.value : undefined))
+        ? `comissão de ${money(draft.commissionFixed ?? draft.commission?.value)}`
+        : "",
+      (draft.commissionModes?.includes("contract") || draft.commission?.mode === "contract") && (draft.commissionModes?.length ?? 1) === 1
+        ? "comissão em contrato"
+        : "",
+      draft.commercialTerms?.includes("fixo") && draft.fixedFeePerPost ? `fixo de ${money(draft.fixedFeePerPost)} por post` : "",
       fee,
     ].filter(Boolean)
     if (!bits.length) {
-      return "O orçamento define o teto, quantos creators cabem e o valor do serviço no banner do marketplace."
+      return "No orçamento você define o valor de cada condição e o que aparece no banner do marketplace."
     }
     return `A simulação fica com ${list(bits)}.`
   }

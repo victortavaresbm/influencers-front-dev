@@ -1,4 +1,4 @@
-import { autofillSystemPrompt, completeCampaignPlan, sanitizeCompany, sanitizeSuggestion } from "@/lib/campaigns/autofill"
+import { autofillSystemPrompt, completeCampaignPlan, enrichCompany, sanitizeCompany, sanitizeSuggestion } from "@/lib/campaigns/autofill"
 import { readCompanySite } from "@/lib/campaigns/read-website"
 
 export const maxDuration = 60
@@ -63,12 +63,13 @@ export async function POST(request: Request) {
   }
   try {
     const parsed = parseJson(content) as Record<string, unknown>
-    const company = sanitizeCompany(parsed.company, source.url, source.title) ?? {
+    const rawCompany = sanitizeCompany(parsed.company, source.url, source.title) ?? {
       name: source.title,
       summary: source.text.replace(/^Title:.*$/m, "").replace(/\s+/g, " ").trim().slice(0, 500),
       products: [],
       source: source.url,
     }
+    const company = enrichCompany(rawCompany, source.url, source.text)
     const draft = completeCampaignPlan(sanitizeSuggestion(parsed), company, source.url, source.text)
     return Response.json({ draft, company })
   } catch {

@@ -11,19 +11,52 @@ export function stepByIndex(index: number) {
   return WIZARD_STEPS[Math.min(Math.max(index, 0), WIZARD_STEPS.length - 1)]
 }
 
+/** Recomendação e teto só fazem sentido na vitrine — campanha secreta pula as duas. */
+export function stepVisible(id: WizardStepId, draft: WizardDraft) {
+  if ((id === "recommend" || id === "cap") && draft.visibility === "secreta") return false
+  return true
+}
+
+export function nextStepIndex(from: number, draft: WizardDraft, direction: 1 | -1 = 1) {
+  let index = from + direction
+  while (index >= 0 && index < WIZARD_STEPS.length) {
+    if (stepVisible(WIZARD_STEPS[index].id, draft)) return index
+    index += direction
+  }
+  return Math.min(Math.max(from, 0), WIZARD_STEPS.length - 1)
+}
+
 function namedProducts(draft: WizardDraft) {
   return (draft.seedingProducts ?? []).filter((product) => product.name.trim())
 }
 
 export function budgetReady(draft: WizardDraft) {
   const terms = draft.commercialTerms ?? []
+  if (terms.includes("fixo") && !(Number(draft.fixedFeePerPost) > 0)) return false
   if (terms.includes("permuta") && namedProducts(draft).length === 0) return false
   if (terms.includes("comissao")) {
-    const mode = draft.commission?.mode
-    if (!mode) return false
-    if (mode !== "contract" && !(Number(draft.commission?.value) > 0)) return false
+    const modes = draft.commissionModes?.length
+      ? draft.commissionModes
+      : draft.commission?.mode
+        ? [draft.commission.mode]
+        : []
+    if (!modes.length) return false
+    if (modes.includes("contract")) return modes.length === 1
+    if (modes.includes("percent") && !(Number(draft.commissionPercent ?? (draft.commission?.mode === "percent" ? draft.commission.value : undefined)) > 0)) {
+      return false
+    }
+    if (modes.includes("fixed") && !(Number(draft.commissionFixed ?? (draft.commission?.mode === "fixed" ? draft.commission.value : undefined)) > 0)) {
+      return false
+    }
   }
   return true
+}
+
+/** Sem valor fixo, o teto começa como Não se aplica; o usuário ainda pode desmarcar. */
+export function isBudgetNotApplicable(draft: WizardDraft) {
+  if (draft.budgetNotApplicable !== undefined) return draft.budgetNotApplicable
+  if (draft.budget != null || draft.maxInfluencers != null) return false
+  return !(draft.commercialTerms ?? []).includes("fixo")
 }
 
 export function stepCanContinue(id: WizardStepId, draft: WizardDraft) {
@@ -32,9 +65,9 @@ export function stepCanContinue(id: WizardStepId, draft: WizardDraft) {
   }
   if (id === "strategy") return Boolean(draft.strategy)
   if (id === "tactics") return Boolean(draft.tactics?.length)
+  if (id === "creator") return Boolean(draft.targetNetworks?.length)
   if (id === "privacy") return Boolean(draft.visibility)
   if (id === "budget") return budgetReady(draft)
-  if (id === "cap" && draft.applicationCap !== undefined && !(draft.applicationCap >= 1)) return false
   return true
 }
 
@@ -44,8 +77,9 @@ export function continueHint(id: WizardStepId, draft: WizardDraft) {
   if (id === "identity" && !applicationWindowValid(draft)) return "O período de candidatura precisa caber até o fim da campanha"
   if (id === "strategy" && !draft.strategy) return "Escolha a estratégia"
   if (id === "tactics" && !draft.tactics?.length) return "Escolha ao menos uma tática"
+  if (id === "creator" && !draft.targetNetworks?.length) return "Escolha ao menos uma rede"
   if (id === "privacy" && !draft.visibility) return "Escolha quem pode ver a campanha"
-  if (id === "budget" && !budgetReady(draft)) return "Complete a condição comercial escolhida"
+  if (id === "budget" && !budgetReady(draft)) return "Complete os valores da condição comercial escolhida"
   return null
 }
 
@@ -53,6 +87,7 @@ export function canOpen(index: number, current: number, draft: WizardDraft) {
   if (index <= current) return true
   for (let cursor = 0; cursor < index; cursor += 1) {
     const step = WIZARD_STEPS[cursor]
+    if (!stepVisible(step.id, draft)) continue
     if (!step.optional && !stepCanContinue(step.id, draft)) return false
   }
   return true
@@ -64,13 +99,14 @@ function skipped(draft: WizardDraft, id: WizardStepId) {
 
 export function stepDone(id: WizardStepId, draft: WizardDraft) {
   if (id === "preview") return false
+  if (!stepVisible(id, draft)) return true
   if (skipped(draft, id)) return true
   if (id === "website") return Boolean(draft.brandWebsite?.trim())
   if (id === "identity") return Boolean(draft.name?.trim())
   if (id === "strategy") return Boolean(draft.strategy)
   if (id === "tactics") return Boolean(draft.tactics?.length)
   if (id === "audience") return Boolean(draft.audienceCountry || draft.audienceAges?.length)
-  if (id === "creator") return Boolean(draft.targetNiches?.length || draft.creatorLocation || draft.creatorLanguage || draft.targetNetworks?.length)
+  if (id === "creator") return Boolean(draft.targetNetworks?.length)
   if (id === "privacy") return Boolean(draft.visibility)
   if (id === "recommend") return draft.recommendToMatching !== undefined
   if (id === "cap") return draft.applicationCap !== undefined
@@ -85,7 +121,7 @@ export function stepDone(id: WizardStepId, draft: WizardDraft) {
 }
 
 export function groupPercent(group: WizardGroupId, draft: WizardDraft) {
-  const steps = WIZARD_STEPS.filter((step) => step.group === group && step.id !== "preview")
+  const steps = WIZARD_STEPS.filter((step) => step.group === group && step.id !== "preview" && stepVisible(step.id, draft))
   if (!steps.length) return 0
   const done = steps.filter((step) => stepDone(step.id, draft)).length
   return Math.round((done / steps.length) * 100)
@@ -97,8 +133,8 @@ export function groupLabel(group: WizardGroupId) {
 
 const STEP_KEYS: Record<WizardStepId, (keyof AutofillSuggestion)[]> = {
   website: ["brandWebsite"],
-  identity: ["name", "niche", "startDate", "endDate", "applicationStart", "applicationEnd"],
-  strategy: ["strategy", "objective"],
+  identity: ["name", "niches"],
+  strategy: [],
   tactics: ["tactics"],
   audience: ["audienceCountry", "audienceAges"],
   creator: ["targetNiches", "targetNetworks", "creatorLocation", "creatorLanguage", "audienceNotes", "audienceTiers", "minEngagement", "minFollowers", "maxFollowers"],
@@ -107,9 +143,9 @@ const STEP_KEYS: Record<WizardStepId, (keyof AutofillSuggestion)[]> = {
   cap: ["applicationCap"],
   community: [],
   terms: ["commercialTerms"],
-  budget: ["fixedFeePerPost", "commission", "budget", "maxInfluencers", "perInfluencerFee"],
+  budget: [],
   brief: ["description", "doList", "dontList", "productCategories"],
-  scope: ["formatQuantities", "targetNetworks", "contentFormats"],
+  scope: ["formatQuantities", "contentFormats"],
   metrics: ["successTargets", "mandatoryHashtags", "mandatoryMentions"],
   invites: [],
   preview: [],

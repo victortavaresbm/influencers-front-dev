@@ -43,7 +43,6 @@ export type SuccessMetricId =
   | "card_clicks"
   | "follows"
   | "profile_visits"
-  | "profile_actions"
   | "bio_link_clicks"
   | "story_link_clicks"
   | "call_clicks"
@@ -52,14 +51,14 @@ export type SuccessMetricId =
   | "text_clicks"
   | "app_download_clicks"
   | "leads"
-  | "story_forward"
-  | "story_next"
-  | "story_back"
-  | "story_exit"
+  | "tracked_link_clicks"
+  | "coupon_uses"
+  | "orders"
+  | "revenue"
 
-export type SuccessMetricUnit = "count" | "percent" | "seconds" | "minutes"
+export type SuccessMetricUnit = "count" | "percent" | "seconds" | "minutes" | "currency"
 export type SuccessMetricDirection = "min" | "max"
-export type SuccessMetricGroup = "alcance" | "interacao" | "perfil" | "conversao" | "stories"
+export type SuccessMetricGroup = "alcance" | "interacao" | "perfil" | "conversao" | "vendas"
 
 export interface SuccessMetricSource {
   network: SocialNetwork
@@ -86,7 +85,7 @@ export const SUCCESS_METRIC_GROUPS: { id: SuccessMetricGroup; label: string }[] 
   { id: "interacao", label: "Interação" },
   { id: "perfil", label: "Perfil" },
   { id: "conversao", label: "Cliques e conversão" },
-  { id: "stories", label: "Stories" },
+  { id: "vendas", label: "Vendas" },
 ]
 
 export const SUCCESS_METRICS: SuccessMetric[] = [
@@ -301,15 +300,6 @@ export const SUCCESS_METRICS: SuccessMetric[] = [
     ],
   },
   {
-    id: "profile_actions",
-    group: "perfil",
-    label: "Ações no perfil",
-    description: "Soma de toques no link da bio, ligação, rota, e-mail e mensagem.",
-    unit: "count",
-    direction: "min",
-    sources: [{ network: "instagram", field: "profile_activity" }],
-  },
-  {
     id: "bio_link_clicks",
     group: "conversao",
     label: "Cliques no link do perfil",
@@ -394,40 +384,40 @@ export const SUCCESS_METRICS: SuccessMetric[] = [
     sources: [{ network: "tiktok", field: "lead_submissions" }],
   },
   {
-    id: "story_forward",
-    group: "stories",
-    label: "Toques para avançar",
-    description: "Toques que pulam para o próximo quadro do Story.",
+    id: "tracked_link_clicks",
+    group: "vendas",
+    label: "Cliques no link rastreável",
+    description: "Cliques no link da campanha medidos pela WeSell.",
     unit: "count",
     direction: "min",
-    sources: [{ network: "instagram", field: "navigation.tap_forward" }],
+    sources: [],
   },
   {
-    id: "story_next",
-    group: "stories",
-    label: "Próximo Story",
-    description: "Deslizes para o Story seguinte.",
+    id: "coupon_uses",
+    group: "vendas",
+    label: "Cupons utilizados",
+    description: "Vezes que o cupom da campanha foi aplicado em pedidos.",
     unit: "count",
     direction: "min",
-    sources: [{ network: "instagram", field: "navigation.swipe_forward" }],
+    sources: [],
   },
   {
-    id: "story_back",
-    group: "stories",
-    label: "Toques para voltar",
-    description: "Toques para rever o quadro anterior.",
+    id: "orders",
+    group: "vendas",
+    label: "Pedidos gerados",
+    description: "Pedidos atribuídos à campanha por link ou cupom.",
     unit: "count",
     direction: "min",
-    sources: [{ network: "instagram", field: "navigation.tap_back" }],
+    sources: [],
   },
   {
-    id: "story_exit",
-    group: "stories",
-    label: "Saídas do Story",
-    description: "Saídas no meio do Story. A meta é um teto.",
-    unit: "count",
-    direction: "max",
-    sources: [{ network: "instagram", field: "navigation.tap_exit" }],
+    id: "revenue",
+    group: "vendas",
+    label: "Receita gerada",
+    description: "Faturamento atribuído à campanha em reais.",
+    unit: "currency",
+    direction: "min",
+    sources: [],
   },
 ]
 
@@ -440,8 +430,8 @@ export const SUCCESS_METRIC_SUGGESTIONS: Record<CampaignType, SuccessMetricId[]>
   seeding: ["views", "saves", "profile_visits"],
   embaixador: ["follows", "views", "saves"],
   live: ["views", "comments", "likes"],
-  conversao: ["bio_link_clicks", "story_link_clicks", "profile_visits", "leads"],
-  afiliado: ["bio_link_clicks", "leads"],
+  conversao: ["tracked_link_clicks", "orders", "revenue", "bio_link_clicks"],
+  afiliado: ["coupon_uses", "orders", "revenue", "tracked_link_clicks"],
 }
 
 export function successMetricById(id: string) {
@@ -451,7 +441,9 @@ export function successMetricById(id: string) {
 export function metricsForNetworks(networks: SocialNetwork[]) {
   if (networks.length === 0) return SUCCESS_METRICS
   const selected = new Set(networks)
-  return SUCCESS_METRICS.filter((metric) => metric.sources.some((source) => selected.has(source.network)))
+  return SUCCESS_METRICS.filter(
+    (metric) => metric.sources.length === 0 || metric.sources.some((source) => selected.has(source.network)),
+  )
 }
 
 export function readSuccessTargets(value: { metric: string; target: number }[] | undefined): CampaignSuccessTarget[] {
@@ -474,6 +466,9 @@ export function suggestSuccessTargets(type: CampaignType, networks: SocialNetwor
 
 export function formatSuccessTarget(metric: SuccessMetric, target: number) {
   if (target <= 0) return "A definir"
+  if (metric.unit === "currency") {
+    return target.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
+  }
   const number = target.toLocaleString("pt-BR")
   if (metric.unit === "percent") return `${number}%`
   if (metric.unit === "seconds") return `${number} s`
@@ -509,5 +504,6 @@ export function unitCaption(metric: SuccessMetric) {
   if (metric.unit === "percent") return `${goal} em %`
   if (metric.unit === "seconds") return `${goal} em segundos`
   if (metric.unit === "minutes") return `${goal} em minutos`
+  if (metric.unit === "currency") return `${goal} em R$`
   return goal
 }

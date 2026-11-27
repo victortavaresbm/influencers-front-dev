@@ -61,6 +61,35 @@ export function CompanyBrief({
     ...(suggestion?.targetNiches ?? []).slice(0, 3),
     ...tiers,
   ].filter((item): item is string => Boolean(item))
+  const porteLabel = company.porte === "grande" ? "Marca grande" : company.porte === "media" ? "Marca média" : company.porte === "pequena" ? "Marca emergente" : null
+  const modeloLabel =
+    company.modeloNegocio === "ecommerce_d2c"
+      ? "E-commerce próprio"
+      : company.modeloNegocio === "app_saas"
+        ? "App ou software"
+        : company.modeloNegocio === "negocio_local"
+          ? "Negócio local"
+          : company.modeloNegocio === "servico_b2b"
+            ? "Serviço B2B"
+            : company.modeloNegocio === "marketplace"
+              ? "Marketplace"
+              : company.modeloNegocio === "institucional"
+                ? "Marca institucional"
+                : null
+  const abrangenciaLabel =
+    company.abrangencia === "local"
+      ? "Atuação local"
+      : company.abrangencia === "regional"
+        ? "Atuação regional"
+        : company.abrangencia === "nacional"
+          ? "Cobertura nacional"
+          : company.abrangencia === "global_br"
+            ? "Global com operação no Brasil"
+            : null
+  const ticketLabel =
+    company.ticketMedio === "alto" ? "Ticket alto" : company.ticketMedio === "medio" ? "Ticket médio" : company.ticketMedio === "baixo" ? "Ticket baixo" : null
+  const dossier = [porteLabel, modeloLabel, abrangenciaLabel, ticketLabel].filter((item): item is string => Boolean(item))
+  const strategyHint = company.recommendedStrategy ? strategyLabel(company.recommendedStrategy) : ""
 
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
@@ -75,12 +104,15 @@ export function CompanyBrief({
       </div>
 
       <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
+        <Fact label="Dossiê" className="sm:col-span-2">
+          {dossier.length ? <Chips items={dossier} /> : null}
+        </Fact>
         <Fact label="Nicho">
           {niche ? <Chips items={[niche]} /> : null}
         </Fact>
-        <Fact label="Estratégia">
-          {suggestion?.strategy || tactics.length ? (
-            <Chips items={[suggestion?.strategy ? strategyLabel(suggestion.strategy) : "", ...tactics].filter(Boolean)} />
+        <Fact label="Orientação de estratégia">
+          {strategyHint || tactics.length ? (
+            <Chips items={[strategyHint ? `Sugestão: ${strategyHint}` : "", ...tactics].filter(Boolean)} />
           ) : null}
         </Fact>
         <Fact label="Público">

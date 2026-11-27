@@ -1,23 +1,41 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { ArrowRight, Banknote, Coins, Cpu, Dumbbell, Eye, Gamepad2, Gift, Globe, ImagePlus, Laugh, Link2, Lock, Megaphone, MessageCircle, Percent, Plane, Radio, RotateCcw, Shirt, ShoppingBag, Sparkles, Sun, Ticket, Users, UtensilsCrossed, Wallet, X } from "lucide-react"
+import { useState } from "react"
+import { ArrowRight, Baby, Banknote, Briefcase, Car, Clapperboard, Coins, Cpu, Dumbbell, Eye, Gamepad2, Gift, Globe, GraduationCap, HeartPulse, Home, Link2, Lock, Megaphone, MessageCircle, PawPrint, Percent, Plane, Radio, RotateCcw, Shirt, ShoppingBag, Sparkles, Sun, Ticket, Users, UtensilsCrossed, X } from "lucide-react"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import { CampaignSuccessTargets } from "@/components/campaigns/campaign-success-targets"
 import { GuidelineLists } from "@/components/campaigns/guideline-list"
-import { AgePills, Choice, MultiChoice, QuestionTitle, Sentence, Token, YesNo } from "@/components/campaigns/wizard/wizard-chrome"
+import { AgePills, Choice, ChoiceCards, MultiChoice, MultiChoiceCards, QuestionTitle, Sentence, Token, YesNo } from "@/components/campaigns/wizard/wizard-chrome"
+import { BannerCoverField } from "@/components/campaigns/wizard/banner-cover-field"
+import { LocationSuggest } from "@/components/campaigns/wizard/location-suggest"
 import { StoreProductPicker } from "@/components/campaigns/wizard/store-product-picker"
 import { AI_ACCOMPANIMENT_CREDIT_COST } from "@/lib/credits"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MarkdownEditor } from "@/components/ui/markdown-editor"
 import { CONTENT_FORMATS, contentFormatByValue } from "@/lib/campaign-types"
-import { AGE_RANGES, REQUIREMENT_FIELDS, STRATEGIES, TACTICS, communityPath } from "@/lib/campaigns/shape"
+import {
+  AGE_RANGES,
+  ENGAGEMENT_MIN_OPTIONS,
+  NICHE_CATALOG,
+  REQUIREMENT_FIELDS,
+  STRATEGIES,
+  TACTICS,
+  availableBannerShowItems,
+  communityPath,
+  defaultBannerShowItems,
+  deriveCampaignType,
+  normalizeBannerShowItems,
+  primaryBannerFee,
+  type BannerShowItem,
+} from "@/lib/campaigns/shape"
+import { isBudgetNotApplicable } from "@/lib/campaigns/wizard-flow"
 import type { WizardStepId } from "@/lib/campaigns/wizard-steps"
 import { brandCreatorIds } from "@/lib/discovery/scope"
-import { isSocialNetwork, normalizeMentions, type Campaign, type ContentFormat, type SocialNetwork } from "@/lib/mock-data/campaigns"
+import { isSocialNetwork, normalizeMentions, type Campaign, type CommissionMode, type ContentFormat, type SocialNetwork } from "@/lib/mock-data/campaigns"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { TIERS } from "@/lib/audience-tiers"
 import type { SeedingProduct } from "@/lib/mock-data/seeding"
@@ -30,32 +48,36 @@ function toggleItem<T extends string>(items: T[] | undefined, value: T) {
 }
 
 const NETWORKS: { id: SocialNetwork; label: string; description: string; icon: typeof SiInstagram; iconClassName: string }[] = [
-  { id: "instagram", label: "Instagram", description: "Reels, stories e feed", icon: SiInstagram, iconClassName: "text-[#E4405F]" },
+  { id: "instagram", label: "Instagram", description: "Reels, Stories e Feed", icon: SiInstagram, iconClassName: "text-[#E4405F]" },
   { id: "tiktok", label: "TikTok", description: "Vídeo curto nativo", icon: SiTiktok, iconClassName: "text-zinc-900" },
-  { id: "youtube", label: "YouTube", description: "Vídeo e shorts", icon: SiYoutube, iconClassName: "text-[#FF0000]" },
+  { id: "youtube", label: "YouTube", description: "Vídeo e Shorts", icon: SiYoutube, iconClassName: "text-[#FF0000]" },
 ]
 
-const NICHE_OPTIONS = [
-  { id: "beleza", label: "Beleza", description: "Maquiagem, pele e cabelo", icon: Sparkles },
-  { id: "moda", label: "Moda", description: "Roupa, calçado e acessório", icon: Shirt },
-  { id: "fitness", label: "Fitness", description: "Treino e bem-estar", icon: Dumbbell },
-  { id: "gastronomia", label: "Gastronomia", description: "Comida e bebida", icon: UtensilsCrossed },
-  { id: "tecnologia", label: "Tecnologia", description: "Produto e software", icon: Cpu },
-  { id: "lifestyle", label: "Lifestyle", description: "Rotina e casa", icon: Sun },
-  { id: "humor", label: "Humor", description: "Entretenimento leve", icon: Laugh },
-  { id: "games", label: "Games", description: "Jogos e cultura gamer", icon: Gamepad2 },
-  { id: "finanças", label: "Finanças", description: "Dinheiro e serviços", icon: Wallet },
-  { id: "viagem", label: "Viagem", description: "Destino e experiência", icon: Plane },
-] as const
+const NICHE_ICONS = {
+  beleza: Sparkles,
+  "saude-bem-estar": HeartPulse,
+  fitness: Dumbbell,
+  moda: Shirt,
+  gastronomia: UtensilsCrossed,
+  lifestyle: Sun,
+  "casa-decoracao": Home,
+  "maternidade-familia": Baby,
+  pets: PawPrint,
+  tecnologia: Cpu,
+  games: Gamepad2,
+  "financas-negocios": Briefcase,
+  educacao: GraduationCap,
+  viagem: Plane,
+  automotivo: Car,
+  "cultura-entretenimento": Clapperboard,
+} as const
 
-const COUNTRY_OPTIONS = [
-  { id: "Brasil", label: "Brasil", mark: "🇧🇷", description: "Português, audiência local" },
-  { id: "Portugal", label: "Portugal", mark: "🇵🇹", description: "Português europeu" },
-  { id: "Estados Unidos", label: "Estados Unidos", mark: "🇺🇸", description: "Inglês" },
-  { id: "França", label: "França", mark: "🇫🇷", description: "Francês" },
-  { id: "Espanha", label: "Espanha", mark: "🇪🇸", description: "Espanhol" },
-  { id: "México", label: "México", mark: "🇲🇽", description: "Espanhol" },
-]
+const NICHE_OPTIONS = NICHE_CATALOG.map((item) => ({
+  id: item.id,
+  label: item.label,
+  description: item.description,
+  icon: NICHE_ICONS[item.id],
+}))
 
 const LANGUAGE_OPTIONS = [
   { id: "Português", label: "Português", mark: "🇧🇷" },
@@ -102,7 +124,6 @@ export function WizardQuestion({
   canClear?: boolean
   filling?: boolean
 }) {
-  const fileRef = useRef<HTMLInputElement>(null)
   const [tag, setTag] = useState("")
   const [mentionNetwork, setMentionNetwork] = useState<SocialNetwork>("instagram")
   const [query, setQuery] = useState("")
@@ -160,12 +181,23 @@ export function WizardQuestion({
         </Sentence>
         <Input data-ai-field="name" maxLength={90} value={draft.name ?? ""} placeholder="Nome da campanha" className="h-12 max-w-xl rounded-xl text-base" onChange={(event) => onChange({ name: event.target.value })} />
         <Sentence pulse={pulse}>
-          O nicho é
-          <Choice field="niche" value={draft.niche} placeholder="escolher" options={NICHE_OPTIONS.map((item) => ({ ...item }))} onPick={(niche) => onChange({ niche })} pulse={pulse} />
+          Os nichos são
+          <MultiChoice
+            field="niche"
+            values={(draft.niches?.length ? draft.niches : draft.niche ? [draft.niche] : []) as typeof NICHE_OPTIONS[number]["id"][]}
+            placeholder="Escolher nichos"
+            options={NICHE_OPTIONS}
+            onToggle={(id) => {
+              const current = draft.niches?.length ? draft.niches : draft.niche ? [draft.niche] : []
+              const niches = toggleItem(current, id)
+              onChange({ niches, niche: niches.join(" · ") || undefined })
+            }}
+            pulse={pulse}
+          />
         </Sentence>
         <div className="max-w-xl space-y-4">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-zinc-900">Período da campanha <span className="font-normal text-zinc-500">opcional</span></p>
+            <p className="text-sm font-medium text-zinc-900">Período da campanha <span className="font-normal text-zinc-500">Opcional</span></p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="campaign-start">Início</Label>
@@ -173,12 +205,44 @@ export function WizardQuestion({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="campaign-end">Fim</Label>
-                <Input id="campaign-end" data-ai-field="endDate" type="date" lang="pt-BR" value={draft.endDate ?? ""} onChange={(event) => onChange({ endDate: event.target.value })} />
+                {draft.endDateNotApplicable ? (
+                  <div className="flex h-9 items-center rounded-md border border-dashed border-sky-200 bg-sky-50 px-3 text-sm font-medium text-sky-900">
+                    Campanha perpétua
+                  </div>
+                ) : (
+                  <Input
+                    id="campaign-end"
+                    data-ai-field="endDate"
+                    type="date"
+                    lang="pt-BR"
+                    value={draft.endDate ?? ""}
+                    onChange={(event) => onChange({ endDate: event.target.value || undefined, endDateNotApplicable: false })}
+                  />
+                )}
               </div>
             </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+              <Checkbox
+                checked={Boolean(draft.endDateNotApplicable)}
+                onCheckedChange={(checked) => onChange(
+                  checked
+                    ? { endDateNotApplicable: true, endDate: undefined }
+                    : { endDateNotApplicable: false },
+                )}
+              />
+              Não há data de encerramento definida
+            </label>
+            {draft.endDateNotApplicable ? (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm leading-relaxed text-sky-950">
+                <p className="font-semibold">Campanha perpétua</p>
+                <p className="mt-0.5 text-sky-900/80">
+                  Sem data de fim, a campanha permanece aberta até você encerrá-la manualmente. Isso aparece na revisão e para o creator.
+                </p>
+              </div>
+            ) : null}
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-zinc-900">Período de candidatura <span className="font-normal text-zinc-500">opcional</span></p>
+            <p className="text-sm font-medium text-zinc-900">Período de candidatura <span className="font-normal text-zinc-500">Opcional</span></p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="application-start">Abre em</Label>
@@ -186,56 +250,36 @@ export function WizardQuestion({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="application-end">Fecha em</Label>
-                <Input id="application-end" data-ai-field="applicationEnd" type="date" lang="pt-BR" value={draft.applicationEnd ?? ""} onChange={(event) => onChange({ applicationEnd: event.target.value })} />
+                {draft.applicationEndNotApplicable ? (
+                  <div className="flex h-9 items-center rounded-md border border-dashed border-zinc-200 px-3 text-sm text-zinc-500">
+                    Sem encerramento
+                  </div>
+                ) : (
+                  <Input
+                    id="application-end"
+                    data-ai-field="applicationEnd"
+                    type="date"
+                    lang="pt-BR"
+                    value={draft.applicationEnd ?? ""}
+                    onChange={(event) => onChange({ applicationEnd: event.target.value || undefined, applicationEndNotApplicable: false })}
+                  />
+                )}
               </div>
             </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+              <Checkbox
+                checked={Boolean(draft.applicationEndNotApplicable)}
+                onCheckedChange={(checked) => onChange(
+                  checked
+                    ? { applicationEndNotApplicable: true, applicationEnd: undefined }
+                    : { applicationEndNotApplicable: false },
+                )}
+              />
+              Não há data de encerramento definida
+            </label>
           </div>
         </div>
-        <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(event) => {
-          const file = event.target.files?.[0]
-          event.target.value = ""
-          if (!file || !file.type.startsWith("image/")) return
-          const reader = new FileReader()
-          reader.onload = () => onChange({ coverImage: String(reader.result ?? "") })
-          reader.readAsDataURL(file)
-        }} />
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-zinc-900">Banner <span className="font-normal text-zinc-500">1080×1920, opcional</span></p>
-          <div className="flex items-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="!h-auto w-36 overflow-hidden rounded-2xl p-0"
-              onClick={() => fileRef.current?.click()}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault()
-                const file = event.dataTransfer.files?.[0]
-                if (!file || !file.type.startsWith("image/")) return
-                const reader = new FileReader()
-                reader.onload = () => onChange({ coverImage: String(reader.result ?? "") })
-                reader.readAsDataURL(file)
-              }}
-            >
-              {draft.coverImage ? (
-                <span className="block aspect-[9/16] w-full bg-cover bg-center" style={{ backgroundImage: `url(${draft.coverImage})` }} role="img" aria-label="Prévia do banner" />
-              ) : (
-                <span className="flex aspect-[9/16] w-full flex-col items-center justify-center gap-2 px-3 text-center text-xs font-medium text-zinc-500">
-                  <ImagePlus className="size-5" />
-                  Escolher imagem
-                </span>
-              )}
-            </Button>
-            {draft.coverImage ? (
-              <div className="space-y-2">
-                <p className="text-xs text-zinc-500">Toque na imagem para trocar.</p>
-                <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ coverImage: "" })}>Remover</Button>
-              </div>
-            ) : (
-              <p className="max-w-48 text-xs leading-relaxed text-zinc-500">Retrato 9:16. Arraste a imagem ou clique para enviar.</p>
-            )}
-          </div>
-        </div>
+        <BannerCoverField value={draft.coverImage} onChange={(coverImage) => onChange({ coverImage })} />
       </div>
     )
   }
@@ -244,17 +288,14 @@ export function WizardQuestion({
     return (
       <div className="space-y-6">
         <QuestionTitle>Qual é a estratégia?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          Estou lançando esta campanha para
-          <Choice
-            field="strategy"
-            value={draft.strategy}
-            placeholder="escolher"
-            options={STRATEGIES.map((item) => ({ id: item.id, label: item.label, description: item.description, icon: STRATEGY_ICONS[item.id] }))}
-            onPick={(strategy) => onChange({ strategy, objective: STRATEGIES.find((item) => item.id === strategy)?.description })}
-            pulse={pulse}
-          />
-        </Sentence>
+        <Sentence pulse={pulse}>Estou lançando esta campanha para:</Sentence>
+        <ChoiceCards
+          field="strategy"
+          value={draft.strategy}
+          options={STRATEGIES.map((item) => ({ id: item.id, label: item.label, description: item.description, icon: STRATEGY_ICONS[item.id] }))}
+          onPick={(strategy) => onChange({ strategy, objective: STRATEGIES.find((item) => item.id === strategy)?.description })}
+          pulse={pulse}
+        />
       </div>
     )
   }
@@ -263,17 +304,14 @@ export function WizardQuestion({
     return (
       <div className="space-y-6">
         <QuestionTitle>Qual é a tática?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          A entrega acontece por
-          <MultiChoice
-            field="tactics"
-            values={draft.tactics ?? []}
-            placeholder="escolher"
-            options={TACTICS.map((item) => ({ id: item.id, label: item.label, description: item.description, icon: TACTIC_ICONS[item.id] }))}
-            onToggle={(id) => onChange({ tactics: toggleItem(draft.tactics, id) })}
-            pulse={pulse}
-          />
-        </Sentence>
+        <Sentence pulse={pulse}>A entrega acontece por:</Sentence>
+        <MultiChoiceCards
+          field="tactics"
+          values={draft.tactics ?? []}
+          options={TACTICS.map((item) => ({ id: item.id, label: item.label, description: item.description, icon: TACTIC_ICONS[item.id] }))}
+          onToggle={(id) => onChange({ tactics: toggleItem(draft.tactics, id) })}
+          pulse={pulse}
+        />
       </div>
     )
   }
@@ -284,12 +322,10 @@ export function WizardQuestion({
         <QuestionTitle>Quem é o público ideal?</QuestionTitle>
         <Sentence pulse={pulse}>
           Estou mirando pessoas em
-          <Choice
+          <LocationSuggest
             field="audienceCountry"
             value={draft.audienceCountry}
-            placeholder="país"
-            options={COUNTRY_OPTIONS}
-            onPick={(audienceCountry) => onChange({ audienceCountry })}
+            onChange={(audienceCountry) => onChange({ audienceCountry })}
             pulse={pulse}
           />
         </Sentence>
@@ -308,16 +344,21 @@ export function WizardQuestion({
         <QuestionTitle>Qual é o perfil ideal de creator?</QuestionTitle>
         <Sentence pulse={pulse}>
           Quero creators de
-          <Choice field="creatorLocation" value={draft.creatorLocation} placeholder="país" options={COUNTRY_OPTIONS} onPick={(creatorLocation) => onChange({ creatorLocation })} pulse={pulse} />
+          <LocationSuggest
+            field="creatorLocation"
+            value={draft.creatorLocation}
+            onChange={(creatorLocation) => onChange({ creatorLocation })}
+            pulse={pulse}
+          />
           que falem
-          <Choice field="creatorLanguage" value={draft.creatorLanguage} placeholder="idioma" options={LANGUAGE_OPTIONS} onPick={(creatorLanguage) => onChange({ creatorLanguage })} pulse={pulse} />
+          <Choice field="creatorLanguage" value={draft.creatorLanguage} placeholder="Idioma" options={LANGUAGE_OPTIONS} onPick={(creatorLanguage) => onChange({ creatorLanguage })} pulse={pulse} />
         </Sentence>
         <Sentence pulse={pulse}>
           Ativos em
           <MultiChoice
             field="targetNetworks"
             values={(draft.targetNetworks ?? []).filter(isSocialNetwork)}
-            placeholder="rede"
+            placeholder="Rede"
             options={NETWORKS.map((item) => ({ id: item.id, label: item.label, description: item.description, icon: item.icon, iconClassName: item.iconClassName }))}
             onToggle={(id) => onChange({ targetNetworks: toggleItem(draft.targetNetworks?.filter(isSocialNetwork), id) })}
             pulse={pulse}
@@ -326,7 +367,7 @@ export function WizardQuestion({
           <MultiChoice
             field="audienceTiers"
             values={draft.audienceTiers ?? []}
-            placeholder="porte"
+            placeholder="Porte"
             options={TIERS.map((item) => ({ id: item.id, label: item.label, description: item.range, icon: Users }))}
             onToggle={(id) => {
               const audienceTiers = toggleItem(draft.audienceTiers, id)
@@ -355,18 +396,17 @@ export function WizardQuestion({
         </div>
         <Sentence pulse={pulse}>
           No nicho
-          <MultiChoice field="targetNiches" values={draft.targetNiches ?? []} placeholder="nicho" options={NICHE_OPTIONS.map((item) => ({ ...item }))} onToggle={(id) => onChange({ targetNiches: toggleItem(draft.targetNiches, id) })} pulse={pulse} />
+          <MultiChoice field="targetNiches" values={(draft.targetNiches ?? []) as typeof NICHE_OPTIONS[number]["id"][]} placeholder="Nicho" options={NICHE_OPTIONS} onToggle={(id) => onChange({ targetNiches: toggleItem(draft.targetNiches, id) })} pulse={pulse} />
           com engajamento mínimo de
           <Choice
             field="minEngagement"
-            value={draft.minEngagement ? String(draft.minEngagement) : undefined}
+            value={typeof draft.minEngagement === "number" ? String(draft.minEngagement) : undefined}
             placeholder="%"
-            options={[
-              { id: "1", label: "1%", description: "Audiência ampla, pouca conversa" },
-              { id: "2", label: "2%", description: "Equilíbrio entre alcance e resposta" },
-              { id: "3.5", label: "3,5%", description: "Comunidade que comenta e salva" },
-              { id: "5", label: "5%", description: "Audiência muito próxima da marca" },
-            ]}
+            options={ENGAGEMENT_MIN_OPTIONS.map((item) => ({
+              id: item.id,
+              label: item.label,
+              description: item.description,
+            }))}
             onPick={(id) => onChange({ minEngagement: Number(id) })}
             pulse={pulse}
           />
@@ -374,7 +414,7 @@ export function WizardQuestion({
         <div className="flex flex-wrap gap-2">
           {REQUIREMENT_FIELDS.map((field) => (
             <Token key={field.id} selected={(draft.requiredCreatorFields ?? []).includes(field.id)} onClick={() => onChange({ requiredCreatorFields: toggleItem(draft.requiredCreatorFields, field.id) })}>
-              Exigir {field.label.toLowerCase()}
+              Exigir {field.label}
             </Token>
           ))}
         </div>
@@ -408,18 +448,21 @@ export function WizardQuestion({
     return (
       <div className="space-y-6">
         <QuestionTitle>Quem pode ver a campanha?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          A campanha fica
-          <Choice
-            field="visibility"
-            value={draft.visibility}
-            placeholder="escolher"
-            options={VISIBILITY_OPTIONS}
-            onPick={(visibility) => onChange({ visibility })}
-            pulse={pulse}
-          />
-          na vitrine
-        </Sentence>
+        <Sentence pulse={pulse}>A campanha fica:</Sentence>
+        <ChoiceCards
+          field="visibility"
+          value={draft.visibility}
+          options={VISIBILITY_OPTIONS}
+          onPick={(visibility) =>
+            onChange(
+              visibility === "secreta"
+                ? { visibility, recommendToMatching: undefined, applicationCap: undefined }
+                : { visibility },
+            )
+          }
+          pulse={pulse}
+          columns={3}
+        />
       </div>
     )
   }
@@ -437,18 +480,37 @@ export function WizardQuestion({
   }
 
   if (step === "cap") {
-    const limited = draft.applicationCap !== undefined
+    const decided = draft.applicationCap !== undefined
+    const limited = decided && (draft.applicationCap ?? 0) >= 1
     return (
       <div className="space-y-6">
         <QuestionTitle>Limitar as candidaturas da vitrine?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          Tirar a campanha da vitrine depois de
-          <YesNo field="applicationCap" value={limited ? true : draft.applicationCap === undefined ? undefined : false} onChange={(next) => onChange({ applicationCap: next ? draft.applicationCap || 100 : undefined })} pulse={pulse} />
-          {limited ? (
-            <Input className="mx-2 inline-flex h-8 w-24 rounded-full text-center" type="number" min={1} value={draft.applicationCap ?? ""} onChange={(event) => onChange({ applicationCap: event.target.value === "" ? undefined : Number(event.target.value) })} />
-          ) : null}
-          candidaturas
-        </Sentence>
+        <YesNo
+          field="applicationCap"
+          value={decided ? limited : undefined}
+          onChange={(next) => onChange({ applicationCap: next ? ((draft.applicationCap ?? 0) >= 1 ? draft.applicationCap : 100) : 0 })}
+          pulse={pulse}
+        />
+        {limited ? (
+          <Sentence pulse={pulse}>
+            Tirar a campanha da vitrine depois de
+            <Input
+              className="mx-2 inline-flex h-8 w-24 rounded-full text-center"
+              type="number"
+              min={1}
+              value={draft.applicationCap ?? ""}
+              onChange={(event) => {
+                const raw = event.target.value
+                if (raw === "") {
+                  onChange({ applicationCap: 100 })
+                  return
+                }
+                onChange({ applicationCap: Math.max(1, Number(raw) || 1) })
+              }}
+            />
+            candidaturas
+          </Sentence>
+        ) : null}
       </div>
     )
   }
@@ -465,36 +527,261 @@ export function WizardQuestion({
   }
 
   if (step === "terms") {
+    const terms = draft.commercialTerms ?? []
+    const hasFixo = terms.includes("fixo")
+    const budgetSkipped = isBudgetNotApplicable(draft)
     return (
       <div className="space-y-6">
         <QuestionTitle>Quais são as condições comerciais?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          A campanha paga com
-          <MultiChoice
-            field="commercialTerms"
-            values={draft.commercialTerms ?? []}
-            placeholder="escolher"
-            options={TERM_OPTIONS}
-            onToggle={(id) => onChange({ commercialTerms: toggleItem(draft.commercialTerms, id) })}
-            pulse={pulse}
-          />
-        </Sentence>
+        <Sentence pulse={pulse}>A campanha paga com:</Sentence>
+        <MultiChoiceCards
+          field="commercialTerms"
+          values={terms}
+          options={TERM_OPTIONS}
+          onToggle={(id) => {
+            const next = toggleItem(terms, id)
+            const nextHasFixo = next.includes("fixo")
+            if (!nextHasFixo) {
+              onChange({
+                commercialTerms: next,
+                budgetNotApplicable: true,
+                budget: undefined,
+                maxInfluencers: undefined,
+              })
+              return
+            }
+            onChange({
+              commercialTerms: next,
+              ...(id === "fixo" ? { budgetNotApplicable: false } : {}),
+            })
+          }}
+          pulse={pulse}
+          columns={3}
+        />
+        {hasFixo ? (
+          <div className="space-y-3 border-t border-zinc-100 pt-5">
+            <Sentence pulse={pulse}>
+              O teto da campanha é R$
+              {budgetSkipped ? (
+                <span className="mx-2 text-zinc-500">Não se aplica</span>
+              ) : (
+                <>
+                  <Input
+                    data-ai-field="budget"
+                    className="mx-2 inline-flex h-8 w-32 rounded-full text-center"
+                    type="number"
+                    min={0}
+                    value={draft.budget ?? ""}
+                    onChange={(event) =>
+                      onChange({
+                        budget: event.target.value === "" ? undefined : Number(event.target.value),
+                        budgetNotApplicable: false,
+                      })
+                    }
+                  />
+                  para até
+                  <Input
+                    data-ai-field="maxInfluencers"
+                    className="mx-2 inline-flex h-8 w-20 rounded-full text-center"
+                    type="number"
+                    min={1}
+                    value={draft.maxInfluencers ?? ""}
+                    onChange={(event) =>
+                      onChange({
+                        maxInfluencers: event.target.value === "" ? undefined : Number(event.target.value),
+                        budgetNotApplicable: false,
+                      })
+                    }
+                  />
+                  influencers
+                </>
+              )}
+            </Sentence>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+              <Checkbox
+                checked={budgetSkipped}
+                onCheckedChange={(checked) =>
+                  onChange(
+                    checked
+                      ? { budgetNotApplicable: true, budget: undefined, maxInfluencers: undefined }
+                      : { budgetNotApplicable: false },
+                  )
+                }
+              />
+              Não se aplica
+            </label>
+          </div>
+        ) : null}
       </div>
     )
   }
 
   if (step === "budget") {
     const terms = draft.commercialTerms ?? []
+    const commissionModes = draft.commissionModes?.length
+      ? draft.commissionModes
+      : draft.commission?.mode
+        ? [draft.commission.mode]
+        : []
+    const contractOnly = terms.includes("comissao") && commissionModes.length === 1 && commissionModes[0] === "contract"
+    const bannerBlocked = contractOnly
+    const percentValue = draft.commissionPercent ?? (draft.commission?.mode === "percent" ? draft.commission.value : undefined)
+    const fixedValue = draft.commissionFixed ?? (draft.commission?.mode === "fixed" ? draft.commission.value : undefined)
+    const availableItems = availableBannerShowItems({
+      commercialTerms: terms,
+      commissionModes,
+      commission: draft.commission,
+    })
+    const bannerOffer = bannerBlocked ? "contact" : draft.bannerOffer
+    const showingOffer = bannerOffer === "show" && !bannerBlocked
+    const selectedItems = showingOffer
+      ? normalizeBannerShowItems(
+          draft.bannerShowItems?.length
+            ? draft.bannerShowItems
+            : draft.bannerOfferKind
+              ? [
+                  ...(availableItems.includes("fixedFee") ? (["fixedFee"] as BannerShowItem[]) : []),
+                  ...(draft.bannerOfferKind === "percent" && availableItems.includes("commissionPercent")
+                    ? (["commissionPercent"] as BannerShowItem[])
+                    : []),
+                  ...(draft.bannerOfferKind === "fixed" && availableItems.includes("commissionFixed")
+                    ? (["commissionFixed"] as BannerShowItem[])
+                    : []),
+                ]
+              : defaultBannerShowItems(availableItems),
+          availableItems,
+        )
+      : []
+    const bothCommissionKinds =
+      availableItems.includes("commissionPercent") && availableItems.includes("commissionFixed")
+    const canCombineFeeAndCommission =
+      availableItems.includes("fixedFee") &&
+      (availableItems.includes("commissionPercent") || availableItems.includes("commissionFixed"))
+
+    function bannerFeePatch(items: BannerShowItem[]) {
+      const normalized = normalizeBannerShowItems(items, availableItems)
+      const amount = primaryBannerFee({
+        bannerShowItems: normalized,
+        fixedFeePerPost: draft.fixedFeePerPost,
+        commissionPercent: percentValue,
+        commissionFixed: fixedValue,
+        commission: draft.commission,
+      })
+      const commissionKind = normalized.includes("commissionPercent")
+        ? "percent" as const
+        : normalized.includes("commissionFixed")
+          ? "fixed" as const
+          : undefined
+      return {
+        bannerOffer: "show" as const,
+        bannerShowItems: normalized,
+        bannerOfferKind: commissionKind,
+        perInfluencerFee: typeof amount === "number" ? amount : undefined,
+      }
+    }
+
+    function enableBannerOffer() {
+      onChange(bannerFeePatch(defaultBannerShowItems(availableItems)))
+    }
+
+    function toggleBannerItem(item: BannerShowItem) {
+      const current = new Set(selectedItems)
+      if (current.has(item)) current.delete(item)
+      else {
+        if (item === "commissionPercent") current.delete("commissionFixed")
+        if (item === "commissionFixed") current.delete("commissionPercent")
+        current.add(item)
+      }
+      const next = [...current] as BannerShowItem[]
+      if (!next.length) {
+        onChange({ bannerOffer: "contact", perInfluencerFee: "contact", bannerShowItems: [], bannerOfferKind: undefined })
+        return
+      }
+      onChange(bannerFeePatch(next))
+    }
+
+    function toggleCommission(mode: CommissionMode) {
+      const selected = new Set(commissionModes)
+      if (mode === "contract") {
+        if (selected.has("contract") && selected.size === 1) {
+          onChange({ commissionModes: [], commission: undefined })
+          return
+        }
+        onChange({
+          commissionModes: ["contract"],
+          commission: { mode: "contract" },
+          commissionPercent: undefined,
+          commissionFixed: undefined,
+          bannerOffer: "contact",
+          perInfluencerFee: "contact",
+          bannerOfferKind: undefined,
+          bannerShowItems: [],
+        })
+        return
+      }
+      selected.delete("contract")
+      if (selected.has(mode)) selected.delete(mode)
+      else selected.add(mode)
+      const modes = [...selected] as Array<"percent" | "fixed" | "contract">
+      const primary = modes.includes("percent") ? "percent" as const : modes.includes("fixed") ? "fixed" as const : undefined
+      const nextAvailable = availableBannerShowItems({
+        commercialTerms: terms,
+        commissionModes: modes,
+        commission: primary ? { mode: primary, value: primary === "percent" ? percentValue : fixedValue } : undefined,
+      })
+      const nextItems = showingOffer
+        ? normalizeBannerShowItems(
+            draft.bannerShowItems,
+            nextAvailable,
+            primary === "percent" ? "commissionPercent" : primary === "fixed" ? "commissionFixed" : undefined,
+          )
+        : []
+      onChange({
+        commissionModes: modes,
+        commission: primary
+          ? {
+              mode: primary,
+              value: primary === "percent" ? percentValue : fixedValue,
+            }
+          : undefined,
+        ...(showingOffer
+          ? bannerFeePatch(nextItems.length ? nextItems : defaultBannerShowItems(nextAvailable))
+          : {}),
+      })
+    }
+
     return (
       <div className="space-y-6">
-        <QuestionTitle>Qual é o orçamento?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          O teto da campanha é R$
-          <Input data-ai-field="budget" className="mx-2 inline-flex h-8 w-32 rounded-full text-center" type="number" min={0} value={draft.budget ?? ""} onChange={(event) => onChange({ budget: event.target.value === "" ? undefined : Number(event.target.value) })} />
-          para até
-          <Input data-ai-field="maxInfluencers" className="mx-2 inline-flex h-8 w-20 rounded-full text-center" type="number" min={1} value={draft.maxInfluencers ?? ""} onChange={(event) => onChange({ maxInfluencers: event.target.value === "" ? undefined : Number(event.target.value) })} />
-          influencers
-        </Sentence>
+        <QuestionTitle>Como remunerar e mostrar a oferta?</QuestionTitle>
+        {terms.includes("fixo") ? (
+          <Sentence pulse={pulse}>
+            O valor fixo por post é R$
+            <Input
+              data-ai-field="fixedFeePerPost"
+              className="mx-2 inline-flex h-8 w-28 rounded-full text-center"
+              type="number"
+              min={1}
+              value={draft.fixedFeePerPost ?? ""}
+              onChange={(event) => {
+                const value = event.target.value === "" ? undefined : Number(event.target.value)
+                onChange({
+                  fixedFeePerPost: value,
+                  ...(showingOffer && selectedItems.includes("fixedFee") && typeof value === "number"
+                    ? {
+                        perInfluencerFee: primaryBannerFee({
+                          bannerShowItems: selectedItems,
+                          fixedFeePerPost: value,
+                          commissionPercent: percentValue,
+                          commissionFixed: fixedValue,
+                          commission: draft.commission,
+                        }),
+                      }
+                    : {}),
+                })
+              }}
+            />
+          </Sentence>
+        ) : null}
         {terms.includes("permuta") ? (
           <div className="space-y-2">
             {(draft.seedingProducts ?? []).map((product) => (
@@ -523,35 +810,180 @@ export function WizardQuestion({
           </div>
         ) : null}
         {terms.includes("comissao") ? (
-          <Sentence pulse={pulse}>
-            A comissão é
-            <Choice
+          <div className="space-y-4">
+            <Sentence pulse={pulse}>A comissão é:</Sentence>
+            <MultiChoiceCards
               field="commission"
-              value={draft.commission?.mode}
-              placeholder="tipo"
+              values={commissionModes}
               options={[
                 { id: "percent" as const, label: "Percentual", description: "Uma parte de cada venda", icon: Percent },
                 { id: "fixed" as const, label: "Valor fixo", description: "Reais por pedido gerado", icon: Banknote },
                 { id: "contract" as const, label: "Contrato", description: "Combinado fora da plataforma", icon: Lock },
               ]}
-              onPick={(mode) => onChange({ commission: { ...draft.commission, mode } })}
+              onToggle={toggleCommission}
               pulse={pulse}
+              columns={3}
             />
-            {draft.commission?.mode && draft.commission.mode !== "contract" ? (
-              <Input className="mx-2 inline-flex h-8 w-24 rounded-full text-center" type="number" min={0} value={draft.commission.value ?? ""} onChange={(event) => onChange({ commission: { mode: draft.commission?.mode ?? "percent", value: event.target.value === "" ? undefined : Number(event.target.value) } })} />
+            {commissionModes.includes("percent") ? (
+              <Sentence pulse={pulse}>
+                O percentual é
+                <Input
+                  className="mx-2 inline-flex h-8 w-24 rounded-full text-center"
+                  type="number"
+                  min={0}
+                  value={percentValue ?? ""}
+                  onChange={(event) => {
+                    const value = event.target.value === "" ? undefined : Number(event.target.value)
+                    onChange({
+                      commissionPercent: value,
+                      commission: { mode: "percent", value },
+                      ...(showingOffer && selectedItems.includes("commissionPercent") && typeof value === "number"
+                        ? {
+                            perInfluencerFee: primaryBannerFee({
+                              bannerShowItems: selectedItems,
+                              fixedFeePerPost: draft.fixedFeePerPost,
+                              commissionPercent: value,
+                              commissionFixed: fixedValue,
+                              commission: { mode: "percent", value },
+                            }),
+                          }
+                        : {}),
+                    })
+                  }}
+                />
+                %
+              </Sentence>
             ) : null}
-          </Sentence>
-        ) : null}
-        <div className="space-y-2">
-          <div>
-            <Token selected={draft.perInfluencerFee === "contact"} onClick={() => onChange({ perInfluencerFee: draft.perInfluencerFee === "contact" ? undefined : "contact" })}>Entre em contato</Token>
-            {draft.perInfluencerFee !== "contact" ? (
-              <Input data-ai-field="perInfluencerFee" className="ml-2 inline-flex h-8 w-36 rounded-full text-center" type="number" min={0} placeholder="Valor por influencer" value={typeof draft.perInfluencerFee === "number" ? draft.perInfluencerFee : ""} onChange={(event) => onChange({ perInfluencerFee: event.target.value === "" ? undefined : Number(event.target.value) })} />
+            {commissionModes.includes("fixed") ? (
+              <Sentence pulse={pulse}>
+                O valor fixo da comissão é R$
+                <Input
+                  className="mx-2 inline-flex h-8 w-28 rounded-full text-center"
+                  type="number"
+                  min={0}
+                  value={fixedValue ?? ""}
+                  onChange={(event) => {
+                    const value = event.target.value === "" ? undefined : Number(event.target.value)
+                    onChange({
+                      commissionFixed: value,
+                      commission: { mode: "fixed", value },
+                      ...(showingOffer && selectedItems.includes("commissionFixed") && typeof value === "number"
+                        ? {
+                            perInfluencerFee: primaryBannerFee({
+                              bannerShowItems: selectedItems,
+                              fixedFeePerPost: draft.fixedFeePerPost,
+                              commissionPercent: percentValue,
+                              commissionFixed: value,
+                              commission: { mode: "fixed", value },
+                            }),
+                          }
+                        : {}),
+                    })
+                  }}
+                />
+              </Sentence>
+            ) : null}
+            {commissionModes.includes("contract") ? (
+              <p className="text-sm text-zinc-500">
+                Comissão por contrato: o valor fica combinado fora da plataforma.
+              </p>
             ) : null}
           </div>
-          <p className="text-sm text-zinc-500">
-            Esse valor (ou “Entre em contato”) aparece no banner da campanha no marketplace.
-          </p>
+        ) : null}
+        <div className={cn("space-y-3", bannerBlocked && "opacity-50")}>
+          <div>
+            <p className="text-sm font-medium text-zinc-900">Oferta no banner do marketplace</p>
+            <p className="mt-1 text-sm text-zinc-500">
+              {bannerBlocked
+                ? "Com comissão por contrato, o banner da campanha no marketplace mostra só “Entre em contato” para os influenciadores."
+                : canCombineFeeAndCommission
+                  ? "Os influenciadores veem isso no banner da campanha no marketplace. Com cachê fixo e comissão, você pode mostrar um, o outro ou os dois. Se houver comissão percentual e fixa, escolha só uma delas."
+                  : bothCommissionKinds
+                    ? "Os influenciadores veem isso no banner da campanha no marketplace. Com comissão percentual e fixa ativas, mostre apenas uma delas."
+                    : "Defina o que os influenciadores veem no banner da campanha no marketplace: a oferta ou “Entre em contato”."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2" data-ai-field="perInfluencerFee">
+            <Token
+              selected={bannerOffer === "contact"}
+              optionId="contact"
+              onClick={bannerBlocked ? undefined : () => onChange({
+                bannerOffer: "contact",
+                perInfluencerFee: "contact",
+                bannerShowItems: [],
+                bannerOfferKind: undefined,
+              })}
+            >
+              Entre em contato
+            </Token>
+            <Token
+              selected={showingOffer}
+              optionId="show"
+              onClick={bannerBlocked ? undefined : enableBannerOffer}
+            >
+              Mostrar oferta aos influenciadores
+            </Token>
+          </div>
+          {showingOffer && availableItems.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase">O que mostrar no banner</p>
+              <div className="flex flex-wrap gap-2">
+                {availableItems.includes("fixedFee") ? (
+                  <Token
+                    selected={selectedItems.includes("fixedFee")}
+                    onClick={() => toggleBannerItem("fixedFee")}
+                  >
+                    Cachê fixo por post
+                    {typeof draft.fixedFeePerPost === "number"
+                      ? ` (${draft.fixedFeePerPost.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })})`
+                      : ""}
+                  </Token>
+                ) : null}
+                {availableItems.includes("commissionPercent") ? (
+                  <Token
+                    selected={selectedItems.includes("commissionPercent")}
+                    onClick={() => toggleBannerItem("commissionPercent")}
+                  >
+                    Comissão percentual
+                    {percentValue !== undefined ? ` (${String(percentValue).replace(".", ",")}%)` : ""}
+                  </Token>
+                ) : null}
+                {availableItems.includes("commissionFixed") ? (
+                  <Token
+                    selected={selectedItems.includes("commissionFixed")}
+                    onClick={() => toggleBannerItem("commissionFixed")}
+                  >
+                    Comissão fixa por pedido
+                    {fixedValue !== undefined
+                      ? ` (${fixedValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })})`
+                      : ""}
+                  </Token>
+                ) : null}
+              </div>
+              {bothCommissionKinds ? (
+                <p className="text-xs text-zinc-500">
+                  Comissão percentual e comissão fixa não podem aparecer juntas — selecione só uma.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {showingOffer ? (
+            <p className="text-sm text-zinc-600">
+              {selectedItems.length
+                ? `No marketplace, os influenciadores veem no banner: ${[
+                    selectedItems.includes("fixedFee") && typeof draft.fixedFeePerPost === "number"
+                      ? `cachê de ${draft.fixedFeePerPost.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}`
+                      : null,
+                    selectedItems.includes("commissionPercent") && percentValue !== undefined
+                      ? `comissão de ${String(percentValue).replace(".", ",")}%`
+                      : null,
+                    selectedItems.includes("commissionFixed") && fixedValue !== undefined
+                      ? `comissão de ${fixedValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })} por pedido`
+                      : null,
+                  ].filter(Boolean).join(" + ") || "defina os valores acima"}.`
+                : "Selecione ao menos um item da oferta para exibir no banner do marketplace."}
+            </p>
+          ) : null}
         </div>
       </div>
     )
@@ -600,38 +1032,42 @@ export function WizardQuestion({
     return (
       <div className="space-y-5">
         <QuestionTitle>O que o creator entrega?</QuestionTitle>
-        <Sentence pulse={pulse}>
-          Os formatos são
-          <MultiChoice
-            field="formatQuantities"
-            values={quantities.map((item) => item.format)}
-            placeholder="escolher"
-            options={CONTENT_FORMATS.map((format) => {
-              const network = NETWORKS.find((item) => item.id === format.network)
-              return { id: format.value, label: format.label, description: `${network?.label ?? ""} · ${format.hint}`, icon: network?.icon ?? format.icon, iconClassName: network?.iconClassName }
+        <Sentence pulse={pulse}>Os formatos são:</Sentence>
+        <MultiChoiceCards
+          field="formatQuantities"
+          values={quantities.map((item) => item.format)}
+          options={CONTENT_FORMATS.map((format) => {
+            const network = NETWORKS.find((item) => item.id === format.network)
+            return { id: format.value, label: format.label, description: `${network?.label ?? ""} · ${format.hint}`, icon: network?.icon ?? format.icon, iconClassName: network?.iconClassName }
+          })}
+          onToggle={toggleFormat}
+          pulse={pulse}
+          columns={3}
+        />
+        {quantities.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-500">Quantidade por formato</p>
+            {quantities.map((item) => {
+              const format = contentFormatByValue(item.format)
+              const network = NETWORKS.find((entry) => entry.id === format?.network)
+              const Icon = network?.icon
+              return (
+                <label key={item.format} className="flex items-center gap-3 text-sm">
+                  {Icon ? <Icon className={cn("size-4", network?.iconClassName)} /> : null}
+                  <span className="w-24">{format?.label}</span>
+                  <Input className="h-8 w-20 rounded-full text-center" type="number" min={1} value={item.quantity} onChange={(event) => onChange({ formatQuantities: quantities.map((current) => current.format === item.format ? { ...current, quantity: Number(event.target.value) || 1 } : current) })} />
+                </label>
+              )
             })}
-            onToggle={toggleFormat}
-            pulse={pulse}
-          />
-        </Sentence>
-        {quantities.map((item) => {
-          const format = contentFormatByValue(item.format)
-          const network = NETWORKS.find((entry) => entry.id === format?.network)
-          const Icon = network?.icon
-          return (
-            <label key={item.format} className="flex items-center gap-3 text-sm">
-              {Icon ? <Icon className={cn("size-4", network.iconClassName)} /> : null}
-              <span className="w-24">{format?.label}</span>
-              <Input className="h-8 w-20 rounded-full text-center" type="number" min={1} value={item.quantity} onChange={(event) => onChange({ formatQuantities: quantities.map((current) => current.format === item.format ? { ...current, quantity: Number(event.target.value) || 1 } : current) })} />
-            </label>
-          )
-        })}
+          </div>
+        ) : null}
       </div>
     )
   }
 
   if (step === "metrics") {
     const mentions = normalizeMentions(draft.mandatoryMentions)
+    const campaignType = draft.type ?? deriveCampaignType(draft)
     return (
       <div className="space-y-5">
         <QuestionTitle>O que a campanha precisa alcançar?</QuestionTitle>
@@ -663,7 +1099,13 @@ export function WizardQuestion({
           ))}
         </div>
         <div data-ai-field="successTargets">
-          <CampaignSuccessTargets networks={(draft.targetNetworks ?? []).filter(isSocialNetwork)} type={draft.type} value={draft.successTargets} onChange={(successTargets) => onChange({ successTargets })} showHeading={false} groups={["alcance", "interacao"]} />
+          <CampaignSuccessTargets
+            networks={(draft.targetNetworks ?? []).filter(isSocialNetwork)}
+            type={campaignType}
+            value={draft.successTargets}
+            onChange={(successTargets) => onChange({ successTargets })}
+            showHeading={false}
+          />
         </div>
       </div>
     )

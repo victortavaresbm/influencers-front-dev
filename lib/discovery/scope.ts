@@ -42,6 +42,9 @@ export function locationTokenLabel(token: string) {
     const [, name, uf] = token.split(":")
     return uf ? `${name}, ${uf}` : name
   }
+  if (token.startsWith("country:")) {
+    return token.slice("country:".length) || token
+  }
   return token
 }
 

@@ -1,3 +1,4 @@
+import { COUNTRIES } from "@/lib/campaigns/shape"
 import type { LocationPlace } from "@/lib/discovery/locations"
 
 interface IbgeState {
@@ -21,6 +22,15 @@ function fold(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "")
 }
 
+const COUNTRY_PLACES: LocationPlace[] = COUNTRIES.map((name) => ({
+  id: `country-${fold(name)}`,
+  kind: "country" as const,
+  name,
+  uf: "",
+  token: `country:${name}`,
+  label: name,
+}))
+
 let placesCache: LocationPlace[] | null = null
 let loading: Promise<LocationPlace[]> | null = null
 
@@ -43,6 +53,7 @@ async function loadPlaces() {
       const states = (await statesResponse.json()) as IbgeState[]
       const cities = (await citiesResponse.json()) as IbgeCity[]
       const places: LocationPlace[] = [
+        ...COUNTRY_PLACES,
         ...states.map((state) => ({
           id: `state-${state.id}`,
           kind: "state" as const,
@@ -76,12 +87,13 @@ async function loadPlaces() {
 function rank(place: LocationPlace, query: string) {
   const name = fold(place.name)
   const uf = place.uf.toLowerCase()
-  if (place.kind === "state" && (uf === query || name === query)) return 0
-  if (name === query) return 1
-  if (name.startsWith(query)) return 2
-  if (uf === query) return 3
-  if (name.includes(query)) return 4
-  return 5
+  if (place.kind === "country" && name === query) return 0
+  if (place.kind === "state" && (uf === query || name === query)) return 1
+  if (name === query) return 2
+  if (name.startsWith(query)) return place.kind === "country" ? 1 : 3
+  if (uf === query) return 4
+  if (name.includes(query)) return 5
+  return 6
 }
 
 export async function GET(request: Request) {
@@ -97,12 +109,13 @@ export async function GET(request: Request) {
       .filter((place) => {
         const name = fold(place.name)
         const uf = place.uf.toLowerCase()
+        if (place.kind === "country") return name.includes(query)
         const capital = uf === query && name === stateNameByUf.get(uf)
         if (query.length <= 2) {
           if (place.kind === "state" && (uf === query || name.startsWith(query))) return true
           return capital || name.startsWith(query)
         }
-        return name.includes(query)
+        return name.includes(query) || uf === query
       })
       .sort((a, b) => rank(a, query) - rank(b, query) || a.label.localeCompare(b.label, "pt"))
       .slice(0, 8)

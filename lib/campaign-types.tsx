@@ -148,7 +148,7 @@ export const CAMPAIGN_TYPE_META: CampaignTypeMeta[] = [
   },
   {
     value: "live",
-    label: "Live commerce",
+    label: "Live Commerce",
     goal: "conteudo",
     description: "Venda ao vivo, com demonstração e oferta na hora.",
     measures: "audiência da live e pedidos",

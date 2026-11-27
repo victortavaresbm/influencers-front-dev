@@ -55,7 +55,7 @@ export function StoreProductCard({ item, selected, onToggle }: { item: PickerIte
       )}
       <span className="flex flex-1 flex-col gap-1 p-2.5">
         <span className="line-clamp-2 text-sm font-medium text-zinc-900">{item.name}</span>
-        {item.priceLabel && <span className="text-xs text-zinc-500">a partir de {item.priceLabel}</span>}
+        {item.priceLabel && <span className="text-xs text-zinc-500">A partir de {item.priceLabel}</span>}
       </span>
     </button>
   )

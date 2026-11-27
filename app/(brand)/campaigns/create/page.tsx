@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Check, Coins, FileText, Flag, Mail, Store } from "lucide-react"
 import { CampaignPreview } from "@/components/campaigns/wizard/campaign-preview"
 import { AiRationalePanel } from "@/components/campaigns/wizard/ai-rationale"
+import { MarketplaceCampaignCard } from "@/components/campaigns/wizard/marketplace-campaign-card"
 import { CompanyBrief } from "@/components/campaigns/wizard/company-brief"
 import { ResearchProgress } from "@/components/campaigns/wizard/research-progress"
 import { Insight, MagicCursor } from "@/components/campaigns/wizard/wizard-chrome"
@@ -15,11 +16,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/toast"
 import { completeCampaignPlan, websiteKey, type AutofillSuggestion, type CompanyProfile } from "@/lib/campaigns/autofill"
-import { buildPublishedCampaign, communityPath } from "@/lib/campaigns/shape"
+import { buildPublishedCampaign, communityPath, snapMinEngagement } from "@/lib/campaigns/shape"
 import { stepSummary } from "@/lib/campaigns/step-summary"
 import { guidelineById } from "@/lib/campaigns/wizard-guidelines"
 import { WIZARD_GROUPS, WIZARD_STEPS, type WizardGroupId } from "@/lib/campaigns/wizard-steps"
-import { budgetReady, canOpen, continueHint, groupPercent, patchEntries, stepByIndex, stepCanContinue, stepDone, stepIndex } from "@/lib/campaigns/wizard-flow"
+import { budgetReady, canOpen, continueHint, groupPercent, isBudgetNotApplicable, nextStepIndex, patchEntries, stepByIndex, stepCanContinue, stepDone, stepIndex, stepVisible } from "@/lib/campaigns/wizard-flow"
 import { AI_ACCOMPANIMENT_CREDIT_COST } from "@/lib/credits"
 import { CREATORS } from "@/lib/mock-data/creators"
 import { useAuthStore } from "@/lib/stores/auth"
@@ -69,14 +70,34 @@ export default function CreateCampaignPage() {
   const rationale = stepRationale(step.id, draft, draft.research?.suggestion, company ?? draft.research?.company)
   const showRationale = Boolean(draft.aiAccompaniment)
 
+  const ensureBudgetDefault = (targetIndex: number) => {
+    const next = stepByIndex(targetIndex)
+    if (next.id !== "budget" && next.id !== "terms") return
+    const current = useCampaignStore.getState().wizardDraft
+    const hasFixo = (current.commercialTerms ?? []).includes("fixo")
+    // Sem Fixo, o teto mora em condições comerciais e não se aplica
+    if (!hasFixo) {
+      if (current.budgetNotApplicable === true && current.budget == null && current.maxInfluencers == null) return
+      updateWizardDraft({ budgetNotApplicable: true, budget: undefined, maxInfluencers: undefined })
+      return
+    }
+    if (current.budgetNotApplicable !== undefined) return
+    if (isBudgetNotApplicable(current)) {
+      updateWizardDraft({ budgetNotApplicable: true, budget: undefined, maxInfluencers: undefined })
+    }
+  }
+
   const goTo = (index: number) => {
     if (filling) return
-    if (canOpen(index, wizardStep, draft)) setWizardStep(index)
+    if (!canOpen(index, wizardStep, draft)) return
+    ensureBudgetDefault(index)
+    setWizardStep(index)
   }
 
   const skip = () => {
     updateWizardDraft({ skippedSteps: [...new Set([...(draft.skippedSteps ?? []), step.id])] })
-    goTo(wizardStep + 1)
+    const latest = useCampaignStore.getState().wizardDraft
+    goTo(nextStepIndex(wizardStep, latest, 1))
   }
 
   const ensureResearch = async () => {
@@ -220,36 +241,44 @@ export default function CreateCampaignPage() {
   const pickOptions = async (field: string, ids: string[], multi = false) => {
     const opened = await openMenu(field)
     if (!opened) return false
+    // Portal do dropdown precisa montar os data-ai-option antes do clique
+    await wait(280)
+    let picked = 0
     for (const id of ids) {
       const option = await optionElement(id)
       if (!option) continue
+      const alreadyChecked =
+        option.getAttribute("data-state") === "checked" ||
+        option.getAttribute("aria-checked") === "true" ||
+        option.querySelector('[data-state="checked"], [aria-checked="true"]') != null
+      if (alreadyChecked) {
+        await pointAtElement(option)
+        picked += 1
+        await wait(160)
+        continue
+      }
       await wandClick(option)
-      await wait(220)
+      picked += 1
+      await wait(260)
     }
     await closeMenu(field)
     if (!multi) await wait(80)
-    return true
+    return picked > 0
   }
 
   const DROPDOWN_FIELDS = new Set([
-    "niche",
-    "strategy",
-    "tactics",
-    "audienceCountry",
-    "creatorLocation",
     "creatorLanguage",
     "targetNetworks",
     "audienceTiers",
     "targetNiches",
     "minEngagement",
-    "visibility",
-    "commercialTerms",
-    "commission",
-    "formatQuantities",
     "formId",
+    "niche",
+    "niches",
   ])
 
-  const INLINE_MULTI = new Set(["audienceAges"])
+  const INLINE_SINGLE = new Set(["strategy", "visibility"])
+  const INLINE_MULTI = new Set(["audienceAges", "tactics", "commercialTerms", "formatQuantities"])
   const YES_NO = new Set(["recommendToMatching", "applicationCap"])
   const LIST_FIELDS = new Set(["doList", "dontList", "productCategories", "mandatoryHashtags"])
 
@@ -281,7 +310,26 @@ export default function CreateCampaignPage() {
       return
     }
 
+    if (key === "applicationCap" && typeof value === "number") {
+      const limited = value >= 1
+      const host = fieldElement(key)
+      if (host) await pointAtElement(host)
+      const option = await optionElement(String(limited))
+      if (option) await wandClick(option)
+      else updateWizardDraft({ applicationCap: limited ? Math.max(1, value) : 0 })
+      return
+    }
+
     if (YES_NO.has(key) && typeof value === "boolean") {
+      const host = fieldElement(key)
+      if (host) await pointAtElement(host)
+      const option = await optionElement(String(value))
+      if (option) await wandClick(option)
+      else updateWizardDraft({ [key]: value })
+      return
+    }
+
+    if (INLINE_SINGLE.has(key) && (typeof value === "string" || typeof value === "number")) {
       const host = fieldElement(key)
       if (host) await pointAtElement(host)
       const option = await optionElement(String(value))
@@ -293,31 +341,60 @@ export default function CreateCampaignPage() {
     if (INLINE_MULTI.has(key) && Array.isArray(value)) {
       const host = fieldElement(key)
       if (host) await pointAtElement(host)
-      for (const item of value) {
-        const option = await optionElement(String(item))
+      const ids = value.map((item) => (item && typeof item === "object" && "format" in item ? String((item as { format: string }).format) : String(item)))
+      for (const id of ids) {
+        const option = await optionElement(id)
         if (option) await wandClick(option)
         await wait(180)
+      }
+      if (key === "formatQuantities") {
+        updateWizardDraft({ formatQuantities: value as never, contentFormats: ids })
+      }
+      return
+    }
+
+    if (key === "commission" && value && typeof value === "object") {
+      const mode = (value as { mode?: string }).mode
+      const amount = (value as { value?: number }).value
+      if (mode) {
+        const host = fieldElement(key)
+        if (host) await pointAtElement(host)
+        const option = await optionElement(mode)
+        if (option) await wandClick(option)
+        updateWizardDraft({
+          commission: value as never,
+          commissionModes: [mode as "percent" | "fixed" | "contract"],
+          ...(mode === "percent" ? { commissionPercent: amount } : {}),
+          ...(mode === "fixed" ? { commissionFixed: amount } : {}),
+          ...(mode === "contract" ? { bannerOffer: "contact" as const, perInfluencerFee: "contact" as const } : {}),
+        })
+        return
+      }
+    }
+
+    if (key === "minEngagement" && typeof value === "number") {
+      const snapped = snapMinEngagement(value) ?? 2
+      const optionId = String(snapped)
+      const ok = await pickOptions(key, [optionId], false)
+      // Radix radio às vezes não aplica só com click programático — garante o valor no draft
+      updateWizardDraft({ minEngagement: snapped })
+      if (!ok) {
+        const host = fieldElement(key)
+        if (host) await pointAtElement(host)
       }
       return
     }
 
     if (DROPDOWN_FIELDS.has(key)) {
-      if (key === "commission" && value && typeof value === "object") {
-        const mode = (value as { mode?: string }).mode
-        if (mode) {
-          const ok = await pickOptions(key, [mode], false)
-          if (!ok) updateWizardDraft({ commission: value as never })
-          else {
-            const current = useCampaignStore.getState().wizardDraft.commission
-            updateWizardDraft({ commission: { ...current, ...(value as object) } as never })
-          }
-          return
-        }
-      }
+      // UI de nichos na identificação usa data-ai-field="niche"
+      const uiField = key === "niches" ? "niche" : key
       if (Array.isArray(value)) {
         const ids = value.map((item) => (item && typeof item === "object" && "format" in item ? String((item as { format: string }).format) : String(item)))
-        const ok = await pickOptions(key, ids, true)
-        if (!ok) {
+        const ok = await pickOptions(uiField, ids, true)
+        if (key === "niches" || key === "niche") {
+          // Garante o estado final mesmo se algum click do menu falhar
+          updateWizardDraft({ niches: ids, niche: ids.join(" · ") || undefined })
+        } else if (!ok) {
           const patch: Record<string, unknown> = { [key]: value }
           if (key === "formatQuantities") patch.contentFormats = ids
           updateWizardDraft(patch)
@@ -325,8 +402,18 @@ export default function CreateCampaignPage() {
         return
       }
       if (typeof value === "string" || typeof value === "number") {
-        const ok = await pickOptions(key, [String(value)], false)
-        if (!ok) updateWizardDraft({ [key]: value })
+        const ids = key === "niche" || key === "niches"
+          ? String(value)
+              .split(/[·,|/]/)
+              .map((item) => item.trim())
+              .filter(Boolean)
+          : [String(value)]
+        const ok = await pickOptions(uiField, ids, ids.length > 1)
+        if (key === "niche" || key === "niches") {
+          updateWizardDraft({ niches: ids, niche: ids.join(" · ") || undefined })
+        } else if (!ok) {
+          updateWizardDraft({ [key]: value })
+        }
         return
       }
     }
@@ -334,7 +421,7 @@ export default function CreateCampaignPage() {
     const target = fieldElement(key)
     if (target) await pointAtElement(target)
 
-    if (typeof value === "string" && ["name", "description", "audienceNotes"].includes(key)) {
+    if (typeof value === "string" && ["name", "description", "audienceNotes", "audienceCountry", "creatorLocation"].includes(key)) {
       const point = target ? target.getBoundingClientRect() : null
       const size = value.length > 90 ? 4 : 1
       const delay = value.length > 90 ? 14 : 26
@@ -354,6 +441,33 @@ export default function CreateCampaignPage() {
       for (let step = 1; step <= steps; step += 1) {
         updateWizardDraft({ [key]: Math.round((value * step) / steps) })
         await wait(45)
+      }
+      return
+    }
+
+    if (key === "successTargets" && Array.isArray(value)) {
+      const host = fieldElement(key)
+      if (host) await pointAtElement(host)
+      const built: { metric: string; target: number }[] = []
+      for (const item of value) {
+        if (!item || typeof item !== "object" || !("metric" in item)) continue
+        const row = item as { metric: string; target?: number }
+        const metric = String(row.metric)
+        const target = Number.isFinite(Number(row.target)) ? Math.max(0, Number(row.target)) : 0
+        if (!metric) continue
+        const option = await optionElement(metric)
+        if (option) {
+          await pointAtElement(option)
+          setClicking(true)
+          await wait(90)
+          setClicking(false)
+          await wait(160)
+        } else if (host) {
+          await pointAtElement(host)
+        }
+        built.push({ metric, target })
+        updateWizardDraft({ successTargets: [...built] })
+        await wait(480)
       }
       return
     }
@@ -395,17 +509,67 @@ export default function CreateCampaignPage() {
       updateWizardDraft({ communityLink: communityPath(organizationId, current.reservedId) })
     }
     let latest = useCampaignStore.getState().wizardDraft
-    if (!canOpen(wizardStep + 1, wizardStep, latest)) return
+    const tentativeNext = nextStepIndex(wizardStep, latest, 1)
+    if (!canOpen(tentativeNext, wizardStep, latest)) return
     if (step.id === "website" && latest.aiAccompaniment) {
       const ready = await ensureResearch()
       if (!ready) return
       latest = useCampaignStore.getState().wizardDraft
     }
-    const nextStep = stepByIndex(wizardStep + 1)
-    const suggestion = latest.aiAccompaniment ? latest.research?.suggestion : undefined
+    // Visibilidade secreta: realinha sugestão e pula recomendação/teto
+    if (step.id === "privacy" && latest.research?.suggestion && latest.research.company) {
+      const suggestion = completeCampaignPlan(
+        {
+          ...latest.research.suggestion,
+          visibility: latest.visibility,
+        },
+        latest.research.company,
+        latest.brandWebsite ?? "",
+      )
+      updateWizardDraft({
+        research: {
+          website: latest.research.website,
+          company: latest.research.company,
+          suggestion,
+        },
+        ...(latest.visibility === "secreta"
+          ? { recommendToMatching: undefined, applicationCap: undefined }
+          : {}),
+      })
+      latest = useCampaignStore.getState().wizardDraft
+    }
+    const nextIndex = nextStepIndex(wizardStep, latest, 1)
+    const nextStep = stepByIndex(nextIndex)
+    ensureBudgetDefault(nextIndex)
+    latest = useCampaignStore.getState().wizardDraft
+    let suggestion = latest.aiAccompaniment ? latest.research?.suggestion : undefined
+    // Ao sair da Estratégia, realinha o plano às decisões confirmadas (grafo reativo)
+    if (
+      suggestion &&
+      latest.research?.company &&
+      latest.strategy &&
+      step.id === "strategy" &&
+      nextStep.id === "tactics"
+    ) {
+      suggestion = completeCampaignPlan(
+        suggestion,
+        latest.research.company,
+        latest.brandWebsite ?? "",
+        "",
+        latest.strategy,
+      )
+      updateWizardDraft({
+        research: {
+          website: latest.research.website,
+          company: latest.research.company,
+          suggestion,
+        },
+      })
+      latest = useCampaignStore.getState().wizardDraft
+    }
     const entries = suggestion ? patchEntries(nextStep.id, suggestion, latest) : []
     if (entries.length) setFilling(true)
-    setWizardStep(wizardStep + 1)
+    setWizardStep(nextIndex)
     if (!entries.length) return
     try {
       await wait(360)
@@ -458,7 +622,7 @@ export default function CreateCampaignPage() {
   return (
     <div className="relative min-h-full flex-1 bg-zinc-50">
       {cursor ? <MagicCursor x={cursor.x} y={cursor.y} clicking={clicking} /> : null}
-      <div className={cn("mx-auto grid min-h-full content-center gap-8 px-4 py-8 lg:px-8", showRationale ? "max-w-7xl lg:grid-cols-[220px_minmax(0,1fr)_280px]" : "max-w-6xl lg:grid-cols-[240px_minmax(0,1fr)]")}>
+      <div className={cn("mx-auto grid min-h-full content-center gap-8 px-4 py-8 lg:px-8", showRationale ? "max-w-7xl lg:grid-cols-[200px_minmax(0,1fr)_300px]" : "max-w-6xl lg:grid-cols-[240px_minmax(0,1fr)]")}>
         <aside className="space-y-3">
           {WIZARD_GROUPS.map((group) => {
             const percent = groupPercent(group.id, draft)
@@ -496,7 +660,7 @@ export default function CreateCampaignPage() {
                 />
                 {open ? (
                   <div className="mt-3 space-y-1 border-t border-zinc-100 pt-2">
-                    {WIZARD_STEPS.filter((item) => item.group === group.id).map((item) => (
+                    {WIZARD_STEPS.filter((item) => item.group === group.id && stepVisible(item.id, draft)).map((item) => (
                       <button
                         key={item.id}
                         type="button"
@@ -556,11 +720,20 @@ export default function CreateCampaignPage() {
               </Insight>
             )}
           </div>
+          {step.id === "preview" ? (
+            <div className="mt-6">
+              <MarketplaceCampaignCard
+                draft={draft}
+                organizationName={user?.organizationName ?? company?.name ?? draft.research?.company?.name ?? ""}
+                organizationPhoto={user?.photo}
+              />
+            </div>
+          ) : null}
           {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
           {hint ? <p className="mt-2 text-sm text-zinc-500">{hint}</p> : null}
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <Button type="button" variant="outline" size="lg" onClick={() => goTo(wizardStep - 1)} disabled={wizardStep === 0 || filling || reading}>
+            <Button type="button" variant="outline" size="lg" onClick={() => goTo(nextStepIndex(wizardStep, draft, -1))} disabled={wizardStep === 0 || filling || reading}>
               Anterior
             </Button>
             <div className="flex flex-wrap items-center justify-end gap-3">
@@ -589,7 +762,15 @@ export default function CreateCampaignPage() {
           </div>
         </div>
 
-        {showRationale ? <AiRationalePanel rationale={rationale} /> : null}
+        {showRationale ? (
+          <AiRationalePanel
+            rationale={rationale}
+            stepId={step.id}
+            draft={draft}
+            suggestion={draft.research?.suggestion}
+            company={company ?? draft.research?.company}
+          />
+        ) : null}
       </div>
     </div>
   )

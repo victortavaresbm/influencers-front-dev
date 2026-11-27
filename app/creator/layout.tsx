@@ -8,16 +8,21 @@ import { CreatorSaleTicker } from "@/components/creator/sale-ticker"
 export default function CreatorLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  const allowed = user?.role === "creator"
 
   useEffect(() => {
     if (!user) router.replace("/login")
     else if (user.role !== "creator") router.replace("/dashboard")
   }, [user, router])
 
-  if (!user || user.role !== "creator") return null
-
+  // Always render `{children}` so Cache Components can validate instant navigation.
+  // Returning null here drops page segments and triggers instant-unrendered-segment.
   return (
-    <div className="flex min-h-screen bg-zinc-50">
+    <div
+      className="flex min-h-screen bg-zinc-50"
+      style={allowed ? undefined : { visibility: "hidden" }}
+      aria-hidden={!allowed}
+    >
       <CreatorSidebar />
       <CreatorSaleTicker />
       <main className="ml-14 flex min-h-screen min-w-0 flex-1 flex-col">{children}</main>

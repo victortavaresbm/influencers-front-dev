@@ -1,5 +1,5 @@
 "use client"
-import { useMemo } from "react"
+import { startTransition, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -49,7 +49,10 @@ export function BrandSidebar() {
   const campaigns = useCampaignStore((s) => s.campaigns)
   const creators = useCreatorStore((s) => s.creators)
   const lists = useListStore((s) => s.lists)
-  const today = todayIso()
+  const [today, setToday] = useState<string | null>(null)
+  useEffect(() => {
+    startTransition(() => setToday(todayIso()))
+  }, [])
   const pendingApprovals = useMemo(() => {
     if (!user?.organizationId) return 0
     const ids = new Set(brandCreatorIds(user.organizationId))
@@ -60,7 +63,7 @@ export function BrandSidebar() {
     return creators.filter((creator) => ids.has(creator.id) && creator.approvalStatus === "pending").length
   }, [creators, lists, user?.organizationId])
   const todayHealth = useMemo(() => {
-    if (!user) return null
+    if (!user || !today) return null
     const slots = buildSchedule(campaigns, today).filter(
       (slot) => slot.organizationId === user.organizationId,
     )

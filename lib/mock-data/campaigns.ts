@@ -170,6 +170,14 @@ export interface Campaign {
   commission?: CampaignCommission
   maxInfluencers?: number
   perInfluencerFee?: number | "contact"
+  /** Banner do marketplace: contato ou oferta visível. */
+  bannerOffer?: "contact" | "show"
+  /**
+   * Itens da oferta no banner.
+   * `commissionPercent` e `commissionFixed` são mutuamente exclusivos;
+   * `fixedFee` pode coexistir com uma das comissões.
+   */
+  bannerShowItems?: Array<"fixedFee" | "commissionPercent" | "commissionFixed">
   termsAccepted?: boolean
 }
 

@@ -15,6 +15,8 @@ import type { StoreProduct } from "@/lib/campaigns/store-products"
 
 export type WizardDraft = Partial<Campaign> & {
   audienceTiers?: string[]
+  /** Nichos da campanha no wizard (múltipla escolha); `niche` guarda o resumo em texto. */
+  niches?: string[]
   seedingMode?: SeedingMode
   daysToPost?: number
   seedingProducts?: SeedingProduct[]
@@ -25,6 +27,24 @@ export type WizardDraft = Partial<Campaign> & {
   reservedId?: string
   research?: CompanyResearch
   aiAccompaniment?: boolean
+  budgetNotApplicable?: boolean
+  /** Campanha sem data de fim definida. */
+  endDateNotApplicable?: boolean
+  /** Candidatura sem data de fechamento definida. */
+  applicationEndNotApplicable?: boolean
+  /** Modos de comissão selecionados no wizard (percent/fixed podem coexistir; contract é exclusivo). */
+  commissionModes?: Array<"percent" | "fixed" | "contract">
+  commissionPercent?: number
+  commissionFixed?: number
+  /** Banner do marketplace: contato ou valor visível. */
+  bannerOffer?: "contact" | "show"
+  /**
+   * Itens da oferta no banner.
+   * Comissão % e comissão fixa são mutuamente exclusivas; cachê fixo pode ir junto com uma delas.
+   */
+  bannerShowItems?: Array<"fixedFee" | "commissionPercent" | "commissionFixed">
+  /** @deprecated Preferir bannerShowItems; mantido para rascunhos antigos. */
+  bannerOfferKind?: "percent" | "fixed"
 }
 
 interface CampaignState {

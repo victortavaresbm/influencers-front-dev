@@ -3,21 +3,15 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Bookmark,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
   CircleCheck,
   ClipboardList,
   Clock,
-  ContactRound,
   Download,
   Eye,
-  GalleryVertical,
   Heart,
   Link,
   Link2,
   ListPlus,
-  LogOut,
   Mail,
   MapPin,
   MessageCircle,
@@ -28,9 +22,11 @@ import {
   Repeat2,
   Reply,
   Share2,
+  ShoppingBag,
   SkipForward,
   SquareMousePointer,
   SquareUser,
+  Ticket,
   Timer,
   UserPlus,
   UserRound,
@@ -62,7 +58,7 @@ const GROUP_ICONS: Record<SuccessMetricGroup, LucideIcon> = {
   interacao: Heart,
   perfil: UserRound,
   conversao: MousePointerClick,
-  stories: GalleryVertical,
+  vendas: ShoppingBag,
 }
 
 const METRIC_ICONS: Record<SuccessMetricId, LucideIcon> = {
@@ -85,7 +81,6 @@ const METRIC_ICONS: Record<SuccessMetricId, LucideIcon> = {
   card_clicks: SquareMousePointer,
   follows: UserPlus,
   profile_visits: SquareUser,
-  profile_actions: ContactRound,
   bio_link_clicks: Link,
   story_link_clicks: Link2,
   call_clicks: Phone,
@@ -94,10 +89,10 @@ const METRIC_ICONS: Record<SuccessMetricId, LucideIcon> = {
   text_clicks: MessageSquare,
   app_download_clicks: Download,
   leads: ClipboardList,
-  story_forward: ChevronRight,
-  story_next: ChevronsRight,
-  story_back: ChevronLeft,
-  story_exit: LogOut,
+  tracked_link_clicks: Link2,
+  coupon_uses: Ticket,
+  orders: ShoppingBag,
+  revenue: ShoppingBag,
 }
 
 function metricNetworks(metric: SuccessMetric, networks: SocialNetwork[]) {
@@ -206,6 +201,7 @@ export function CampaignSuccessTargets({
                   return (
                     <div
                       key={metric.id}
+                      data-ai-option={metric.id}
                       className={cn(
                         "flex items-start gap-3 rounded-xl border p-3",
                         checked ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 bg-white",
@@ -230,12 +226,16 @@ export function CampaignSuccessTargets({
                           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="text-sm font-semibold text-zinc-900">{metric.label}</span>
                             <span className="inline-flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
-                              {shownNetworks.map((network) => (
-                                <span key={network} className="inline-flex items-center gap-1">
-                                  <NetworkMark network={network} />
-                                  {SOCIAL_NETWORK_LABEL[network]}
-                                </span>
-                              ))}
+                              {shownNetworks.length === 0 ? (
+                                <span>WeSell</span>
+                              ) : (
+                                shownNetworks.map((network) => (
+                                  <span key={network} className="inline-flex items-center gap-1">
+                                    <NetworkMark network={network} />
+                                    {SOCIAL_NETWORK_LABEL[network]}
+                                  </span>
+                                ))
+                              )}
                             </span>
                           </span>
                           <span className="mt-0.5 block text-xs leading-relaxed text-zinc-500">{metric.description}</span>
