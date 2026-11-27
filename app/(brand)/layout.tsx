@@ -13,7 +13,8 @@ export default function BrandLayout({ children }: { children: React.ReactNode })
   const marcaId = useMarcaStore((s) => s.marcaId)
 
   useEffect(() => {
-    if (!user) router.replace("/login")
+    // Keeps the path and query (e.g. a store's ?status=ok) for after the login.
+    if (!user) router.replace("/login?return=" + encodeURIComponent(window.location.pathname + window.location.search))
     else if (user.role !== "brand") router.replace("/creator/dashboard")
   }, [user, router])
 
