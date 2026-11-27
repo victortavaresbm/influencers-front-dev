@@ -1,13 +1,11 @@
 "use client"
 import { useCallback, useEffect, useState } from "react"
-import { Flame, Store, type LucideIcon } from "lucide-react"
-import { SiShopify } from "react-icons/si"
-import type { IconType } from "react-icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { HotmartConnectDialog } from "@/components/settings/hotmart-connect-dialog"
+import { PLATFORMS } from "@/components/integrations/store-platforms"
 import { toast } from "@/components/ui/toast"
 import { apiErrorMessage } from "@/lib/api/errors"
 import { useApi } from "@/lib/api/use-api"
@@ -22,11 +20,6 @@ import {
   type StorePlatform,
 } from "@/lib/integrations/stores"
 
-const PLATFORMS: { id: StorePlatform; name: string; icon: LucideIcon | IconType }[] = [
-  { id: "nuvemshop", name: "Nuvemshop", icon: Store },
-  { id: "shopify", name: "Shopify", icon: SiShopify },
-  { id: "hotmart", name: "Hotmart", icon: Flame },
-]
 
 const STATE_LABEL: Record<StoreCard["state"], MessageKey> = {
   active: "settings.connected",

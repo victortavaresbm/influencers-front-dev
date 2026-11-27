@@ -1,8 +1,9 @@
 "use client"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { RefreshCw, Search } from "lucide-react"
+import { ChevronDown, RefreshCw, Search } from "lucide-react"
 import { StoreProductCard } from "@/components/campaigns/wizard/store-product-card"
+import { platformMeta } from "@/components/integrations/store-platforms"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/toast"
@@ -17,7 +18,8 @@ const PAGE = 24
 
 interface StoreGroup {
   connectionId: string
-  label: string
+  platform: string
+  store: string | null
   items: PickerItem[]
 }
 
@@ -33,7 +35,9 @@ export function StoreProductPicker({
   const { t, locale } = useI18n()
   const { signedIn, marcaId, request } = useApi()
   const [query, setQuery] = useState("")
-  const [shown, setShown] = useState(PAGE)
+  // Per store: how many cards show, and whether the section is collapsed.
+  const [shown, setShown] = useState<Record<string, number>>({})
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [groups, setGroups] = useState<StoreGroup[] | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [reloads, setReloads] = useState(0)
@@ -48,7 +52,8 @@ export function StoreProductPicker({
       return Promise.all(
         active.map(async (c) => ({
           connectionId: c.id,
-          label: c.storeIdentifier ?? c.platform,
+          platform: c.platform,
+          store: c.storeIdentifier,
           items: toPickerItems(c.id, await request<ProductSelectionView>("GET", `${CONNECTIONS}/${c.id}/products-selection`), locale),
         }))
       )
@@ -89,20 +94,11 @@ export function StoreProductPicker({
 
   let body: React.ReactNode
   if (!signedIn) body = <p className="text-sm text-zinc-500">Entre com conta real para usar os produtos da sua loja.</p>
-  else if (!marcaId) body = <p className="text-sm text-zinc-500">Defina a Marca ativa em {settingsLink}.</p>
+  else if (!marcaId) body = <p className="text-sm text-zinc-500">Escolha uma Marca para ver os produtos.</p>
   else if (error !== null) body = <p className="text-sm text-red-600">{apiErrorMessage(t, error)}</p>
   else if (groups === null) body = <p className="text-sm text-zinc-500">Carregando produtos…</p>
   else if (groups.length === 0) body = <p className="text-sm text-zinc-500">Nenhuma loja conectada. Conecte em {settingsLink}.</p>
   else {
-    const matching = groups.map((group) => ({ ...group, matches: filterItems(group.items, query) }))
-    // Show the first `shown` matches across stores, in store order.
-    const starts = matching.map((_, index) => matching.slice(0, index).reduce((sum, g) => sum + g.matches.length, 0))
-    const visible = matching.map((group, index) => ({
-      ...group,
-      items: group.matches.slice(0, Math.max(shown - starts[index], 0)),
-      total: group.matches.length,
-    }))
-    const hidden = matching.reduce((sum, group) => sum + group.matches.length, 0) - shown
     body = (
       <>
         <div className="relative">
@@ -114,46 +110,80 @@ export function StoreProductPicker({
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
-              setShown(PAGE)
+              setShown({})
             }}
           />
         </div>
-        {visible.map((group) => (
-          <div key={group.connectionId} className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{group.label}</p>
-            {group.total === 0 ? (
-              <p className="text-sm text-zinc-500">
-                {query.trim() ? "Nenhum produto com esse nome." : <>Nenhum produto ainda. Use &ldquo;Atualizar da loja&rdquo;.</>}
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {group.items.map((item) => (
-                  <StoreProductCard
-                    key={item.key}
-                    item={item}
-                    selected={selected.has(item.key)}
-                    onToggle={() =>
-                      onChange(
-                        toggleStoreProduct(value, {
-                          connectionId: item.connectionId,
-                          externalProductId: item.externalProductId,
-                          name: item.name,
-                          imageUrl: item.imageUrl,
-                          priceLabel: item.priceLabel,
-                        })
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-        {hidden > 0 && (
-          <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setShown((n) => n + PAGE)}>
-            Mostrar mais ({hidden})
-          </Button>
-        )}
+        {groups.map((group) => {
+          const matches = filterItems(group.items, query)
+          const limit = shown[group.connectionId] ?? PAGE
+          const open = !collapsed[group.connectionId]
+          const picked = group.items.filter((item) => selected.has(item.key)).length
+          const { name, icon: Icon } = platformMeta(group.platform)
+          return (
+            <section key={group.connectionId} className="rounded-lg border border-zinc-200">
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => setCollapsed((c) => ({ ...c, [group.connectionId]: open }))}
+                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700">
+                  <Icon size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-zinc-900">{name}</span>
+                  {group.store && <span className="block truncate text-xs text-zinc-500">{group.store}</span>}
+                </span>
+                <span className="shrink-0 text-xs text-zinc-500">
+                  {picked > 0 ? `${picked} de ${group.items.length} escolhidos` : `${group.items.length} produtos`}
+                </span>
+                <ChevronDown size={16} className={`shrink-0 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+              </button>
+              {open && (
+                <div className="space-y-3 border-t border-zinc-200 p-3">
+                  {matches.length === 0 ? (
+                    <p className="text-sm text-zinc-500">
+                      {query.trim() ? "Nenhum produto com esse nome." : <>Nenhum produto ainda. Use &ldquo;Atualizar da loja&rdquo;.</>}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                      {matches.slice(0, limit).map((item) => (
+                        <StoreProductCard
+                          key={item.key}
+                          item={item}
+                          selected={selected.has(item.key)}
+                          onToggle={() =>
+                            onChange(
+                              toggleStoreProduct(value, {
+                                connectionId: item.connectionId,
+                                externalProductId: item.externalProductId,
+                                name: item.name,
+                                imageUrl: item.imageUrl,
+                                priceLabel: item.priceLabel,
+                              })
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {matches.length > limit && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setShown((s) => ({ ...s, [group.connectionId]: limit + PAGE }))}
+                    >
+                      Mostrar mais ({matches.length - limit})
+                    </Button>
+                  )}
+                </div>
+              )}
+            </section>
+          )
+        })}
       </>
     )
   }
