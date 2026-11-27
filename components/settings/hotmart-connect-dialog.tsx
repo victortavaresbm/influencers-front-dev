@@ -267,38 +267,37 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
               {t("hotmart.s3.link")}
             </ExternalLink>,
             t("hotmart.s3.register"),
-            t("hotmart.s3.paste"),
-            t("hotmart.s3.events"),
-            t("hotmart.s3.save"),
+            t("hotmart.s3.fill"),
           ]}
           help={HOTMART_LINKS.webhookHelp}
         />
-        <CopyRow label={t("hotmart.webhookTitle")} value={view.webhookUrl} onCopy={copy} copyLabel={t("hotmart.copyUrl")} />
-        <p className="text-xs text-amber-700">{t("hotmart.webhookSecret")}</p>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-zinc-700">{t("hotmart.events")}</p>
-            <Button type="button" variant="ghost" size="xs" onClick={() => void copy(HOTMART_EVENTS.join("\n"))}>
-              <Copy data-icon="inline-start" />
-              {t("hotmart.copyAll")}
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {HOTMART_EVENTS.map((event) => (
-              <Button
-                key={event}
-                type="button"
-                variant="outline"
-                size="xs"
-                aria-label={t("hotmart.copy", { value: event })}
-                onClick={() => void copy(event)}
-              >
-                <span className="font-mono">{event}</span>
-                <Copy data-icon="inline-end" />
+        <dl className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 text-sm">
+          <FormRow label={t("hotmart.form.name")}>{t("hotmart.form.nameValue")}</FormRow>
+          <FormRow label={t("hotmart.form.url")}>
+            <div className="flex items-start gap-2">
+              <code className="min-w-0 flex-1 rounded-md bg-zinc-100 px-2 py-1.5 font-mono text-xs break-all text-zinc-800">{view.webhookUrl}</code>
+              <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void copy(view.webhookUrl)}>
+                <Copy />
+                {t("hotmart.copyUrl")}
               </Button>
-            ))}
-          </div>
-        </div>
+            </div>
+            <p className="mt-1.5 text-xs text-amber-700">{t("hotmart.webhookSecret")}</p>
+          </FormRow>
+          <FormRow label={t("hotmart.form.version")}>{t("hotmart.form.versionValue")}</FormRow>
+          <FormRow label={t("hotmart.form.product")}>{t("hotmart.form.productValue")}</FormRow>
+          <FormRow label={t("hotmart.form.events")}>
+            <ul className="space-y-1">
+              {HOTMART_EVENTS.map((event) => (
+                <li key={event} className="flex items-center gap-2">
+                  <Check className="size-3.5 shrink-0 text-emerald-600" />
+                  <span>{t(`hotmart.event.${event}`)}</span>
+                  <span className="font-mono text-[11px] text-zinc-400">{event}</span>
+                </li>
+              ))}
+            </ul>
+          </FormRow>
+        </dl>
+        <p className="text-sm text-zinc-700">{t("hotmart.s3.save")}</p>
       </>
     )
     footer = (
@@ -430,17 +429,11 @@ function ExternalLink({ href, className, children }: { href: string; className?:
   )
 }
 
-function CopyRow({ label, value, copyLabel, onCopy }: { label: string; value: string; copyLabel: string; onCopy: (value: string) => void }) {
+function FormRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-zinc-700">{label}</p>
-      <div className="flex items-start gap-2">
-        <code className="min-w-0 flex-1 rounded-md bg-zinc-100 px-2 py-1.5 font-mono text-xs break-all text-zinc-800">{value}</code>
-        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => onCopy(value)}>
-          <Copy />
-          {copyLabel}
-        </Button>
-      </div>
+    <div className="grid gap-1 px-3 py-2.5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-xs font-medium text-zinc-500 sm:pt-0.5">{label}</dt>
+      <dd className="min-w-0 text-zinc-800">{children}</dd>
     </div>
   )
 }
