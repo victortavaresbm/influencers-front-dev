@@ -164,9 +164,9 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
       <>
         <Instructions
           items={[
-            <>
-              {t("hotmart.s1.open")} <ExternalLink href={HOTMART_LINKS.tools}>{t("hotmart.openTools")}</ExternalLink>
-            </>,
+            <ExternalLink key="link" href={HOTMART_LINKS.credentials}>
+              {t("hotmart.s1.link")}
+            </ExternalLink>,
             t("hotmart.s1.create"),
             t("hotmart.s1.copy"),
           ]}
@@ -228,9 +228,9 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
       <>
         <Instructions
           items={[
-            <>
-              {t("hotmart.s2.open")} <ExternalLink href={HOTMART_LINKS.tools}>{t("hotmart.openTools")}</ExternalLink>
-            </>,
+            <ExternalLink key="link" href={HOTMART_LINKS.hottok}>
+              {t("hotmart.s2.link")}
+            </ExternalLink>,
             t("hotmart.s2.copy"),
           ]}
           help={HOTMART_LINKS.webhookHelp}
@@ -263,9 +263,10 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
       <>
         <Instructions
           items={[
-            <>
-              {t("hotmart.s3.open")} <ExternalLink href={HOTMART_LINKS.tools}>{t("hotmart.openTools")}</ExternalLink>
-            </>,
+            <ExternalLink key="link" href={HOTMART_LINKS.webhook}>
+              {t("hotmart.s3.link")}
+            </ExternalLink>,
+            t("hotmart.s3.register"),
             t("hotmart.s3.paste"),
             t("hotmart.s3.events"),
             t("hotmart.s3.save"),
@@ -349,9 +350,9 @@ function HotmartGuide({ onConnected }: { onConnected: () => void }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <Stepper current={phase} />
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <h3 className="text-base font-semibold text-zinc-900">{t(STEPS[phase - 1])}</h3>
         {body}
       </div>
@@ -433,9 +434,9 @@ function CopyRow({ label, value, copyLabel, onCopy }: { label: string; value: st
   return (
     <div className="space-y-1">
       <p className="text-xs font-medium text-zinc-700">{label}</p>
-      <div className="flex items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-md bg-zinc-100 px-2 py-1.5 font-mono text-xs text-zinc-800">{value}</code>
-        <Button type="button" variant="outline" size="sm" onClick={() => onCopy(value)}>
+      <div className="flex items-start gap-2">
+        <code className="min-w-0 flex-1 rounded-md bg-zinc-100 px-2 py-1.5 font-mono text-xs break-all text-zinc-800">{value}</code>
+        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => onCopy(value)}>
           <Copy />
           {copyLabel}
         </Button>

@@ -103,10 +103,11 @@ export function nextActivationCheck(state: ConnectionState, elapsedMs: number): 
   return elapsedMs >= ACTIVATION_LIMIT_MS ? { done: "timeout" } : { waitMs: ACTIVATION_POLL_MS }
 }
 
-// Where each step sends the Marca. Hotmart has no documented deep links into
-// Ferramentas; the help articles are the official ones.
+// Where each step sends the Marca on Hotmart, plus the official help articles.
 export const HOTMART_LINKS = {
-  tools: "https://app.hotmart.com/tools",
+  credentials: "https://app.hotmart.com/tools/credentials",
+  hottok: "https://app.hotmart.com/tools/webhook/auth",
+  webhook: "https://app.hotmart.com/tools/webhook",
   credentialsHelp:
     "https://help.hotmart.com/pt-br/article/4403617024013/como-utilizo-as-apis-da-hotmart-e-o-hotmart-developers-para-integrar-meu-negocio-",
   webhookHelp: "https://help.hotmart.com/pt-br/article/como-configurar-sua-api-atraves-do-webhook-postback-/360001491352",
